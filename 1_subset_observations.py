@@ -52,3 +52,23 @@ fdc_df.to_csv('data_1_historical_csv/observed_fdc.csv')
 fdc_df.div(mean_annual_flow).to_csv('data_1_historical_csv/observed_fdc_normalized.csv')
 ma_df.to_csv('data_1_historical_csv/observed_monavg.csv')
 ma_df.div(mean_annual_flow).to_csv('data_1_historical_csv/observed_monavg_normalized.csv')
+
+
+# need to make sure that there are no invalid observational datasets
+import glob
+import os
+csv_ids = []
+for csv in glob.glob('data_0_inputs/ideam_raw_csvs/*.csv'):
+    csv_ids.append(os.path.splitext(os.path.basename(csv))[0])
+csv_ids = sorted(csv_ids)
+print(csv_ids)
+print(len(csv_ids))
+a = pd.read_csv('data_1_historical_csv/observed_monavg_normalized.csv', index_col=0)
+monavg_col_ids = sorted(a.columns.tolist())
+print(monavg_col_ids)
+print(len(monavg_col_ids))
+
+a = pd.read_csv('data_1_historical_csv/observed_fdc_normalized.csv', index_col=0)
+fdc_col_ids = sorted(a.columns.tolist())
+print(fdc_col_ids)
+print(len(fdc_col_ids))

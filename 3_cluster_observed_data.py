@@ -29,7 +29,6 @@ sz = time_series.shape[1]
 km = TimeSeriesKMeans.from_pickle('data_2_cluster_simulations/fdc_eucl_kmeans_16cluster_model.pickle')
 n_clusters = km.n_clusters
 assigned_clusters_fdc = km.predict(time_series)
-print(assigned_clusters_fdc.shape)
 
 fig = plt.figure(figsize=(30, 15), dpi=350)
 for yi in range(n_clusters):
@@ -55,7 +54,6 @@ sz = time_series.shape[1]
 km = TimeSeriesKMeans.from_pickle('data_2_cluster_simulations/monavg_eucl_kmeans_16cluster_model.pickle')
 n_clusters = km.n_clusters
 assigned_clusters_ma = km.predict(time_series)
-print(assigned_clusters_ma.shape)
 
 fig = plt.figure(figsize=(30, 15), dpi=350)
 for yi in range(n_clusters):
