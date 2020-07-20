@@ -1,3 +1,4 @@
+import os
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,13 +34,18 @@ n_clusters = km.n_clusters
 """
 
 
-def fit_kmeans_clusters(series: np.array, name: str, n_clusters: int = 12):
+def fit_kmeans_clusters(series: np.array, name: str, save_dir: str, n_clusters: int = 12):
     km = TimeSeriesKMeans(n_clusters=n_clusters, verbose=True, random_state=0)
-    assigned_clusters = km.fit_predict(series)
-    km.to_pickle(f'data_2_cluster_simulations/{name}_eucl_kmeans_{n_clusters}cluster_model.pickle')
+    km.fit_predict(series)
+    km.to_pickle(os.path.join(save_dir, f'{name}_{n_clusters}cluster_model.pickle'))
+    return km
 
+
+def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: str):
     sz = series.shape[1]
     fig = plt.figure(figsize=(30, 15), dpi=450)
+    n_clusters = km.n_clusters
+    assigned_clusters = km.labels_
     for yi in range(n_clusters):
         plt.subplot(2, math.ceil(n_clusters / 2), yi + 1)
         for xx in series[assigned_clusters == yi]:
@@ -52,22 +58,44 @@ def fit_kmeans_clusters(series: np.array, name: str, n_clusters: int = 12):
             plt.title("Euclidean $k$-means")
 
     plt.tight_layout()
-    fig.savefig(f'data_2_cluster_simulations/{name}_eucl_kmeans_{n_clusters}cluster.png')
+    fig.savefig(os.path.join(save_dir, f'{name}_{n_clusters}cluster.png'))
     return
 
 
 clusters = 12
+model_dir = '/Users/riley/code/basin_matching/data_2_clusters'
 
-print('starting fdc')
+print('starting sim_fdc')
 # fit the simulated fdc groups
 time_series = pd.read_csv('data_1_historical_csv/simulated_fdc_normalized.csv', index_col=0).dropna(axis=1)
 time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-fit_kmeans_clusters(time_series, 'fdc', clusters)
+km = fit_kmeans_clusters(time_series, 'sim_fdc', model_dir, clusters)
+plot_clusters(time_series, km, model_dir, 'sim_fdc')
 
-print('starting monavg')
-# fit the simulated monthly average groups
+print('starting sim_monavg')
+# fit the simulated monthly average (seasonality) groups
 time_series = pd.read_csv('data_1_historical_csv/simulated_monavg_normalized.csv', index_col=0).dropna(axis=1)
 time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-fit_kmeans_clusters(time_series, 'monavg', clusters)
+km = fit_kmeans_clusters(time_series, 'sim_monavg', model_dir, clusters)
+plot_clusters(time_series, km, model_dir, 'sim_monavg')
+
+
+clusters = 6
+
+print('starting obs_fdc')
+# predict the observational fdc groups
+time_series = pd.read_csv('data_1_historical_csv/observed_fdc_normalized.csv', index_col=0).dropna(axis=1)
+time_series = np.transpose(time_series.values)
+time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
+km = fit_kmeans_clusters(time_series, 'obs_fdc', model_dir, clusters)
+plot_clusters(time_series, km, model_dir, 'obs_fdc')
+
+print('starting obs_monavg')
+# predict the observational monthly average (seasonality) groups
+time_series = pd.read_csv('data_1_historical_csv/observed_monavg_normalized.csv', index_col=0).dropna(axis=1)
+time_series = np.transpose(time_series.values)
+time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
+km = fit_kmeans_clusters(time_series, 'obs_monavg', model_dir, clusters)
+plot_clusters(time_series, km, model_dir, 'obs_monavg')

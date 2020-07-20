@@ -25,7 +25,7 @@ def predict_kmeans_clusters(series: np.array, name: str, n_clusters: int = 12):
             plt.title("Euclidean $k$-means")
 
     plt.tight_layout()
-    fig.savefig(f'data_3_cluster_observations/{name}_eucl_kmeans_{n_clusters}cluster.png')
+    fig.savefig(f'data_3_pairbasins/{name}_eucl_kmeans_{n_clusters}cluster.png')
     return assigned_clusters
 
 
@@ -33,23 +33,23 @@ clusters = 12
 
 print('starting fdc')
 # predict the observational fdc groups
-time_series = pd.read_csv('data_1_historical_csv/observed_fdc_normalized.csv', index_col=0).dropna(axis=1)
+time_series = pd.read_csv('../data_1_historical_csv/observed_fdc_normalized.csv', index_col=0).dropna(axis=1)
 time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 assigned_clusters_fdc = predict_kmeans_clusters(time_series, 'fdc', clusters)
 
 print('starting monavg')
 # predict the observational monthly average (seasonality) groups
-time_series = pd.read_csv('data_1_historical_csv/observed_monavg_normalized.csv', index_col=0).dropna(axis=1)
+time_series = pd.read_csv('../data_1_historical_csv/observed_monavg_normalized.csv', index_col=0).dropna(axis=1)
 time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 assigned_clusters_ma = predict_kmeans_clusters(time_series, 'monavg', clusters)
 
 # save the clustering assignments to a csv file so we can pair them later
-station_ids = pd.read_csv('data_1_historical_csv/observed_fdc_normalized.csv', index_col=0).columns.values
+station_ids = pd.read_csv('../data_1_historical_csv/observed_fdc_normalized.csv', index_col=0).columns.values
 print(station_ids.shape)
 print(assigned_clusters_fdc.shape)
 print(assigned_clusters_ma.shape)
 pd.DataFrame(np.transpose([station_ids, assigned_clusters_fdc, assigned_clusters_ma]),
              columns=('ID', 'obs_ma_cluster', 'obs_fdc_cluster')).to_csv(
-    'data_3_cluster_observations/observation_clusters.csv', index=False)
+    '../data_3_pairbasins/observation_clusters.csv', index=False)
