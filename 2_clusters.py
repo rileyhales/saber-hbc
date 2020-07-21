@@ -65,7 +65,7 @@ def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: s
 model_dir = '/Users/riley/code/basin_matching/data_2_clusters'
 
 
-clusters = 12
+clusters = 20
 
 print('starting sim_fdc')
 # fit the simulated fdc groups
@@ -81,9 +81,6 @@ time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 km = fit_kmeans_clusters(time_series, 'sim_monavg', model_dir, clusters)
 plot_clusters(time_series, km, model_dir, 'sim_monavg')
-
-
-clusters = 10
 
 print('starting obs_fdc')
 # predict the observational fdc groups
