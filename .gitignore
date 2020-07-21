@@ -131,3 +131,12 @@ dmypy.json
 # Pycharm project folder
 .idea/
 *.png
+
+# Spatial data
+*.zip
+*.nc*
+*.geojson
+south_america-geoglows-drainageline/
+south_america-geoglows-catchment/
+south_america-geoglows-boundary/
+magdalena_watershed_shp/

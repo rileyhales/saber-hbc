@@ -62,8 +62,10 @@ def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: s
     return
 
 
-clusters = 12
 model_dir = '/Users/riley/code/basin_matching/data_2_clusters'
+
+
+clusters = 12
 
 print('starting sim_fdc')
 # fit the simulated fdc groups
@@ -72,7 +74,6 @@ time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 km = fit_kmeans_clusters(time_series, 'sim_fdc', model_dir, clusters)
 plot_clusters(time_series, km, model_dir, 'sim_fdc')
-
 print('starting sim_monavg')
 # fit the simulated monthly average (seasonality) groups
 time_series = pd.read_csv('data_1_historical_csv/simulated_monavg_normalized.csv', index_col=0).dropna(axis=1)
@@ -82,7 +83,7 @@ km = fit_kmeans_clusters(time_series, 'sim_monavg', model_dir, clusters)
 plot_clusters(time_series, km, model_dir, 'sim_monavg')
 
 
-clusters = 6
+clusters = 10
 
 print('starting obs_fdc')
 # predict the observational fdc groups
@@ -91,7 +92,6 @@ time_series = np.transpose(time_series.values)
 time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 km = fit_kmeans_clusters(time_series, 'obs_fdc', model_dir, clusters)
 plot_clusters(time_series, km, model_dir, 'obs_fdc')
-
 print('starting obs_monavg')
 # predict the observational monthly average (seasonality) groups
 time_series = pd.read_csv('data_1_historical_csv/observed_monavg_normalized.csv', index_col=0).dropna(axis=1)
