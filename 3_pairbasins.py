@@ -54,8 +54,8 @@ def cluster_summary_files(monavg_pickle: str, fdc_pickle: str, name_prefix: str)
     return
 
 
-sim_clusters = 16
-obs_clusters = 16
+sim_clusters = 6
+obs_clusters = 6
 sim_monavg = os.path.join(data2, f'sim_monavg_{sim_clusters}cluster_model.pickle')
 sim_fdc = os.path.join(data2, f'sim_fdc_{sim_clusters}cluster_model.pickle')
 obs_monavg = os.path.join(data2, f'obs_monavg_{obs_clusters}cluster_model.pickle')
