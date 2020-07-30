@@ -1,6 +1,6 @@
-import pandas as pd
-import numpy as np
 import geopandas as gpd
+import numpy as np
+import pandas as pd
 
 
 def find_downstream_ids(df: pd.DataFrame, target_id: int, same_order: bool = True):
@@ -48,11 +48,11 @@ def find_upstream_ids(df: pd.DataFrame, target_id: int, same_order: bool = True)
     return tuple(set(upstream_ids))
 
 
-gsa_df = pd.read_csv('magdalena_table.csv')['COMID'].tolist()
+gsa_df = pd.read_csv('data_0_inputs/magdalena_table.csv')['COMID'].tolist()
 gsa_df = pd.DataFrame(np.transpose(gsa_df), columns=['GeoglowsID'])
 b = pd.read_csv('magdalena_stations_table.csv')
 gsa_df = pd.merge(gsa_df, b, on='GeoglowsID', how='outer')
-gsa_df.to_csv('geoglows_station_assigned.csv', index=False)
+gsa_df.to_csv('geoglowsID_stationID_assignedID.csv', index=False)
 gsa_df.fillna(0, inplace=True)
 print(gsa_df)
 
@@ -67,18 +67,27 @@ for station in gsa_df['StationID'].dropna():
         try:
             if gsa_df[gsa_df['GeoglowsID'] == i]['AssignedID'].values[0] == 0:
                 gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignedID'] = station
-                gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignmentReason'] = 'propagation'
+                gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignmentReason'] = 'Propagation'
                 print('assigned')
         except:
             print(f'failed to set assigned value for geoglows id {i}')
     # ids = find_upstream_ids(b, geoglowsid)
     # for i in ids:
     #     the downstream segment doesn't have an assigned idea, assign it the current station
-        # if gsa_df[gsa_df['GeoglowsID'] == i]['AssignedID'].values[0] == np.nan:
-        #     gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignedID'] = station
+    # if gsa_df[gsa_df['GeoglowsID'] == i]['AssignedID'].values[0] == np.nan:
+    #     gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignedID'] = station
 
 gsa_df.replace(0, np.nan, inplace=True)
 gsa_df.to_csv('geoglows_station_assigned.csv', index=False)
 
-
-
+# create a geojson showing the basins matched by data_4_assign_propagation
+a = pd.read_csv('geoglows_station_assigned.csv')
+dl = gpd.read_file('/Users/riley/Downloads/magdalena river drainagelines/south_americageoglowsdrainag.shp')
+dl = dl[dl['COMID'].isin(a[a['AssignedID'] == 29037020.0]['GeoglowsID'].tolist())]
+dl.to_file('check_assignment.json', driver='GeoJSON')
+# a = pd.read_csv('geoglows_station_assigned.csv')
+# for i in a.dropna()['GeoglowsID'].tolist():
+#     del a[a['GeoglowsID'] == i]
+# dl = gpd.read_file('/Users/riley/Downloads/magdalena river drainagelines/south_americageoglowsdrainag.shp')
+# dl = dl[dl['COMID'].isin(a['GeoglowsID'].tolist())]
+# dl.to_file('check_assignment.json', driver='GeoJSON')

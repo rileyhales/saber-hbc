@@ -25,7 +25,7 @@ def collect_data(start_id, start_ideam_id, downstream_id, downstream_ideam_id):
     # Downstream observed flow
     downstream_ideam = get_ideam_flow(downstream_ideam_id)
     downstream_ideam.dropna(inplace=True)
-    # Downstream bias corrected flow (for comparison to the propagation method
+    # Downstream bias corrected flow (for comparison to the data_4_assign_propagation method
     downstream_bc = geoglows.bias.correct_historical(downstream, downstream_ideam)
 
     # Export all as csv
@@ -280,11 +280,11 @@ def statistics_tables(corrected: pd.DataFrame, simulated: pd.DataFrame, observed
 # collect_data(9007292, 23097040, 9009660, 21237020)  # large river backwards (going upstream)
 
 # Read all as csv
-start_flow = pd.read_csv('start_flow.csv', index_col=0)
-start_ideam_flow = pd.read_csv('start_ideam_flow.csv', index_col=0)
-downstream_flow = pd.read_csv('downstream_flow.csv', index_col=0)
-downstream_ideam_flow = pd.read_csv('downstream_ideam_flow.csv', index_col=0)
-downstream_bc_flow = pd.read_csv('downstream_bc_flow.csv', index_col=0)
+start_flow = pd.read_csv('data_4_assign_propagation/start_flow.csv', index_col=0)
+start_ideam_flow = pd.read_csv('data_4_assign_propagation/start_ideam_flow.csv', index_col=0)
+downstream_flow = pd.read_csv('data_4_assign_propagation/downstream_flow.csv', index_col=0)
+downstream_ideam_flow = pd.read_csv('data_4_assign_propagation/downstream_ideam_flow.csv', index_col=0)
+downstream_bc_flow = pd.read_csv('data_4_assign_propagation/downstream_bc_flow.csv', index_col=0)
 start_flow.index = pd.to_datetime(start_flow.index)
 start_ideam_flow.index = pd.to_datetime(start_ideam_flow.index)
 downstream_flow.index = pd.to_datetime(downstream_flow.index)
@@ -296,4 +296,5 @@ downstream_prop_correct = propagate_correction(start_flow, start_ideam_flow, dow
 plot_results(downstream_flow, downstream_ideam_flow, downstream_bc_flow, downstream_prop_correct,
              f'Correct Monthly - Force Gumbel Distribution')
 del downstream_prop_correct['Scalars'], downstream_prop_correct['Percentile']
-statistics_tables(downstream_prop_correct, downstream_flow, downstream_ideam_flow).to_csv('stats_test.csv')
+statistics_tables(downstream_prop_correct, downstream_flow, downstream_ideam_flow).to_csv(
+    'data_4_assign_propagation/stats_test.csv')
