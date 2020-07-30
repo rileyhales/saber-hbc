@@ -24,70 +24,81 @@ def find_downstream_ids(df: pd.DataFrame, target_id: int, same_order: bool = Tru
 
 
 def find_upstream_ids(df: pd.DataFrame, target_id: int, same_order: bool = True):
+    d = df.copy()
+    if same_order:
+        d = d[d['order_'] == d[d['COMID'] == target_id]['order_'].values[0]]
+
     upstream_ids = [target_id, ]
-    stream_order = df[df['COMID'] == target_id]['order_'].values[0]
+    upstream_rows = d[d['NextDownID'] == target_id]
 
-    current_id = target_id
+    # print(target_id)
+    # print(len(upstream_rows))
 
-    while True:
-        if same_order:
-            upstream_rows = df[df['NextDownID'] == current_id]
-            upstream_rows = upstream_rows[upstream_rows['order_'] == stream_order]
-        else:
-            upstream_rows = df[df['NextDownID'] == current_id]
-        if len(upstream_rows) == 0:
-            return set(tuple(upstream_ids))
+    while not upstream_rows.empty or len(upstream_rows) > 0:
         if len(upstream_rows) == 1:
-            current_id = upstream_rows['COMID'].values[0]
-            upstream_ids.append(current_id)
+            # print(f'there is 1 upstream id, it is {upstream_rows["COMID"].values[0]}')
+            upstream_ids.append(upstream_rows['COMID'].values[0])
+            upstream_rows = d[d['NextDownID'] == upstream_rows['COMID'].values[0]]
         elif len(upstream_rows) > 1:
+            # print('there is more than 1 upstream id')
+            # print(upstream_rows['COMID'].values.tolist())
             for id in upstream_rows['COMID'].values.tolist():
-                current_id = id
-                asdf = find_upstream_ids(df, id, same_order=False)
-                upstream_ids += list(asdf)
+                upstream_ids += list(find_upstream_ids(d, id, False))
+                upstream_rows = d[d['NextDownID'] == id]
     return tuple(set(upstream_ids))
 
 
-gsa_df = pd.read_csv('data_0_inputs/magdalena_table.csv')['COMID'].tolist()
-gsa_df = pd.DataFrame(np.transpose(gsa_df), columns=['GeoglowsID'])
-b = pd.read_csv('magdalena_stations_table.csv')
-gsa_df = pd.merge(gsa_df, b, on='GeoglowsID', how='outer')
-gsa_df.to_csv('geoglowsID_stationID_assignedID.csv', index=False)
-gsa_df.fillna(0, inplace=True)
-print(gsa_df)
+def clip_drainage_lines_by_ids(list_of_ids):
+    a = gpd.read_file('/Users/riley/code/basin_matching/data_0_inputs/magdalena river drainagelines/south_americageoglowsdrainag.shp')
+    a[a['COMID'].isin(list_of_ids)].to_file('/Users/riley/code/basin_matching/data_4_assign_propagation/clipped_lines.json', driver='GeoJSON')
+    return
 
-b = pd.read_csv('magdalena_table.csv')
 
-for station in gsa_df['StationID'].dropna():
-    # find list of down stream segments
-    geoglowsid = gsa_df[gsa_df['StationID'] == station]['GeoglowsID'].values[0]
-    ids = find_downstream_ids(b, geoglowsid)
-    for i in ids:
-        # the downstream segment doesn't have an assigned idea, assign it the current station
+def propagation_assignments(df: pd.DataFrame, station: int, ids_to_check: list or tuple, max_propagation: int = 10):
+    df_cp = df.copy()
+    for distance, i in enumerate(ids_to_check):
+        if distance + 1 >= max_propagation:
+            print('distance is too large, no longer making assignments')
+            continue
         try:
-            if gsa_df[gsa_df['GeoglowsID'] == i]['AssignedID'].values[0] == 0:
-                gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignedID'] = station
-                gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignmentReason'] = 'Propagation'
+            # if the stream segment has an observation station in it, skip
+            if df_cp[df_cp['GeoglowsID'] == i]['AssignmentReason'].values[0] == 'spatial':
+                print('found another station, skipping to next station')
+                continue
+            # if the stream segment does not have an assigned value, assign it
+            if pd.isna(df_cp[df_cp['GeoglowsID'] == i]['AssignedID'].values[0]):
+                df_cp.loc[df_cp['GeoglowsID'] == i, 'AssignedID'] = station
+                df_cp.loc[df_cp['GeoglowsID'] == i, 'AssignmentReason'] = f'Propagation-{distance + 1}'
                 print('assigned')
-        except:
+            # if the stream segment does have an assigned value, check if this one is better before overwriting
+            else:
+                last_dist = int(df_cp[df_cp['GeoglowsID'] == i]['AssignmentReason'].values[0].split('-')[-1])
+                print(last_dist, distance + 1)
+                if distance + 1 < int(last_dist):
+                    df_cp.loc[df_cp['GeoglowsID'] == i, 'AssignedID'] = station
+                    df_cp.loc[df_cp['GeoglowsID'] == i, 'AssignmentReason'] = f'Propagation-{distance + 1}'
+                    print('made better assignment')
+                continue
+        except Exception as e:
+            print(e)
             print(f'failed to set assigned value for geoglows id {i}')
-    # ids = find_upstream_ids(b, geoglowsid)
-    # for i in ids:
-    #     the downstream segment doesn't have an assigned idea, assign it the current station
-    # if gsa_df[gsa_df['GeoglowsID'] == i]['AssignedID'].values[0] == np.nan:
-    #     gsa_df.loc[gsa_df['GeoglowsID'] == i, 'AssignedID'] = station
+    return df_cp
 
-gsa_df.replace(0, np.nan, inplace=True)
-gsa_df.to_csv('geoglows_station_assigned.csv', index=False)
 
-# create a geojson showing the basins matched by data_4_assign_propagation
-a = pd.read_csv('geoglows_station_assigned.csv')
-dl = gpd.read_file('/Users/riley/Downloads/magdalena river drainagelines/south_americageoglowsdrainag.shp')
-dl = dl[dl['COMID'].isin(a[a['AssignedID'] == 29037020.0]['GeoglowsID'].tolist())]
-dl.to_file('check_assignment.json', driver='GeoJSON')
-# a = pd.read_csv('geoglows_station_assigned.csv')
-# for i in a.dropna()['GeoglowsID'].tolist():
-#     del a[a['GeoglowsID'] == i]
-# dl = gpd.read_file('/Users/riley/Downloads/magdalena river drainagelines/south_americageoglowsdrainag.shp')
-# dl = dl[dl['COMID'].isin(a['GeoglowsID'].tolist())]
-# dl.to_file('check_assignment.json', driver='GeoJSON')
+sim_table = pd.read_csv('/Users/riley/code/basin_matching/data_0_inputs/magdalena_table.csv')
+assignments_df = pd.DataFrame({'GeoglowsID': sim_table['COMID'].tolist()})
+obs_table = pd.read_csv('/Users/riley/code/basin_matching/data_0_inputs/magdalena_stations_assignments.csv')
+assignments_df = pd.merge(assignments_df, obs_table, on='GeoglowsID', how='outer')
+
+# for every station that we have
+for station in assignments_df['StationID'].dropna():
+    # determine the simulated id for the station
+    geoglowsid = assignments_df[assignments_df['StationID'] == station]['GeoglowsID'].values[0]
+    # identify simulated ids downstream of the station's simulated id and assign them the station id
+    down_ids = find_downstream_ids(sim_table, geoglowsid, same_order=True)
+    assignments_df = propagation_assignments(assignments_df, station, down_ids, max_propagation=10)
+    # identify simulated ids upstream of the station's simulated id and assign them that station
+    up_ids = find_upstream_ids(sim_table, geoglowsid, same_order=True)
+    assignments_df = propagation_assignments(assignments_df, station, down_ids, max_propagation=10)
+
+assignments_df.to_csv('/Users/riley/code/basin_matching/data_5_assignments/geoglowsID_stationID_assignedID.csv', index=False)

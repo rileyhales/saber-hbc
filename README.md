@@ -7,8 +7,8 @@
     * For faster access, create a csv of the attribute table of both of these. We save time by operating on the tables rather than the spatial geometry.
 2. Create clusters of the simulated data. Create clusters of the observed data.
 3. Spatially identify paired clusters of observed data and simulated data.
-4. Assign ungauged basins the ID of observed data for use via the propagation method.
-5. Assign ungauged basins the ID of observed data for use via the clustering similarities.
+4. Assign ungauged basins (1) of the same stream order (2) upstream or downstream of an observation point -> the ID of observed data for use via the propagation method.
+5. Assign remaining ungauged basins the ID of observed data for use via clustering similarities.
 6. Identify ungauged basins that were not assigned observed data for corrections.
 7. Review assignments spatially. Run tests and view improvements. Adjust clusters and reassign as necessary.
 8. Export the resulting csv of assignments.

@@ -15,7 +15,7 @@ def compute_flow_duration_curve(hydro: list or np.array, prob_steps: int = 400, 
     return pd.DataFrame(flows, columns=[col_name, ], index=percentiles)
 
 
-# ideam_ids = pd.read_csv('data_0_inputs/magdalena_stations_table.csv')['ID'].tolist()
+# ideam_ids = pd.read_csv('data_0_inputs/magdalena_stations_assignments.csv')['ID'].tolist()
 #
 # for id in ideam_ids:
 #       # get the gauged data
