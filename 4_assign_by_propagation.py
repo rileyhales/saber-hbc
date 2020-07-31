@@ -1,5 +1,4 @@
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 
 
@@ -31,17 +30,11 @@ def find_upstream_ids(df: pd.DataFrame, target_id: int, same_order: bool = True)
     upstream_ids = [target_id, ]
     upstream_rows = d[d['NextDownID'] == target_id]
 
-    # print(target_id)
-    # print(len(upstream_rows))
-
     while not upstream_rows.empty or len(upstream_rows) > 0:
         if len(upstream_rows) == 1:
-            # print(f'there is 1 upstream id, it is {upstream_rows["COMID"].values[0]}')
             upstream_ids.append(upstream_rows['COMID'].values[0])
             upstream_rows = d[d['NextDownID'] == upstream_rows['COMID'].values[0]]
         elif len(upstream_rows) > 1:
-            # print('there is more than 1 upstream id')
-            # print(upstream_rows['COMID'].values.tolist())
             for id in upstream_rows['COMID'].values.tolist():
                 upstream_ids += list(find_upstream_ids(d, id, False))
                 upstream_rows = d[d['NextDownID'] == id]
@@ -54,9 +47,10 @@ def clip_drainage_lines_by_ids(list_of_ids):
     return
 
 
-def propagation_assignments(df: pd.DataFrame, station: int, ids_to_check: list or tuple, max_propagation: int = 10):
+def propagation_assignments(df: pd.DataFrame, station: int, ids: list or tuple,
+                            max_propagation: int = 10) -> pd.DataFrame:
     df_cp = df.copy()
-    for distance, i in enumerate(ids_to_check):
+    for distance, i in enumerate(ids):
         if distance + 1 >= max_propagation:
             print('distance is too large, no longer making assignments')
             continue
