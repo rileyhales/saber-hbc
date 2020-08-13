@@ -11,7 +11,7 @@ from tslearn.clustering import TimeSeriesKMeans
 
 data0 = '/Users/riley/code/basin_matching/data_0_inputs'
 data1 = '/Users/riley/code/basin_matching/data_1_historical_csv'
-data2 = '/Users/riley/code/basin_matching/data_2_clusters'
+data2 = '/Users/riley/code/basin_matching/data_2_cluster_models'
 data3 = '/Users/riley/code/basin_matching/data_3_pairbasins'
 
 

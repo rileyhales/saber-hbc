@@ -35,8 +35,8 @@ for comid in a:
     ma_df = ma_df.merge(data.groupby(data.index.strftime('%m')).mean().to_frame(name=comid),
                         how='outer', left_index=True, right_index=True)
 
-mean_annual_flow = ma_df.mean()
+# mean_annual_flow = ma_df.mean()
 fdc_df.to_csv('data_1_historical_csv/simulated_fdc.csv')
-fdc_df.div(mean_annual_flow).to_csv('data_1_historical_csv/simulated_fdc_normalized.csv')
+# fdc_df.div(mean_annual_flow).to_csv('data_1_historical_csv/simulated_fdc_normalized.csv')
 ma_df.to_csv('data_1_historical_csv/simulated_monavg.csv')
-ma_df.div(mean_annual_flow).to_csv('data_1_historical_csv/simulated_monavg_normalized.csv')
+# ma_df.div(mean_annual_flow).to_csv('data_1_historical_csv/simulated_monavg_normalized.csv')

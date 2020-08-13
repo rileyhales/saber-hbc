@@ -79,12 +79,12 @@ def solve_gumbel_flow(std, xbar, rp):
     return -math.log(-math.log(1 - (1 / rp))) * std * .7797 + xbar - (.45 * std)
 
 
-def propagate_correction(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
-                         fix_seasonally: bool = True, seasonality: str = 'monthly',
-                         drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
-                         filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
-                         extrapolate_method: str = 'nearest', fill_value: int or float = None,
-                         fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
+def rch_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
+                  fix_seasonally: bool = True, seasonality: str = 'monthly',
+                  drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
+                  filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
+                  extrapolate_method: str = 'nearest', fill_value: int or float = None,
+                  fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
     """
     Given the simulated and observed stream flow at location a, attempts to the remove the bias from simulated
     stream flow at point b. This
@@ -116,7 +116,7 @@ def propagate_correction(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim
                 mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
                 mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
                 mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
-                monthly_results.append(propagate_correction(
+                monthly_results.append(rch_calibrate(
                     mon_sim_data, mon_obs_data, mon_cor_data,
                     fix_seasonally=False, seasonality=seasonality,
                     drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
@@ -134,7 +134,7 @@ def propagate_correction(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim
                 mon_sim_data = sim_flow_a[sim_flow_a.index.month.isin(season)].dropna()
                 mon_obs_data = obs_flow_a[obs_flow_a.index.month.isin(season)].dropna()
                 mon_cor_data = sim_flow_b[sim_flow_b.index.month.isin(season)].dropna()
-                seasonal_results.append(propagate_correction(
+                seasonal_results.append(rch_calibrate(
                     mon_sim_data, mon_obs_data, mon_cor_data,
                     fix_seasonally=False, seasonality='monthly',
                     drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
@@ -291,8 +291,8 @@ downstream_flow.index = pd.to_datetime(downstream_flow.index)
 downstream_ideam_flow.index = pd.to_datetime(downstream_ideam_flow.index)
 downstream_bc_flow.index = pd.to_datetime(downstream_bc_flow.index)
 
-downstream_prop_correct = propagate_correction(start_flow, start_ideam_flow, downstream_flow,
-                                               fit_gumbel=True, gumbel_range=(25, 75))
+downstream_prop_correct = rch_calibrate(start_flow, start_ideam_flow, downstream_flow,
+                                        fit_gumbel=True, gumbel_range=(25, 75))
 plot_results(downstream_flow, downstream_ideam_flow, downstream_bc_flow, downstream_prop_correct,
              f'Correct Monthly - Force Gumbel Distribution')
 del downstream_prop_correct['Scalars'], downstream_prop_correct['Percentile']
