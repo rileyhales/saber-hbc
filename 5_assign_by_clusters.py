@@ -47,7 +47,6 @@ def assign_gauges_to_spatial_clusters(cluster: pd.DataFrame, assigns: pd.DataFra
         else:
             print(opts_to_assign)
             print(cluster)
-            drain_areas =
             drain_areas = cluster.merge(opts_to_assign, left_on='COMID', right_on='GeoglowsID', how='right')
             drain_areas = drain_areas[['GeoglowsID', 'Tot_Drain_']]
             print(drain_areas)
@@ -85,7 +84,7 @@ def assign_intersecting_clusters():
 
 assignments = pd.read_csv('data_4_assignments/AssignmentsTable_modify.csv')
 
-for cluster_geojson in glob.glob('/Users/rileyhales/code/basin_matching/data_3_pairbasins/geojson-sim-6/*.geojson'):
+for cluster_geojson in glob.glob('/Users/riley/code/basin_matching/data_3_pairbasins/geojson-sim-6/*.geojson'):
     # read the geojson of the cluster
     clusterdf = gpd.read_file(cluster_geojson)
 
