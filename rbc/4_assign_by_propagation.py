@@ -119,6 +119,7 @@ def make_assignments_table():
     assignments_df.to_csv('/Users/rileyhales/code/basin_matching/data_4_assignments/AssignmentsTable.csv', index=False)
     return
 
+
 make_assignments_table()
 exit()
 

@@ -36,23 +36,8 @@ the trends in the data and use that. Doing more makes finding strong observation
 """
 
 
-def fit_kmeans_clusters(series: np.array, n_clusters: int = 12, ):
-    """
-
-    :param series:
-    :type series:
-    :param n_clusters:
-    :type n_clusters:
-    :return:
-    :rtype:
-    """
-    km = TimeSeriesKMeans(n_clusters=n_clusters, verbose=True, random_state=0)
-    km.fit_predict(TimeSeriesScalerMeanVariance().fit_transform(series))
-    return km
-
-
 def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: str):
-    sz = series.shape[1]
+    size = series.shape[1]
     fig = plt.figure(figsize=(30, 15), dpi=450)
     n_clusters = km.n_clusters
     assigned_clusters = km.labels_
@@ -61,7 +46,7 @@ def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: s
         for xx in series[assigned_clusters == yi]:
             plt.plot(xx.ravel(), "k-", alpha=.2)
         plt.plot(km.cluster_centers_[yi].ravel(), "r-")
-        plt.xlim(0, sz)
+        plt.xlim(0, size)
         plt.ylim(0, np.max(series))
         plt.text(0.55, 0.85, 'Cluster %d' % (yi + 1), transform=plt.gca().transAxes)
         if yi == math.floor(n_clusters / 4):
@@ -75,6 +60,22 @@ def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: s
 model_dir = '/Users/riley/code/basin_matching/data_2_cluster_models'
 save_dir = '/Users/riley/code/basin_matching/data_2_cluster_images'
 
+
+def generate_clusters(table_path: str, dataset: str, save_path: str, num_clusters: list = range(4, 13)):
+    for num_cluster in num_clusters:
+        # read the data
+        # time_series = pd.read_csv('../data_1_historical_csv/observed_fdc.csv', index_col=0).dropna(axis=1)
+        time_series = pd.read_csv(table_path, index_col=0).dropna(axis=1)
+        time_series = np.transpose(time_series.values)
+
+        # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
+        km = TimeSeriesKMeans(n_clusters=num_cluster, verbose=True, random_state=0)
+        km.fit_predict(TimeSeriesScalerMeanVariance().fit_transform(time_series))
+
+        # save the trained model
+        km.to_pickle(os.path.join(save_path, f'{dataset}_{num_cluster}_cluster_model.pickle'))
+
+        plot_clusters(time_series, km, save_dir, dataset)
 
 
 # print('starting sim_fdc')
@@ -92,23 +93,23 @@ save_dir = '/Users/riley/code/basin_matching/data_2_cluster_images'
 # km = fit_kmeans_clusters(time_series, 'sim_monavg', model_dir, clusters)
 # plot_clusters(time_series, km, model_dir, 'sim_monavg')
 
-for clusters in range(4, 13):
-    # predict the observational fdc groups
-    print('starting obs_fdc')
-    name = 'obs_fdc_unnormalized_nomeanvariance'
-    time_series = pd.read_csv('data_1_historical_csv/observed_fdc.csv', index_col=0).dropna(axis=1)
-    time_series = np.transpose(time_series.values)
-    # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-    km = fit_kmeans_clusters(time_series, name, clusters)
-    km.to_pickle(f'data_2_cluster_models/{dtype}_fdc_{clusters}cluster_model.pickle')
-    plot_clusters(time_series, km, save_dir, name)
-
-    # predict the observational monthly average (seasonality) groups
-    print('starting obs_monavg')
-    name = 'obs_monavg_unnormalized_nomeanvariance'
-    time_series = pd.read_csv('data_1_historical_csv/observed_monavg.csv', index_col=0).dropna(axis=1)
-    time_series = np.transpose(time_series.values)
-    # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-    km = fit_kmeans_clusters(time_series, name, model_dir, clusters)
-    km.to_pickle(f'data_2_cluster_models/{dtype}_monavg_{clusters}cluster_model.pickle')
-    plot_clusters(time_series, km, save_dir, name)
+# for clusters in range(4, 13):
+#     # predict the observational fdc groups
+#     print('starting obs_fdc')
+#     name = 'obs_fdc_unnormalized_nomeanvariance'
+#     time_series = pd.read_csv('../data_1_historical_csv/observed_fdc.csv', index_col=0).dropna(axis=1)
+#     time_series = np.transpose(time_series.values)
+#     # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
+#     km = fit_kmeans_clusters(time_series, name, clusters)
+#     km.to_pickle(f'data_2_cluster_models/{dtype}_fdc_{clusters}cluster_model.pickle')
+#     plot_clusters(time_series, km, save_dir, name)
+#
+#     # predict the observational monthly average (seasonality) groups
+#     print('starting obs_monavg')
+#     name = 'obs_monavg_unnormalized_nomeanvariance'
+#     time_series = pd.read_csv('../data_1_historical_csv/observed_monavg.csv', index_col=0).dropna(axis=1)
+#     time_series = np.transpose(time_series.values)
+#     # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
+#     km = fit_kmeans_clusters(time_series, name, model_dir, clusters)
+#     km.to_pickle(f'data_2_cluster_models/{dtype}_monavg_{clusters}cluster_model.pickle')
+#     plot_clusters(time_series, km, save_dir, name)

@@ -82,7 +82,7 @@ def assign_intersecting_clusters():
 # obs_pts = gpd.read_file('data_0_inputs/ideam_stations.json').to_crs(epsg=3857)
 # obs = gpd.overlay(obs_pts, clusterdf, how='intersection')
 
-assignments = pd.read_csv('data_4_assignments/AssignmentsTable_modify.csv')
+assignments = pd.read_csv('../data_4_assignments/AssignmentsTable_modify.csv')
 
 for cluster_geojson in glob.glob('/Users/riley/code/basin_matching/data_3_pairbasins/geojson-sim-6/*.geojson'):
     # read the geojson of the cluster

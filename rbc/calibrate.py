@@ -1,16 +1,15 @@
-import math
 import statistics
 from io import StringIO
 
 import geoglows
-import hydrostats as hs
-import hydrostats.data as hd
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import requests
 from scipy import interpolate
 from scipy import stats
+
+from stats import solve_gumbel1, statistics_tables, compute_fdc
 
 
 def collect_data(start_id, start_ideam_id, downstream_id, downstream_ideam_id):
@@ -46,20 +45,9 @@ def get_ideam_flow(id):
     return df
 
 
-def compute_flow_duration_curve(hydro: list or np.array, prob_steps: int = 500, exceedence: bool = True):
-    percentiles = [round((1 / prob_steps) * i * 100, 5) for i in range(prob_steps + 1)]
-    flows = np.nanpercentile(hydro, percentiles)
-    if exceedence:
-        percentiles.reverse()
-        columns = ['Exceedence Probability', 'Flow']
-    else:
-        columns = ['Non-Exceedence Probability', 'Flow']
-    return pd.DataFrame(np.transpose([percentiles, flows]), columns=columns)
-
-
-def get_scalar_bias_fdc(first_series, seconds_series):
-    first_fdc = compute_flow_duration_curve(first_series)
-    second_fdc = compute_flow_duration_curve(seconds_series)
+def compute_scalar_fdc(first_series, seconds_series):
+    first_fdc = compute_fdc(first_series)
+    second_fdc = compute_fdc(seconds_series)
     ratios = np.divide(first_fdc['Flow'].values.flatten(), second_fdc['Flow'].values.flatten())
     columns = (first_fdc.columns[0], 'Scalars')
     scalars_df = pd.DataFrame(np.transpose([first_fdc.values[:, 0], ratios]), columns=columns)
@@ -69,17 +57,7 @@ def get_scalar_bias_fdc(first_series, seconds_series):
     return scalars_df
 
 
-def solve_gumbel_flow(std, xbar, rp):
-    """
-    Solves the Gumbel Type I pdf = exp(-exp(-b))
-    where b is the covariate
-    """
-    # xbar = statistics.mean(year_max_flow_list)
-    # std = statistics.stdev(year_max_flow_list, xbar=xbar)
-    return -math.log(-math.log(1 - (1 / rp))) * std * .7797 + xbar - (.45 * std)
-
-
-def rch_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
+def rbc_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
                   fix_seasonally: bool = True, seasonality: str = 'monthly',
                   drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
                   filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
@@ -116,7 +94,7 @@ def rch_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b
                 mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
                 mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
                 mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
-                monthly_results.append(rch_calibrate(
+                monthly_results.append(rbc_calibrate(
                     mon_sim_data, mon_obs_data, mon_cor_data,
                     fix_seasonally=False, seasonality=seasonality,
                     drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
@@ -134,7 +112,7 @@ def rch_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b
                 mon_sim_data = sim_flow_a[sim_flow_a.index.month.isin(season)].dropna()
                 mon_obs_data = obs_flow_a[obs_flow_a.index.month.isin(season)].dropna()
                 mon_cor_data = sim_flow_b[sim_flow_b.index.month.isin(season)].dropna()
-                seasonal_results.append(rch_calibrate(
+                seasonal_results.append(rbc_calibrate(
                     mon_sim_data, mon_obs_data, mon_cor_data,
                     fix_seasonally=False, seasonality='monthly',
                     drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
@@ -148,15 +126,15 @@ def rch_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b
     if drop_outliers:
         # drop outlier data
         # https://stackoverflow.com/questions/23199796/detect-and-exclude-outliers-in-pandas-data-frame
-        sim_fdc = compute_flow_duration_curve(
+        sim_fdc = compute_fdc(
             sim_flow_a[(np.abs(stats.zscore(sim_flow_a)) < outlier_threshold).all(axis=1)])
-        obs_fdc = compute_flow_duration_curve(
+        obs_fdc = compute_fdc(
             obs_flow_a[(np.abs(stats.zscore(obs_flow_a)) < outlier_threshold).all(axis=1)])
     else:
-        sim_fdc = compute_flow_duration_curve(sim_flow_a)
-        obs_fdc = compute_flow_duration_curve(obs_flow_a)
+        sim_fdc = compute_fdc(sim_flow_a)
+        obs_fdc = compute_fdc(obs_flow_a)
 
-    scalar_fdc = get_scalar_bias_fdc(obs_fdc['Flow'].values.flatten(), sim_fdc['Flow'].values.flatten())
+    scalar_fdc = compute_scalar_fdc(obs_fdc['Flow'].values.flatten(), sim_fdc['Flow'].values.flatten())
 
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['Exceedence Probability'] >= filter_range[0]]
@@ -201,14 +179,14 @@ def rch_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b
 
         q = []
         for p in tmp[tmp['p'] <= gumbel_range[0]]['p'].tolist():
-            q.append(solve_gumbel_flow(std, xbar, 1 / (1 - (p / 100))))
+            q.append(solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
         tmp.loc[tmp['p'] <= gumbel_range[0], 'q'] = q
 
         q = []
         for p in tmp[tmp['p'] >= gumbel_range[1]]['p'].tolist():
             if p >= 100:
                 p = 99.999
-            q.append(solve_gumbel_flow(std, xbar, 1 / (1 - (p / 100))))
+            q.append(solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
         tmp.loc[tmp['p'] >= gumbel_range[1], 'q'] = q
 
         values = tmp['q'].values
@@ -256,22 +234,7 @@ def plot_results(sim, obs, bc, bcp, title):
     return
 
 
-def statistics_tables(corrected: pd.DataFrame, simulated: pd.DataFrame, observed: pd.DataFrame) -> pd.DataFrame:
-    # merge the datasets together
-    merged_sim_obs = hd.merge_data(sim_df=simulated, obs_df=observed)
-    merged_cor_obs = hd.merge_data(sim_df=corrected, obs_df=observed)
 
-    metrics = ['ME', 'RMSE', 'NRMSE (Mean)', 'MAPE', 'NSE', 'KGE (2009)', 'KGE (2012)']
-    # Merge Data
-    table1 = hs.make_table(merged_dataframe=merged_sim_obs, metrics=metrics)
-    table2 = hs.make_table(merged_dataframe=merged_cor_obs, metrics=metrics)
-
-    table2 = table2.rename(index={'Full Time Series': 'Corrected Full Time Series'})
-    table1 = table1.rename(index={'Full Time Series': 'Original Full Time Series'})
-    table1 = table1.transpose()
-    table2 = table2.transpose()
-
-    return pd.merge(table1, table2, right_index=True, left_index=True)
 
 
 # collect_data(9012999, 22057070, 9012650, 22057010)
@@ -291,7 +254,7 @@ downstream_flow.index = pd.to_datetime(downstream_flow.index)
 downstream_ideam_flow.index = pd.to_datetime(downstream_ideam_flow.index)
 downstream_bc_flow.index = pd.to_datetime(downstream_bc_flow.index)
 
-downstream_prop_correct = rch_calibrate(start_flow, start_ideam_flow, downstream_flow,
+downstream_prop_correct = rbc_calibrate(start_flow, start_ideam_flow, downstream_flow,
                                         fit_gumbel=True, gumbel_range=(25, 75))
 plot_results(downstream_flow, downstream_ideam_flow, downstream_bc_flow, downstream_prop_correct,
              f'Correct Monthly - Force Gumbel Distribution')
