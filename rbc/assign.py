@@ -1,10 +1,35 @@
-import glob
-import pandas as pd
-import geopandas as gpd
-import numpy as np
+
+def propagation_assignments(df: pd.DataFrame, station: int, ids: tuple, max_propagation: int = 5) -> pd.DataFrame:
+    for distance, i in enumerate(ids):
+        if distance + 1 >= max_propagation:
+            print('distance is too large, no longer making assignments')
+            continue
+        try:
+            # if the stream segment has an observation station in it, skip
+            if df[df['GeoglowsID'] == i]['AssignmentReason'].values[0] == 'spatial':
+                print('found another station, skipping to next station')
+                continue
+            # if the stream segment does not have an assigned value, assign it
+            if pd.isna(df[df['GeoglowsID'] == i]['AssignedID'].values[0]):
+                df.loc[df['GeoglowsID'] == i, 'AssignedID'] = station
+                df.loc[df['GeoglowsID'] == i, 'AssignmentReason'] = f'Propagation-{distance + 1}'
+                print('assigned')
+            # if the stream segment does have an assigned value, check if this one is better before overwriting
+            else:
+                last_dist = int(df[df['GeoglowsID'] == i]['AssignmentReason'].values[0].split('-')[-1])
+                print(f'last distance: {last_dist}, new distance: {distance + 1}')
+                if distance + 1 < int(last_dist):
+                    df.loc[df['GeoglowsID'] == i, 'AssignedID'] = station
+                    df.loc[df['GeoglowsID'] == i, 'AssignmentReason'] = f'Propagation-{distance + 1}'
+                    print('made better assignment')
+                continue
+        except Exception as e:
+            print(e)
+            print(f'failed to set assigned value for geoglows id {i}')
+    return df
 
 
-def assign_gauges_to_spatial_clusters(cluster: pd.DataFrame, assigns: pd.DataFrame):
+def assign_by_spatial_clusters(cluster: pd.DataFrame, assigns: pd.DataFrame):
     """
     Scenario 1: SpatiallyClustered
     There is a gauged stream, of the same order as the ungauged, spatially in your cluster. Preference to the station
@@ -70,32 +95,3 @@ def assign_intersecting_clusters():
     # cluster the gauges and see if there is a gauge of the right order in the cluster of one of the gauges that is
     # spatially within the basin
     return
-
-
-# todo: apply a scalar from the ratio of the ungauged and gauged upstream areas??
-# todo: perform a regression of drainage area v cumulative volume??
-
-# dl = gpd.read_file('data_0_inputs/magdalena_drainagelines/magdalena_drainagelines.shp')
-# ctch = gpd.read_file('data_0_inputs/magdalena_catchments/magdalena_catchments.shp')
-
-# identify any of the observation points that are in this cluster (returns a df of points) (should always have 1+)
-# obs_pts = gpd.read_file('data_0_inputs/ideam_stations.json').to_crs(epsg=3857)
-# obs = gpd.overlay(obs_pts, clusterdf, how='intersection')
-
-assignments = pd.read_csv('../data_4_assignments/AssignmentsTable_modify.csv')
-
-for cluster_geojson in glob.glob('/Users/riley/code/basin_matching/data_3_pairbasins/geojson-sim-6/*.geojson'):
-    # read the geojson of the cluster
-    clusterdf = gpd.read_file(cluster_geojson)
-
-    # Apply option 1: clustering the data by spatially matching the same order gauges inside the clustered basins
-    assignments = assign_gauges_to_spatial_clusters(clusterdf, assignments)
-    assignments.to_csv('data_4_assignments/AssignmentsTable_modify_2.csv', index=False)
-
-    # Apply option 2: expanding the search by clustering the gauges
-
-    exit()
-
-    # OPTION 3: AveragedOrder
-
-    # OPTION 4: Cry and go home

@@ -69,5 +69,11 @@ def scaffold_working_directory(path: str):
     os.mkdir(os.path.join(path, 'data_observed'))
 
 
-def make_assignment_table(drain_table: str):
-    a = pd.read_csv(drain_table)
+def gen_assignments_table(drain_table: str):
+    sim_table = pd.read_csv(drain_table)
+    assignments_df = pd.DataFrame({'GeoglowsID': sim_table['COMID'].tolist(), 'Order': sim_table['order_'].tolist(),
+                                   'Drainage': sim_table['Tot_Drain_'].tolist()})
+    obs_table = pd.read_csv('/Users/rileyhales/code/basin_matching/data_0_inputs/magdalena_stations_assignments.csv')
+    assignments_df = pd.merge(assignments_df, obs_table, on='GeoglowsID', how='outer')
+    assignments_df.to_csv('/Users/rileyhales/code/basin_matching/data_4_assignments/AssignmentsTable.csv', index=False)
+    return
