@@ -10,3 +10,6 @@ dependencies:
   - tslearn
   - matplotlib
   - xarray
+  - geoglows
+  - requests
+  - plotly

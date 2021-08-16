@@ -1,5 +1,4 @@
 import pandas as pd
-import geopandas as gpd
 
 
 def walk_downstream(df: pd.DataFrame, target_id: int, id_col: str, next_col: str, order_col: str = None,

@@ -1,7 +1,9 @@
 import stats
+import utils
+
 import _1prep as prep
-from _1prep import
 import _2kmeans as kmeans
+import _3assign as assign
 import calibrate
 
 __author__ = 'Riley Hales'
