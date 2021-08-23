@@ -48,7 +48,7 @@ from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 
 seed = 0
 numpy.random.seed(seed)
-X_train = pd.read_csv('../data_extras/order>1/simulated_monavg_normalized.csv', index_col=0).dropna(axis=1)
+X_train = pd.read_csv('../old_data/data_extras/order>1/simulated_monavg_normalized.csv', index_col=0).dropna(axis=1)
 X_train = numpy.transpose(X_train.values)
 numpy.random.shuffle(X_train)
 X_train = TimeSeriesScalerMeanVariance().fit_transform(X_train)

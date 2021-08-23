@@ -1,0 +1,15 @@
+name: bias
+channels:
+  - conda-forge
+dependencies:
+  - python>=3
+  - pandas
+  - geopandas
+  - numpy
+  - xarray
+  - tslearn
+  - matplotlib
+  - xarray
+  - geoglows
+  - requests
+  - plotly
