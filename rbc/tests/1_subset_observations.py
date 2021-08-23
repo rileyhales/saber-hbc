@@ -1,12 +1,13 @@
-import requests
 import pandas as pd
-from io import StringIO
-import numpy as np
 import glob
 import os
 
 from stats import compute_fdc
+import glob
+import os
 
+import pandas as pd
+from stats import compute_fdc
 
 # ideam_ids = pd.read_csv('data_0_inputs/magdalena_stations_assignments.csv')['ID'].tolist()
 #

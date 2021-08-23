@@ -1,11 +1,7 @@
 import glob
-import pandas as pd
+
 import geopandas as gpd
-import numpy as np
-
-
-
-
+import pandas as pd
 
 # todo: apply a scalar from the ratio of the ungauged and gauged upstream areas??
 # todo: perform a regression of drainage area v cumulative volume??

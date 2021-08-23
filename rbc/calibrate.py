@@ -3,10 +3,9 @@ import statistics
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from scipy import interpolate
-from scipy import stats
+from scipy import interpolate, stats
 
-from stats import solve_gumbel1, statistics_tables, compute_fdc, compute_scalar_fdc
+from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
 
 
 def rbc_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,

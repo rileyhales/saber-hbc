@@ -1,3 +1,11 @@
-numpy
 pandas
 geopandas
+numpy
+xarray
+tslearn
+matplotlib
+xarray
+geoglows
+requests
+plotly
+h5py

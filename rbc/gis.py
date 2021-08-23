@@ -1,7 +1,9 @@
 import os
 
-import pandas as pd
+import numpy as np
 import geopandas as gpd
+import pandas as pd
+from tslearn.clustering import TimeSeriesKMeans
 
 
 def clip_by_assignment(assignment_table: str, drain_shape: str, save_directory: str):

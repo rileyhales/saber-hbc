@@ -1,5 +1,6 @@
-import geopandas as gpd
 import os
+
+import geopandas as gpd
 
 data0 = '/Users/riley/code/basin_matching/data_0_inputs'
 a = gpd.read_file(os.path.join(data0, 'south_america-geoglows-catchment', 'south_america-geoglows-catchment.shp'))

@@ -1,4 +1,5 @@
-from io import  StringIO
+from io import StringIO
+
 import geoglows
 import pandas as pd
 import requests
