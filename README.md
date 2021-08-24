@@ -57,32 +57,38 @@ working_directory
    data_simulated/
    data_observed/
    gis_inputs/
+   gis_outputs/
 ```
 
-### 1 Prepare Spatial Data (python scripts not provided for these steps)
-1. Clip model drainage lines and catchments shapefile to extents of the region of interest
-1. Store the shapefiles in the `gis_inputs` directory
-1. For speed/efficiency, save the merged attribute table as a csv and delete extra columns from the table
-   - read drainage line and  with GeoPandas 
+### 1 Prepare Spatial Data (scripts not provided)
+1. Clip model drainage lines and catchments shapefile to extents of the region of interest. 
+   For speed/efficiency, also save the merged attribute table as a csv.
+   - read drainage line shapefile and with GeoPandas 
+   - delete all columns ***except***: NextDownID, COMID, Tot_Drain_, order_
+   - rename the columns:
+      - NextDownID -> downstream_model_id
+      - COMID -> model_id
+      - Tot_Drain -> drainage_area
+      - order_ -> stream_order
    - delete geometry column
-   - delete other columns ***except***: from_node, to_node, COMID, Shape_leng, Tot_Drain_, order_
-   - save as `geometry_table.csv` in the root level of the working directory
+   - save as `drain_table.csv` in the `gis_inputs` directory
 
+2. Prepare a csv of the attribute table of the gauge locations shapefile.
+   - You need the columns: model_id, gauge_id, drainage_area (if known),  
+
+Your project's working directory now looks like
 ```
-working_directory
-   geometry_table.csv
-   
+working_directory/
    kmeans_models/
    kmeans_images/
    data_simulated/
    data_observed/
    gis_inputs/
-      drainageline_shapefile.shp (names vary)
-      catchment_shapefile.shp (names vary)
-      boundary_shapefile.shp (names vary)
-      gauges_shapefile.shp (names vary)
-      
-      
+      drain_table.csv
+      gauge_table.csv
+      drainageline_shapefile.shp
+      catchment_shapefile.shp
+   gis_outputs/
 ```
 
 ### 2 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
@@ -157,14 +163,22 @@ The justification for this is obvious. The observations are the actual streamflo
 - If a basin contains a gauge, the simulated basin should use the data from the gauge in that basin.
 - The reason listed for this assignment is "gauged"
 
+```python
+import rbc
+import pandas as pd
+
+workdir = '/path/to/'
+rbc.assign.gauged()
+```
+
 ### 4 Assign basins by Propagation (hydraulically connected to a gauge)
 Theory: being up/down stream of the gauge but on the same stream order probably means that the seasonality of the flow is 
 probably the same (same FDC), but the monthly average may change depending on how many streams connect with/diverge from the stream. 
 This assumption becomes questionable as the stream order gets larger so the magnitude of flows joining the river may be larger, 
 be less sensitive to changes in flows up stream, may connect basins with different seasonality, etc.
 
-- Basins that are (1) immediately up or down stream of a gauge (2) on streams of the same order should use that gauged data.
-- The reason listed for this assignment is "Propagation-i" where i is the number of stream segments up/down from the gauge the river is.
+- Basins that are (1) immediately up or down stream of a gauge and (2) on streams of the same order should use that gauged data.
+- The reason listed for this assignment is "propagation-i" where i is the number of stream segments up/down from the gauge the river is.
 
 ### 5 Assign basins by spatially refined clusters (spatial interpretation of machine learning results)
 This is where you will determine the number of clusters to use from both the observed and simulated data which were generated in a previous step.

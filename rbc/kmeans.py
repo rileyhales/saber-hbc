@@ -42,15 +42,15 @@ def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: s
     fig = plt.figure(figsize=(30, 15), dpi=450)
     n_clusters = km.n_clusters
     assigned_clusters = km.labels_
-    for yi in range(n_clusters):
-        plt.subplot(2, math.ceil(n_clusters / 2), yi + 1)
-        for xx in series[assigned_clusters == yi]:
+    for i in range(n_clusters):
+        plt.subplot(2, math.ceil(n_clusters / 2), i + 1)
+        for xx in series[assigned_clusters == i]:
             plt.plot(xx.ravel(), "k-", alpha=.2)
-        plt.plot(km.cluster_centers_[yi].ravel(), "r-")
+        plt.plot(km.cluster_centers_[i].ravel(), "r-")
         plt.xlim(0, size)
         plt.ylim(0, np.max(series))
-        plt.text(0.55, 0.85, 'Cluster %d' % (yi + 1), transform=plt.gca().transAxes)
-        if yi == math.floor(n_clusters / 4):
+        plt.text(0.55, 0.85, f'Cluster {i}', transform=plt.gca().transAxes)
+        if i == math.floor(n_clusters / 4):
             plt.title("Euclidean $k$-means")
 
     plt.tight_layout()

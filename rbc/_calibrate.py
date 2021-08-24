@@ -8,12 +8,12 @@ from scipy import interpolate, stats
 from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
 
 
-def rbc_calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
-                  fix_seasonally: bool = True, seasonality: str = 'monthly',
-                  drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
-                  filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
-                  extrapolate_method: str = 'nearest', fill_value: int or float = None,
-                  fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
+def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
+              fix_seasonally: bool = True, seasonality: str = 'monthly',
+              drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
+              filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
+              extrapolate_method: str = 'nearest', fill_value: int or float = None,
+              fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
     """
     Given the simulated and observed stream flow at location a, attempts to the remove the bias from simulated
     stream flow at point b. This
@@ -181,5 +181,6 @@ def plot_results(sim, obs, bc, bcp, title):
             y=bcp['Scalars'].values.flatten(),
         ),
     ]
-    go.Figure(scatters, layout={'title': title}).show()
-    return
+    a = go.Figure(scatters, layout={'title': title})
+    a.show()
+    return a
