@@ -62,7 +62,7 @@ working_directory
 
 ### 1 Prepare Spatial Data (scripts not provided)
 1. Clip model drainage lines and catchments shapefile to extents of the region of interest. 
-   For speed/efficiency, also save the merged attribute table as a csv.
+   For speed/efficiency, merge their attribute tables and save as a csv.
    - read drainage line shapefile and with GeoPandas 
    - delete all columns ***except***: NextDownID, COMID, Tot_Drain_, order_
    - rename the columns:
@@ -73,8 +73,29 @@ working_directory
    - delete geometry column
    - save as `drain_table.csv` in the `gis_inputs` directory
 
+Your table should look like this:
+
+downstream_model_id | model_id          | drainage_area_mod | stream_order  
+------------------- | ----------------- | ----------------- | ------------
+unique_stream_num   | unique_stream_num | area in km^2      | stream_order
+unique_stream_num   | unique_stream_num | area in km^2      | stream_order  
+unique_stream_num   | unique_stream_num | area in km^2      | stream_order  
+...                 | ...               | ...               | ...
+
 2. Prepare a csv of the attribute table of the gauge locations shapefile.
-   - You need the columns: model_id, gauge_id, drainage_area (if known),  
+   - You need the columns:
+     - model_id
+     - gauge_id
+     - drainage_area (if known)  
+
+Your table should look like this (column order is irrelevant):
+
+model_id          | drainage_area_obs | gauge_id  
+----------------- | ----------------- | ------------
+unique_stream_num | area in km^2      | unique_gauge_num
+unique_stream_num | area in km^2      | unique_gauge_num  
+unique_stream_num | area in km^2      | unique_gauge_num  
+...               | ...               | ...
 
 Your project's working directory now looks like
 ```
@@ -91,56 +112,121 @@ working_directory/
    gis_outputs/
 ```
 
+### 2 Create the Assignments Table
+The Assignments Table is the core of the regional bias correction method it is a table which has a column for every 
+stream segment in the model and several columns of other information which are filled in during the RBC algorithm. It 
+looks like this:
+
+downstream_model_id | model_id          | drainage_area | stream_order | gauge_id  
+------------------- | ----------------- | ------------- | ------------ | ------------
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb  
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb  
+...                 | ...               | ...           | ...          | ...
+
+```python
+import rbc
+working_dir = '/path/to/project/directory/'
+rbc.prep.gen_assignments_table(working_dir)
+```
+
+Your project's working directory now looks like
+```
+working_directory/
+   assign_table.csv
+
+   kmeans_models/
+   kmeans_images/
+   data_simulated/
+   data_observed/
+   gis_inputs/
+      drain_table.csv
+      gauge_table.csv
+      drainageline_shapefile.shp
+      catchment_shapefile.shp
+   gis_outputs/
+```
+
 ### 2 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
-1. Create a single large csv of the historical simulation data with a datetime column and 1 columns per stream segment labeled by the stream's ID number.
-1. Process the large historical discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
-1. Normalize the flow duration curve csv by dividing each stream's flow duration curve by that stream's total average flow and save this as a 3rd csv (script provided).
-1. Process the large historical discharge csv to create a 4th csv with the monthly averages on each segment (script provided).
-1. Normalize the monthly average csv by dividing each stream's monthly averages by the stream's total average flow and save this as a 5th csv (script provided).
+1. Create a single large csv of the modeled historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
+
+datetime   | model_id_1  | model_id_2  | model_id_3  
+---------- | ----------- | ----------- | ----------- 
+1979-01-01 | 50          | 50          |  50          
+1979-01-02 | 60          | 60          |  60          
+1979-01-03 | 70          | 70          |  70          
+...        | ...         | ...         | ...          
+   
+2. Process the large historical discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
+
+(blank)    | model_id_1  | model_id_2  | model_id_3   
+---------- | ----------- | ----------- | ----------- 
+100        | 0           | 0           | 0                    
+99         | 10          | 10          | 10                   
+98         | 20          | 20          | 20                   
+...        | ...         | ...         | ...                  
+
+3. Normalize the flow duration curve csv by dividing each stream's flow duration curve by that stream's total average flow and save this as a 3rd csv (script provided).
+
+(blank)    | model_id_1  | model_id_2  | model_id_3   
+---------- | ----------- | ----------- | ----------- 
+100        | 0           | 0           | 0                     
+99         | 0.1         | 0.1         | 0.1                   
+98         | 0.2         | 0.2         | 0.2                   
+...        | ...         | ...         | ...                   
+
+4. Process the large historical discharge csv to create a 4th csv with the monthly averages on each segment (script provided).
+
+(blank)    | model_id_1  | model_id_2  | model_id_3   
+---------- | ----------- | ----------- | ----------- 
+1          | 60          | 60          | 60                   
+2          | 30          | 30          | 30                   
+3          | 70          | 70          | 70                   
+...        | ...         | ...         | ...                  
 
 ```python
 import rbc
 
 rbc.prep.historical_simulation(
    '/path/to/historical/simulation/netcdf.nc',
-   '/path/to/drain/table.pickle',
    '/path/to/working/directory'
 )
 ```
 
 After this step, you should have a directory of data that looks like this:
-```bash
-working_directory
-  # prepared by user, names vary
-  /input_shapefiles
-    model_drainagelines.shp
-    model_catchments.shp
-    gauge_stations.shp
-    combined_model_attribute_table.csv
 
-  # prepared by python script
-  /data_simulated
-    simulation_data.nc
-    
-    simulated_fdc.csv
-    simulated_fdc_normalized.csv
-    simulated_monavg.csv
-    simulated_monavg_normalized.csv
-  
-  # prepared by user, names vary
-  /data_observed
-    observed_fdc.csv
-    observed_fdc_normalized.csv
-    observed_monavg.csv
-    observed_monavg_normalized.csv
-    
-    # names for these vary
-    station1.csv
-    station2.csv
-    station3.csv
-    ...
-  
-  /kmeans      
+```
+working_directory/
+   assign_table.csv
+
+   kmeans_models/
+   kmeans_images/
+   data_simulated/
+      sim_fdc.csv
+      sim_fdc.pickle
+      sim_fdc_norm.csv
+      sim_fdc_norm.pickle
+      sim_monavg.csv
+      sim_monavg.pickle
+      sim_monavg_norm.csv
+      sim_monavg_norm.pickle
+      (historical_simulation.nc, optional)
+   data_observed/
+      sim_fdc.csv
+      sim_fdc.pickle
+      sim_fdc_norm.csv
+      sim_fdc_norm.pickle
+      sim_monavg.csv
+      sim_monavg.pickle
+      sim_monavg_norm.csv
+      sim_monavg_norm.pickle
+      (directory of raw observation data, optional)
+   gis_inputs/
+      drain_table.csv
+      gauge_table.csv
+      drainageline_shapefile.shp
+      catchment_shapefile.shp
+   gis_outputs/
 ```
 
 ### 2 K-means clustering (iterative step)

@@ -6,11 +6,12 @@ import xarray as xr
 
 from .utils import compute_fdc
 
+from ._vocab import model_id_col
+from ._vocab import order_col
+
 
 def historical_simulation(hist_nc_path: str,
-                          working_dir: str,
-                          model_id_col: str = 'model_id',
-                          order_col: str = 'stream_order'):
+                          working_dir: str, ):
     """
     Fills the working_dir/data_simulated directory with information from the historical simulation netcdf file
 
@@ -23,8 +24,6 @@ def historical_simulation(hist_nc_path: str,
     Args:
         hist_nc_path: path to the historical simulation data netcdf
         working_dir: path to the working directory for the project
-        model_id_col: name of the model_id column, defaults 'model_id'
-        order_col: name of the order column, defaults 'order'
 
     Returns:
         None
@@ -86,15 +85,15 @@ def scaffold_working_directory(path: str):
     os.mkdir(os.path.join(path, 'data_observed'))
     os.mkdir(os.path.join(path, 'gis_inputs'))
     os.mkdir(os.path.join(path, 'gis_outputs'))
+    return
 
 
-def gen_assignments_table(working_dir, model_id_col: str = 'model_id'):
+def gen_assignments_table(working_dir):
     """
     Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
 
     Args:
         working_dir: path to the working directory
-        model_id_col: name of the column which contains the model ids
 
     Returns:
         None
