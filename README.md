@@ -57,84 +57,176 @@ working_directory
    data_simulated/
    data_observed/
    gis_inputs/
+   gis_outputs/
 ```
 
-### 1 Prepare Spatial Data (python scripts not provided for these steps)
-1. Clip model drainage lines and catchments shapefile to extents of the region of interest
-1. Store the shapefiles in the `gis_inputs` directory
-1. For speed/efficiency, save the merged attribute table as a csv and delete extra columns from the table
-   - read drainage line and  with GeoPandas 
+### 1 Prepare Spatial Data (scripts not provided)
+1. Clip model drainage lines and catchments shapefile to extents of the region of interest. 
+   For speed/efficiency, merge their attribute tables and save as a csv.
+   - read drainage line shapefile and with GeoPandas 
+   - delete all columns ***except***: NextDownID, COMID, Tot_Drain_, order_
+   - rename the columns:
+      - NextDownID -> downstream_model_id
+      - COMID -> model_id
+      - Tot_Drain -> drainage_area
+      - order_ -> stream_order
    - delete geometry column
-   - delete other columns ***except***: from_node, to_node, COMID, Shape_leng, Tot_Drain_, order_
-   - save as `geometry_table.csv` in the root level of the working directory
+   - save as `drain_table.csv` in the `gis_inputs` directory
 
+Your table should look like this:
+
+downstream_model_id | model_id          | drainage_area_mod | stream_order  
+------------------- | ----------------- | ----------------- | ------------
+unique_stream_num   | unique_stream_num | area in km^2      | stream_order
+unique_stream_num   | unique_stream_num | area in km^2      | stream_order  
+unique_stream_num   | unique_stream_num | area in km^2      | stream_order  
+...                 | ...               | ...               | ...
+
+2. Prepare a csv of the attribute table of the gauge locations shapefile.
+   - You need the columns:
+     - model_id
+     - gauge_id
+     - drainage_area (if known)  
+
+Your table should look like this (column order is irrelevant):
+
+model_id          | drainage_area_obs | gauge_id  
+----------------- | ----------------- | ------------
+unique_stream_num | area in km^2      | unique_gauge_num
+unique_stream_num | area in km^2      | unique_gauge_num  
+unique_stream_num | area in km^2      | unique_gauge_num  
+...               | ...               | ...
+
+Your project's working directory now looks like
 ```
-working_directory
-   geometry_table.csv
-   
+working_directory/
    kmeans_models/
    kmeans_images/
    data_simulated/
    data_observed/
    gis_inputs/
-      drainageline_shapefile.shp (names vary)
-      catchment_shapefile.shp (names vary)
-      boundary_shapefile.shp (names vary)
-      gauges_shapefile.shp (names vary)
-      
-      
+      drain_table.csv
+      gauge_table.csv
+      drainageline_shapefile.shp
+      catchment_shapefile.shp
+   gis_outputs/
+```
+
+### 2 Create the Assignments Table
+The Assignments Table is the core of the regional bias correction method it is a table which has a column for every 
+stream segment in the model and several columns of other information which are filled in during the RBC algorithm. It 
+looks like this:
+
+downstream_model_id | model_id          | drainage_area | stream_order | gauge_id  
+------------------- | ----------------- | ------------- | ------------ | ------------
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb  
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb  
+...                 | ...               | ...           | ...          | ...
+
+```python
+import rbc
+working_dir = '/path/to/project/directory/'
+rbc.prep.gen_assignments_table(working_dir)
+```
+
+Your project's working directory now looks like
+```
+working_directory/
+   assign_table.csv
+
+   kmeans_models/
+   kmeans_images/
+   data_simulated/
+   data_observed/
+   gis_inputs/
+      drain_table.csv
+      gauge_table.csv
+      drainageline_shapefile.shp
+      catchment_shapefile.shp
+   gis_outputs/
 ```
 
 ### 2 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
-1. Create a single large csv of the historical simulation data with a datetime column and 1 columns per stream segment labeled by the stream's ID number.
-1. Process the large historical discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
-1. Normalize the flow duration curve csv by dividing each stream's flow duration curve by that stream's total average flow and save this as a 3rd csv (script provided).
-1. Process the large historical discharge csv to create a 4th csv with the monthly averages on each segment (script provided).
-1. Normalize the monthly average csv by dividing each stream's monthly averages by the stream's total average flow and save this as a 5th csv (script provided).
+1. Create a single large csv of the modeled historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
+
+datetime   | model_id_1  | model_id_2  | model_id_3  
+---------- | ----------- | ----------- | ----------- 
+1979-01-01 | 50          | 50          |  50          
+1979-01-02 | 60          | 60          |  60          
+1979-01-03 | 70          | 70          |  70          
+...        | ...         | ...         | ...          
+   
+2. Process the large historical discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
+
+(blank)    | model_id_1  | model_id_2  | model_id_3   
+---------- | ----------- | ----------- | ----------- 
+100        | 0           | 0           | 0                    
+99         | 10          | 10          | 10                   
+98         | 20          | 20          | 20                   
+...        | ...         | ...         | ...                  
+
+3. Normalize the flow duration curve csv by dividing each stream's flow duration curve by that stream's total average flow and save this as a 3rd csv (script provided).
+
+(blank)    | model_id_1  | model_id_2  | model_id_3   
+---------- | ----------- | ----------- | ----------- 
+100        | 0           | 0           | 0                     
+99         | 0.1         | 0.1         | 0.1                   
+98         | 0.2         | 0.2         | 0.2                   
+...        | ...         | ...         | ...                   
+
+4. Process the large historical discharge csv to create a 4th csv with the monthly averages on each segment (script provided).
+
+(blank)    | model_id_1  | model_id_2  | model_id_3   
+---------- | ----------- | ----------- | ----------- 
+1          | 60          | 60          | 60                   
+2          | 30          | 30          | 30                   
+3          | 70          | 70          | 70                   
+...        | ...         | ...         | ...                  
 
 ```python
 import rbc
 
 rbc.prep.historical_simulation(
    '/path/to/historical/simulation/netcdf.nc',
-   '/path/to/drain/table.pickle',
    '/path/to/working/directory'
 )
 ```
 
 After this step, you should have a directory of data that looks like this:
-```bash
-working_directory
-  # prepared by user, names vary
-  /input_shapefiles
-    model_drainagelines.shp
-    model_catchments.shp
-    gauge_stations.shp
-    combined_model_attribute_table.csv
 
-  # prepared by python script
-  /data_simulated
-    simulation_data.nc
-    
-    simulated_fdc.csv
-    simulated_fdc_normalized.csv
-    simulated_monavg.csv
-    simulated_monavg_normalized.csv
-  
-  # prepared by user, names vary
-  /data_observed
-    observed_fdc.csv
-    observed_fdc_normalized.csv
-    observed_monavg.csv
-    observed_monavg_normalized.csv
-    
-    # names for these vary
-    station1.csv
-    station2.csv
-    station3.csv
-    ...
-  
-  /kmeans      
+```
+working_directory/
+   assign_table.csv
+
+   kmeans_models/
+   kmeans_images/
+   data_simulated/
+      sim_fdc.csv
+      sim_fdc.pickle
+      sim_fdc_norm.csv
+      sim_fdc_norm.pickle
+      sim_monavg.csv
+      sim_monavg.pickle
+      sim_monavg_norm.csv
+      sim_monavg_norm.pickle
+      (historical_simulation.nc, optional)
+   data_observed/
+      sim_fdc.csv
+      sim_fdc.pickle
+      sim_fdc_norm.csv
+      sim_fdc_norm.pickle
+      sim_monavg.csv
+      sim_monavg.pickle
+      sim_monavg_norm.csv
+      sim_monavg_norm.pickle
+      (directory of raw observation data, optional)
+   gis_inputs/
+      drain_table.csv
+      gauge_table.csv
+      drainageline_shapefile.shp
+      catchment_shapefile.shp
+   gis_outputs/
 ```
 
 ### 2 K-means clustering (iterative step)
@@ -157,14 +249,22 @@ The justification for this is obvious. The observations are the actual streamflo
 - If a basin contains a gauge, the simulated basin should use the data from the gauge in that basin.
 - The reason listed for this assignment is "gauged"
 
+```python
+import rbc
+import pandas as pd
+
+workdir = '/path/to/'
+rbc.assign.gauged()
+```
+
 ### 4 Assign basins by Propagation (hydraulically connected to a gauge)
 Theory: being up/down stream of the gauge but on the same stream order probably means that the seasonality of the flow is 
 probably the same (same FDC), but the monthly average may change depending on how many streams connect with/diverge from the stream. 
 This assumption becomes questionable as the stream order gets larger so the magnitude of flows joining the river may be larger, 
 be less sensitive to changes in flows up stream, may connect basins with different seasonality, etc.
 
-- Basins that are (1) immediately up or down stream of a gauge (2) on streams of the same order should use that gauged data.
-- The reason listed for this assignment is "Propagation-i" where i is the number of stream segments up/down from the gauge the river is.
+- Basins that are (1) immediately up or down stream of a gauge and (2) on streams of the same order should use that gauged data.
+- The reason listed for this assignment is "propagation-i" where i is the number of stream segments up/down from the gauge the river is.
 
 ### 5 Assign basins by spatially refined clusters (spatial interpretation of machine learning results)
 This is where you will determine the number of clusters to use from both the observed and simulated data which were generated in a previous step.
