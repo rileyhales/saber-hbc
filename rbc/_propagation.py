@@ -29,7 +29,7 @@ def walk_downstream(df: pd.DataFrame, start_id: int, same_order: bool = True, ou
         df_ = df_[df_[order_col] == df_[df_[model_id_col] == start_id][order_col].values[0]]
 
     stream_row = df_[df_[model_id_col] == start_id]
-    while stream_row[downstream_id_col].values[0] != outlet_next_id:
+    while len(stream_row[downstream_id_col].values) > 0 and stream_row[downstream_id_col].values[0] != outlet_next_id:
         downstream_ids.append(stream_row[downstream_id_col].values[0])
         stream_row = df_[df_[model_id_col] == stream_row[downstream_id_col].values[0]]
         if len(stream_row) == 0:
@@ -92,7 +92,7 @@ def propagate_in_table(df: pd.DataFrame, gauged_stream: int, connected_segments:
         downstream_row = _df[_df[model_id_col] == segment_id]
 
         # if the downstream segment doesn't have an assigned gauge, we're going to assign the current one
-        if pd.isna(downstream_row[assigned_id_col]):
+        if downstream_row[assigned_id_col].empty or pd.isna(downstream_row[assigned_id_col]).any():
             _df.loc[_df[model_id_col] == segment_id, assigned_id_col] = gauged_stream
             _df.loc[_df[model_id_col] == segment_id, reason_col] = f'propagation-{direction}-{distance}'
             print(f'assigned gauged stream {gauged_stream} to ungauged {direction} {segment_id}')
@@ -100,10 +100,10 @@ def propagate_in_table(df: pd.DataFrame, gauged_stream: int, connected_segments:
 
         # if the stream segment does have an assigned value, check the value to determine what to do
         else:
-            downstream_reason = downstream_row[assigned_id_col].values[0]
+            downstream_reason = downstream_row[reason_col].values[0]
             if downstream_reason == 'gauged':
                 print('already gauged')
-            if int(downstream_reason.split('-')[-1]) >= distance:
+            if 'propagation' in downstream_reason and int(str(downstream_reason).split('-')[-1]) >= distance:
                 _df.loc[_df[model_id_col] == segment_id, assigned_id_col] = gauged_stream
                 _df.loc[_df[model_id_col] == segment_id, reason_col] = f'propagation-downstream-{distance}'
                 print(f'assigned gauged stream {gauged_stream} to previously assigned {direction} {segment_id}')

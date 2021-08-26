@@ -2,20 +2,31 @@ import os
 
 import rbc
 import pandas as pd
-import geopandas as gpd
 
 
-workdir = '/Users/rchales/data/regional-bias-correction/new-colombia'
+workdir = '/Users/rchales/data/regional-bias-correction/colombia-magdalena'
+drain_shapefile = ''
 
-rbc.prep.scaffold_working_directory(workdir)
+# Only need to do this step 1x ever
+# rbc.prep.scaffold_working_directory(workdir)
 
-# between these steps make the gauge_table.csv and drain_table.csv
+# Create the gauge_table and drain_table.csv
+# Scripts not provided, check readme for instructions
 
+# Prepare the observation and simulation data
+# rbc.prep.historical_simulation(os.path.join(workdir, 'data_simulated', 'south_america_era5_qout.nc'), workdir)
+# rbc.prep.observation_data(workdir)
+
+# Generate the assignments table
 rbc.prep.gen_assignments_table(workdir)
+atable = pd.read_csv(os.path.join(workdir, 'assign_table.csv'))
 
-rbc.prep.historical_simulation(os.path.join(workdir, 'data_simulated', 'south_america_era5_qout.nc'), workdir)
+# Assign basins which are gauged and propagate those gauges
+atable = rbc.assign.gauged(atable)
+atable = rbc.assign.propagation(atable)
 
-a = pd.read_csv(os.path.join(workdir, 'assign_table.csv'))
-b = rbc.assign.gauged(a)
-c = rbc.assign.propagation(b)
+# Cache the assignments table with the updates
+rbc.assign.cache_table(atable, workdir)
 
+# Generate GIS files so you can go explore your progress graphically
+rbc.gis.clip_by_assignment(atable, drain_shapefile, workdir)

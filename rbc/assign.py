@@ -1,4 +1,5 @@
-import numpy as np
+import os
+
 import pandas as pd
 
 from ._propagation import walk_downstream
@@ -11,6 +12,22 @@ from ._vocab import order_col
 from ._vocab import gauge_id_col
 from ._vocab import assigned_id_col
 from ._vocab import reason_col
+
+
+def cache_table(atable: pd.DataFrame, workdir: str):
+    """
+    Saves the pandas dataframe to a csv in the proper place in the project directory
+    A shortcut for pd.DataFrame.to_csv so you don't have to code it all the time
+
+    Args:
+        atable: the assign_table dataframe
+        workdir: the project directory path
+
+    Returns:
+        None
+    """
+    atable.to_csv(os.path.join(workdir, 'assign_table.csv'))
+    return
 
 
 def gauged(df: pd.DataFrame):
@@ -29,26 +46,24 @@ def gauged(df: pd.DataFrame):
     return _df
 
 
-def propagation(df: pd.DataFrame, max_propagation: int = 5) -> pd.DataFrame:
+def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
     """
 
     Args:
         df: the assignments table dataframe
-        max_propagation: the max number of stream segments to propagate downstream
+        max_prop: the max number of stream segments to propagate downstream
 
     Returns:
         df
     """
     _df = df.copy()
-    # todo handle upstream segments
     for gauged_stream in _df.loc[~_df[gauge_id_col].isna(), model_id_col]:
         connected_segments = walk_downstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(df, max_propagation, gauged_stream)
+        _df = propagate_in_table(_df, gauged_stream, connected_segments, max_prop, 'downstream')
         connected_segments = walk_upstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(df, max_propagation, gauged_stream)
+        _df = propagate_in_table(_df, gauged_stream, connected_segments, max_prop, 'upstream')
 
     return _df
-
 
 # def assign_by_spatial_clusters(cluster: pd.DataFrame, assigns: pd.DataFrame):
 #     """
