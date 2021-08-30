@@ -11,7 +11,7 @@ def get_observed_fdc(observed_data_dir: str, new_dir: str = "/Users/joshogden/Do
     Args:
         observed_data_dir: path to directory containing observed data
             -each filename must be the station id alone
-        new_dir: path to the place you want the new csv to be placed in
+        new_dir: path to the directory which which you want the new file to be placed
     Returns: none
     """
     #loop through directory and fill a dictionary with pd.DataFrames
