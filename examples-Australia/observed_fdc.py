@@ -3,32 +3,6 @@ import rbc
 import os
 import numpy as np
 
-def process_data (working_dir: str,
-                    drainageline_csv: str,
-                    catchment_csv: str,
-                    drainageline_shapefile: str,
-                    catchment_shapefile: str
-                    ):
-    """
-    Takes all the necessary files outlined in the readme and creates the working directory along with the necessary
-    processed csv's, shapefiles, and other files to fill it.
-    Args:
-        working_dir: your desired path for your working directory
-        drainageline_csv: path to attribute table for geoglows-drainageline file (no need to preprocess) as csv
-        catchment_csv: path to attribute table for geoglows-catchments file (no need to preprocess) as csv
-        drainageline_shapefile: path to .shp file from the geoglows_drainageline folder
-        catchment_shapefile: path to .shp file from the geoglows_catchments folder
-
-
-    """
-    #create working directory
-    rbc.prep.scaffold_working_directory(working_dir)
-
-    #retrieve, merge, and place csv's
-    drain = pd.read_csv(drainageline_csv)
-    catch = pd.read_csv(catchment_csv)
-
-
 def get_observed_fdc(observed_data_dir: str, new_dir: str = "/Users/joshogden/Documents/regional-bias-correction-colombia_ex/examples/Australia/working_directory/data_observed"):
     """
     Takes the path to a directory containing .csvs of historical
