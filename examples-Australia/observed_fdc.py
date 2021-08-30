@@ -40,6 +40,3 @@ def get_observed_fdc(observed_data_dir: str, new_dir: str = "/Users/joshogden/Do
         final_df = final_df.join(rbc.utils.compute_fdc(flows, col_name = dict_keys[i]))
     final_df.to_csv(os.path.join(new_dir, 'obs_fdc.csv'))
     return final_df
-
-
-get_observed_fdc('/Users/joshogden/Documents/regional-bias-correction-colombia_ex/examples/Australia/Australia-Observed-Data')
