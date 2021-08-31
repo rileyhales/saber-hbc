@@ -2,14 +2,13 @@ import statistics
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 from scipy import interpolate, stats
 
 from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
 
 
 def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
-              fix_seasonally: bool = True, seasonality: str = 'monthly',
+              fix_seasonally: bool = True,
               drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
               filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
               extrapolate_method: str = 'nearest', fill_value: int or float = None,
@@ -19,13 +18,12 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
     stream flow at point b. This
 
     Args:
-        sim_flow_a (pd.DataFrame):
-        obs_flow_a (pd.DataFrame):
-        sim_flow_b (pd.DataFrame):
-        fix_seasonally (bool):
-        seasonality (str):
-        drop_outliers (bool):
-        outlier_threshold (int or float):
+        sim_flow_a (pd.DataFrame): simulated hydrograph at point A
+        obs_flow_a (pd.DataFrame): observed hydrograph at point A
+        sim_flow_b (pd.DataFrame): simulated hydrograph at point B
+        fix_seasonally (bool): fix on a monthly (True) or annual (False) basis
+        drop_outliers (bool): flag to exclude outliers
+        outlier_threshold (int or float): number of std deviations from mean to exclude from flow duration curve
         filter_scalar_fdc (bool):
         filter_range (tuple):
         extrapolate_method (bool):
@@ -34,44 +32,26 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
         gumbel_range (tuple):
 
     Returns:
-
+        pd.DataFrame of the
     """
     if fix_seasonally:
-        if seasonality == 'monthly':
-            # list of the unique months in the historical simulation. should always be 1->12 but just in case...
-            monthly_results = []
-            for month in sorted(set(sim_flow_a.index.strftime('%m'))):
-                # filter data to only be current iteration's month
-                mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
-                mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
-                mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
-                monthly_results.append(rbc_calibrate(
-                    mon_sim_data, mon_obs_data, mon_cor_data,
-                    fix_seasonally=False, seasonality=seasonality,
-                    drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
-                    filter_scalar_fdc=filter_scalar_fdc, filter_range=filter_range,
-                    extrapolate_method=extrapolate_method, fill_value=fill_value,
-                    fit_gumbel=fit_gumbel, gumbel_range=gumbel_range, )
-                )
-            # combine the results from each monthy into a single dataframe (sorted chronologically) and return it
-            return pd.concat(monthly_results).sort_index()
-        elif isinstance(seasonality, list) or isinstance(seasonality, tuple):
-            # list of the unique months in the historical simulation. should always be 1->12 but just in case...
-            seasonal_results = []
-            for season in seasonality:
-                # filter data to only be current iteration's month
-                mon_sim_data = sim_flow_a[sim_flow_a.index.month.isin(season)].dropna()
-                mon_obs_data = obs_flow_a[obs_flow_a.index.month.isin(season)].dropna()
-                mon_cor_data = sim_flow_b[sim_flow_b.index.month.isin(season)].dropna()
-                seasonal_results.append(rbc_calibrate(
-                    mon_sim_data, mon_obs_data, mon_cor_data,
-                    fix_seasonally=False, seasonality='monthly',
-                    drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
-                    filter_scalar_fdc=filter_scalar_fdc, filter_range=filter_range,
-                    extrapolate_method=extrapolate_method, fill_value=fill_value,
-                    fit_gumbel=fit_gumbel, gumbel_range=gumbel_range, )
-                )
-            return pd.concat(seasonal_results).sort_index()
+        # list of the unique months in the historical simulation. should always be 1->12 but just in case...
+        monthly_results = []
+        for month in sorted(set(sim_flow_a.index.strftime('%m'))):
+            # filter data to only be current iteration's month
+            mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
+            mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
+            mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
+            monthly_results.append(calibrate(
+                mon_sim_data, mon_obs_data, mon_cor_data,
+                fix_seasonally=False,
+                drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
+                filter_scalar_fdc=filter_scalar_fdc, filter_range=filter_range,
+                extrapolate_method=extrapolate_method, fill_value=fill_value,
+                fit_gumbel=fit_gumbel, gumbel_range=gumbel_range, )
+            )
+        # combine the results from each monthly into a single dataframe (sorted chronologically) and return it
+        return pd.concat(monthly_results).sort_index()
 
     # compute the fdc for paired sim/obs data and compute scalar fdc, either with or without outliers
     if drop_outliers:
@@ -144,43 +124,4 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
 
     return pd.DataFrame(data=np.transpose([values, scalars, percentiles]),
                         index=sim_flow_b.index.to_list(),
-                        columns=('Propagated Corrected Streamflow', 'Scalars', 'Percentile'))
-
-
-def plot_results(sim, obs, bc, bcp, title):
-    sim_dates = sim.index.tolist()
-    scatters = [
-        go.Scatter(
-            name='Propagated Corrected (Experimental)',
-            x=bcp.index.tolist(),
-            y=bcp['Propagated Corrected Streamflow'].values.flatten(),
-        ),
-        go.Scatter(
-            name='Bias Corrected (Jorges Method)',
-            x=sim_dates,
-            y=bc.values.flatten(),
-        ),
-        go.Scatter(
-            name='Simulated (ERA 5)',
-            x=sim_dates,
-            y=sim.values.flatten(),
-        ),
-        go.Scatter(
-            name='Observed',
-            x=obs.index.tolist(),
-            y=obs.values.flatten(),
-        ),
-        go.Scatter(
-            name='Percentile',
-            x=sim_dates,
-            y=bcp['Percentile'].values.flatten(),
-        ),
-        go.Scatter(
-            name='Scalar',
-            x=sim_dates,
-            y=bcp['Scalars'].values.flatten(),
-        ),
-    ]
-    a = go.Figure(scatters, layout={'title': title})
-    a.show()
-    return a
+                        columns=('CalibratedStreamflow', 'Scalars', 'Percentile'))

@@ -9,3 +9,4 @@ geoglows
 requests
 plotly
 h5py
+scipy

@@ -1,5 +1,6 @@
 import math
 import os
+import glob
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,76 +38,47 @@ the trends in the data and use that. Doing more makes finding strong observation
 """
 
 
-def plot_clusters(series: np.array, km: TimeSeriesKMeans, save_dir: str, name: str):
-    size = series.shape[1]
-    fig = plt.figure(figsize=(30, 15), dpi=450)
-    n_clusters = km.n_clusters
-    assigned_clusters = km.labels_
-    for i in range(n_clusters):
-        plt.subplot(2, math.ceil(n_clusters / 2), i + 1)
-        for xx in series[assigned_clusters == i]:
-            plt.plot(xx.ravel(), "k-", alpha=.2)
-        plt.plot(km.cluster_centers_[i].ravel(), "r-")
-        plt.xlim(0, size)
-        plt.ylim(0, np.max(series))
-        plt.text(0.55, 0.85, f'Cluster {i}', transform=plt.gca().transAxes)
-        if i == math.floor(n_clusters / 4):
-            plt.title("Euclidean $k$-means")
+def generate_clusters(workdir: str, num_clusters: list = range(4, 13)):
+    """
+    Creates trained kmeans model pickle files and plots of the results saved as png images
 
-    plt.tight_layout()
-    fig.savefig(os.path.join(save_dir, f'{name}_{n_clusters}cluster.png'))
-    return
+    Args:
+        workdir: path to the project directory
+        num_clusters: an iterable of integers, the number of kmeans clusters to create.
 
+    Returns:
+        None
+    """
+    tables_to_cluster = glob.glob(os.path.join(workdir, 'data_*', '*.csv'))
 
-def generate_clusters(table_path: str, dataset: str, save_path: str, num_clusters: list = range(4, 13)):
-    for num_cluster in num_clusters:
+    for table in tables_to_cluster:
         # read the data
-        # time_series = pd.read_csv('../data_1_historical_csv/observed_fdc.csv', index_col=0).dropna(axis=1)
-        time_series = pd.read_csv(table_path, index_col=0).dropna(axis=1)
+        time_series = pd.read_csv(table, index_col=0).dropna(axis=1)
         time_series = np.transpose(time_series.values)
+        dataset = os.path.basename(table)
 
-        # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-        km = TimeSeriesKMeans(n_clusters=num_cluster, verbose=True, random_state=0)
-        km.fit_predict(TimeSeriesScalerMeanVariance().fit_transform(time_series))
+        for num_cluster in num_clusters:
+            km = TimeSeriesKMeans(n_clusters=num_cluster, verbose=True, random_state=0)
+            km.fit_predict(TimeSeriesScalerMeanVariance().fit_transform(time_series))
 
-        # save the trained model
-        km.to_pickle(os.path.join(save_path, f'{dataset}_{num_cluster}_cluster_model.pickle'))
+            # save the trained model
+            km.to_pickle(os.path.join(workdir, 'kmeans_models', f'{dataset}-{num_cluster}-clusters-model.pickle'))
 
-        plot_clusters(time_series, km, save_dir, dataset)
+            size = time_series.shape[1]
+            fig = plt.figure(figsize=(30, 15), dpi=450)
+            assigned_clusters = km.labels_
+            for i in range(num_cluster):
+                plt.subplot(2, math.ceil(num_cluster / 2), i + 1)
+                for j in time_series[assigned_clusters == i]:
+                    plt.plot(j.ravel(), "k-", alpha=.2)
+                plt.plot(km.cluster_centers_[i].ravel(), "r-")
+                plt.xlim(0, size)
+                plt.ylim(0, np.max(time_series))
+                plt.text(0.55, 0.85, f'Cluster {i}', transform=plt.gca().transAxes)
+                if i == math.floor(num_cluster / 4):
+                    plt.title("Euclidean $k$-means")
 
-
-# print('starting sim_fdc')
-# # fit the simulated fdc groups
-# time_series = pd.read_csv('data_1_historical_csv/simulated_fdc_normalized.csv', index_col=0).dropna(axis=1)
-# time_series = np.transpose(time_series.values)
-# time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-# km = fit_kmeans_clusters(time_series, 'sim_fdc', model_dir, clusters)
-# plot_clusters(time_series, km, model_dir, 'sim_fdc')
-# print('starting sim_monavg')
-# # fit the simulated monthly average (seasonality) groups
-# time_series = pd.read_csv('data_1_historical_csv/simulated_monavg_normalized.csv', index_col=0).dropna(axis=1)
-# time_series = np.transpose(time_series.values)
-# time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-# km = fit_kmeans_clusters(time_series, 'sim_monavg', model_dir, clusters)
-# plot_clusters(time_series, km, model_dir, 'sim_monavg')
-
-# for clusters in range(4, 13):
-#     # predict the observational fdc groups
-#     print('starting obs_fdc')
-#     name = 'obs_fdc_unnormalized_nomeanvariance'
-#     time_series = pd.read_csv('../data_1_historical_csv/observed_fdc.csv', index_col=0).dropna(axis=1)
-#     time_series = np.transpose(time_series.values)
-#     # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-#     km = fit_kmeans_clusters(time_series, name, clusters)
-#     km.to_pickle(f'data_2_cluster_models/{dtype}_fdc_{clusters}cluster_model.pickle')
-#     plot_clusters(time_series, km, save_dir, name)
-#
-#     # predict the observational monthly average (seasonality) groups
-#     print('starting obs_monavg')
-#     name = 'obs_monavg_unnormalized_nomeanvariance'
-#     time_series = pd.read_csv('../data_1_historical_csv/observed_monavg.csv', index_col=0).dropna(axis=1)
-#     time_series = np.transpose(time_series.values)
-#     # time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
-#     km = fit_kmeans_clusters(time_series, name, model_dir, clusters)
-#     km.to_pickle(f'data_2_cluster_models/{dtype}_monavg_{clusters}cluster_model.pickle')
-#     plot_clusters(time_series, km, save_dir, name)
+            plt.tight_layout()
+            fig.savefig(os.path.join(workdir, 'kmeans_images', f'{dataset}-{num_cluster}-clusters.png'))
+            plt.close(fig)
+    return

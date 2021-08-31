@@ -13,3 +13,4 @@ dependencies:
   - geoglows
   - requests
   - plotly
+  - scipy
