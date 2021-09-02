@@ -9,13 +9,12 @@ from tslearn.clustering import TimeSeriesKMeans
 from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 
 
-def generate_clusters(workdir: str, num_clusters: list = range(4, 13)):
+def generate_clusters(workdir: str):
     """
     Creates trained kmeans model pickle files and plots of the results saved as png images
 
     Args:
         workdir: path to the project directory
-        num_clusters: an iterable of integers, the number of kmeans clusters to create.
 
     Returns:
         None
@@ -26,11 +25,15 @@ def generate_clusters(workdir: str, num_clusters: list = range(4, 13)):
         # read the data
         time_series = pd.read_csv(table, index_col=0).dropna(axis=1)
         time_series = np.transpose(time_series.values)
-        dataset = os.path.basename(table)
+        dataset = os.path.splitext(os.path.basename(table))[0]
+        inertia = {'number': [], 'inertia': []}
 
-        for num_cluster in num_clusters:
-            km = TimeSeriesKMeans(n_clusters=num_cluster, verbose=True, random_state=0)
+        for num_cluster in range(2, 15):
+            # km = TimeSeriesKMeans(n_clusters=num_cluster, verbose=True, random_state=0)
+            km = TimeSeriesKMeans(n_clusters=num_cluster)
             km.fit_predict(TimeSeriesScalerMeanVariance().fit_transform(time_series))
+            inertia['number'].append(num_cluster)
+            inertia['inertia'].append(km.inertia_)
 
             # save the trained model
             km.to_pickle(os.path.join(workdir, 'kmeans_models', f'{dataset}-{num_cluster}-clusters-model.pickle'))
@@ -52,4 +55,6 @@ def generate_clusters(workdir: str, num_clusters: list = range(4, 13)):
             plt.tight_layout()
             fig.savefig(os.path.join(workdir, 'kmeans_images', f'{dataset}-{num_cluster}-clusters.png'))
             plt.close(fig)
+        
+        pd.DataFrame.from_dict(inertia).to_csv(os.path.join(workdir, 'kmeans_models', f'{dataset}-inertia.csv'))
     return

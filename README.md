@@ -101,15 +101,20 @@ Your project's working directory now looks like
 ```
 working_directory/
    kmeans_models/
+      (empty)
    kmeans_images/
+      (empty)
    data_simulated/
+      (empty)
    data_observed/
+      (empty)
    gis_inputs/
       drain_table.csv
       gauge_table.csv
       drainageline_shapefile.shp
       catchment_shapefile.shp
    gis_outputs/
+      (empty)
 ```
 
 ### 2 Create the Assignments Table
@@ -136,15 +141,20 @@ working_directory/
    assign_table.csv
 
    kmeans_models/
+      (empty)
    kmeans_images/
+      (empty)
    data_simulated/
+      (empty)
    data_observed/
+      (empty)
    gis_inputs/
       drain_table.csv
       gauge_table.csv
       drainageline_shapefile.shp
       catchment_shapefile.shp
    gis_outputs/
+      (empty)
 ```
 
 ### 2 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
@@ -200,7 +210,9 @@ working_directory/
    assign_table.csv
 
    kmeans_models/
+      (empty)
    kmeans_images/
+      (empty)
    data_simulated/
       sim_fdc.csv
       sim_fdc.pickle
@@ -227,20 +239,58 @@ working_directory/
       drainageline_shapefile.shp
       catchment_shapefile.shp
    gis_outputs/
+      (empty)
 ```
 
-### 2 K-means clustering (iterative step)
-For each of the following, generate and store clusters for many group sizes. I recommend between 4 and 16, perhaps in intervals of 2?
-1. Create clusters of the simulated data by flow duration curve.
-1. Create clusters of the simulated data by monthly averages.
-1. Create clusters of the observed data by flow duration curve.
-1. Create clusters of the observed data by monthly averages.
+### 3 K-means clustering
+For each of the following, generate and store clusters for many group sizes. Between 2 and 14 should be sufficient.
+1. Create clusters of the *simulated* data by their normalized flow duration curve.
+2. Create clusters of the *simulated* data by their normalized monthly averages.
+3. Create clusters of the *observed* data by their normalized flow duration curve.
+4. Create clusters of the *observed* data by their normalized monthly averages.
+5. Track and the average residual between clustered members and their centroids for each number of clusters identified.
+
+Use this code:
 
 ```python
 import rbc
+working_dir = '/path/to/project/directory/'
+rbc.kmeans.generate_clusters(working_dir)
+```
 
-rbc.kmeans.generate_clusters(...)
-rbc.kmeans.plot_clusters(...)
+This function creates trained kmeans models saved as pickle files, plots (from matplotlib) of what each of the clusters 
+look like, and csv files which tracked the inertia (residuals) for each number of clusters. Use the elbow method to 
+identify the correct number of clusters to use on each of the 4 datasets clustered.
+
+Your working directory should be updated with the following
+
+```
+working_directory/
+   assign_table.csv
+
+   kmeans_models/
+      sim-fdc-norm-inertia.csv
+      sim-monavg-norm-inertia.csv
+      obs-fdc-norm-inertia.csv
+      obs-monavg-norm-inertia.csv
+      
+      sim-fdc-norm-2-clusters-model.pickle
+      sim-fdc-norm-3-clusters-model.pickle
+      sim-fdc-norm-4-clusters-model.pickle
+      ...
+   kmeans_images/
+      sim-fdc-norm-2-clusters.png
+      sim-fdc-norm-3-clusters.png
+      sim-fdc-norm-4-clusters.png
+      ...
+   data_simulated/
+      ...
+   data_observed/
+      ...
+   gis_inputs/
+      ...
+   gis_outputs/
+      (empty)
 ```
 
 ### 3 Assign basins by Location (contains a gauge)

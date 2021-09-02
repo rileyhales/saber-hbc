@@ -58,13 +58,12 @@ def clip_by_ids(ids: list, drain_shape: str, workdir: str, prefix: str = '') -> 
     return
 
 
-def cluster_summary_files(monavg_pickle: str, fdc_pickle: str, prefix: str):
-    print('Creatings matched csv and jsons')
+def cluster_summary_files(workdir: str, monavg_pickle: str, fdc_pickle: str, prefix: str):
     # read the label results of the kmeans model previously stored as pickle
     ma_labels = TimeSeriesKMeans.from_pickle(monavg_pickle).labels_.tolist()
     fdc_labels = TimeSeriesKMeans.from_pickle(fdc_pickle).labels_.tolist()
     # create a dataframe showing the comid and assigned cluster number
-    ids = pd.read_csv(os.path.join(data1, f'{prefix}_fdc_normalized.csv'), index_col=0).dropna(
+    ids = pd.read_csv(os.path.join(workdir, 'data_inputs', f'{prefix}_fdc_normalized.csv'), index_col=0).dropna(
         axis=1).columns.tolist()
     df = pd.DataFrame(np.transpose([ids, fdc_labels, ma_labels]), columns=('ID', 'fdc_cluster', 'ma_cluster'))
     df.to_csv(os.path.join(data3, f'{prefix}_clusters.csv'), index=False)
