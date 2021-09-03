@@ -28,8 +28,6 @@ def historical_simulation(hist_nc_path: str,
     Returns:
         None
     """
-    # todo produce tables normalized by the maximum flows??
-
     # read the drainage line table
     a = pd.read_csv(os.path.join(working_dir, 'assign_table.csv'))
     a = a[a[order_col] > 1]
@@ -45,24 +43,24 @@ def historical_simulation(hist_nc_path: str,
     ma_df = first_data.groupby(first_data.index.strftime('%m')).mean().to_frame(name=first_id)
 
     # for each remaining stream ID in the list, merge/append the fdc and ma with the previously created dataframes
-    for comid in a:
-        data = hist_nc.sel(rivid=comid).Qout.to_dataframe()['Qout']
-        fdc_df = fdc_df.merge(compute_fdc(data.tolist(), col_name=comid),
+    for model_id in a:
+        data = hist_nc.sel(rivid=model_id).Qout.to_dataframe()['Qout']
+        fdc_df = fdc_df.merge(compute_fdc(data.tolist(), col_name=model_id),
                               how='outer', left_index=True, right_index=True)
-        ma_df = ma_df.merge(data.groupby(data.index.strftime('%m')).mean().to_frame(name=comid),
+        ma_df = ma_df.merge(data.groupby(data.index.strftime('%m')).mean().to_frame(name=model_id),
                             how='outer', left_index=True, right_index=True)
 
     mean_annual_flow = ma_df.mean()
     sim_data_path = os.path.join(working_dir, 'data_simulated')
 
-    fdc_df.to_csv(os.path.join(sim_data_path, 'sim_fdc.csv'))
-    fdc_df.to_pickle(os.path.join(sim_data_path, 'sim_fdc.pickle'))
-    fdc_df.div(mean_annual_flow).to_csv(os.path.join(sim_data_path, 'simulated_fdc_normalized.csv'))
-    fdc_df.div(mean_annual_flow).to_pickle(os.path.join(sim_data_path, 'simulated_fdc_normalized.pickle'))
-    ma_df.to_csv(os.path.join(sim_data_path, 'simulated_monavg.csv'))
-    ma_df.to_pickle(os.path.join(sim_data_path, 'simulated_monavg.pickle'))
-    ma_df.div(mean_annual_flow).to_csv(os.path.join(sim_data_path, 'simulated_monavg_normalized.csv'))
-    ma_df.div(mean_annual_flow).to_pickle(os.path.join(sim_data_path, 'simulated_monavg_normalized.pickle'))
+    fdc_df.to_csv(os.path.join(sim_data_path, 'sim-fdc.csv'))
+    fdc_df.to_pickle(os.path.join(sim_data_path, 'sim-fdc.pickle'))
+    ma_df.to_csv(os.path.join(sim_data_path, 'sim-monavg.csv'))
+    ma_df.to_pickle(os.path.join(sim_data_path, 'sim-monavg.pickle'))
+    fdc_df.div(mean_annual_flow).to_csv(os.path.join(sim_data_path, 'sim-fdc-norm.csv'))
+    fdc_df.div(mean_annual_flow).to_pickle(os.path.join(sim_data_path, 'sim-fdc-norm.pickle'))
+    ma_df.div(mean_annual_flow).to_csv(os.path.join(sim_data_path, 'sim-monavg-norm.csv'))
+    ma_df.div(mean_annual_flow).to_pickle(os.path.join(sim_data_path, 'sim-monavg-norm.pickle'))
 
     return
 

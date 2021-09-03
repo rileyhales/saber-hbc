@@ -58,39 +58,3 @@ def clip_by_ids(ids: list, drain_shape: str, workdir: str, prefix: str = '') -> 
     return
 
 
-def cluster_summary_files(workdir: str, monavg_pickle: str, fdc_pickle: str, prefix: str):
-    # read the label results of the kmeans model previously stored as pickle
-    ma_labels = TimeSeriesKMeans.from_pickle(monavg_pickle).labels_.tolist()
-    fdc_labels = TimeSeriesKMeans.from_pickle(fdc_pickle).labels_.tolist()
-    # create a dataframe showing the comid and assigned cluster number
-    ids = pd.read_csv(os.path.join(workdir, 'data_inputs', f'{prefix}_fdc_normalized.csv'), index_col=0).dropna(
-        axis=1).columns.tolist()
-    df = pd.DataFrame(np.transpose([ids, fdc_labels, ma_labels]), columns=('ID', 'fdc_cluster', 'ma_cluster'))
-    df.to_csv(os.path.join(data3, f'{prefix}_clusters.csv'), index=False)
-    # create a json of the paired simulation comids
-    df['ma_cluster'] = df['ma_cluster'].astype(int)
-    clusters = set(sorted(df['ma_cluster'].values.tolist()))
-    pairs = {}
-    for i in clusters:
-        pairs[i] = df[df['ma_cluster'] == i]['ID'].values.tolist()
-    with open(os.path.join(data3, f'{prefix}_pairs.json'), 'w') as j:
-        j.write(json.dumps(pairs))
-
-    print('Deleting Old GeoJSONs')
-    for old in glob.glob(os.path.join(data3, f'{prefix}*.geojson')):
-        os.remove(old)
-
-    print('Creating GeoJSONs')
-    if prefix == 'simulated':
-        gdf = gpd.read_file(
-            os.path.join(data0, 'south_america-geoglows-catchment', 'south_america-geoglows-catchment.shp'))
-        # gdf = gpd.read_file(os.path.join(data0, 'south_america-geoglows-drainagline', 'south_america-geoglows-drainagline.shp'))
-        for cluster_number in pairs:
-            savepath = os.path.join(data3, f'{prefix}_cluster_{cluster_number}.geojson')
-            gdf[gdf['COMID'].isin(pairs[cluster_number])].to_file(savepath, driver='GeoJSON')
-    else:
-        gdf = gpd.read_file(os.path.join(data0, 'ideam_stations.json'))
-        for cluster_number in pairs:
-            savepath = os.path.join(data3, f'{prefix}_cluster_{cluster_number}.geojson')
-            gdf[gdf['ID'].isin(pairs[cluster_number])].to_file(savepath, driver='GeoJSON')
-    return

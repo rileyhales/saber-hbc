@@ -52,12 +52,12 @@ rbc.prep.scaffold_working_directory(path_to_working_directory)
 Your working directory should like this
 ```
 working_directory
-   kmeans_models/
-   kmeans_images/
-   data_simulated/
-   data_observed/
-   gis_inputs/
-   gis_outputs/
+    kmeans_models/
+    kmeans_images/
+    data_simulated/
+    data_observed/
+    gis_inputs/
+    gis_outputs/
 ```
 
 ### 1 Prepare Spatial Data (scripts not provided)
@@ -100,21 +100,21 @@ unique_stream_num | area in km^2      | unique_gauge_num
 Your project's working directory now looks like
 ```
 working_directory/
-   kmeans_models/
-      (empty)
-   kmeans_images/
-      (empty)
-   data_simulated/
-      (empty)
-   data_observed/
-      (empty)
-   gis_inputs/
-      drain_table.csv
-      gauge_table.csv
-      drainageline_shapefile.shp
-      catchment_shapefile.shp
-   gis_outputs/
-      (empty)
+    kmeans_models/
+        (empty)
+    kmeans_images/
+        (empty)
+    data_simulated/
+        (empty)
+    data_observed/
+        (empty)
+        gis_inputs/
+        drain_table.csv
+        gauge_table.csv
+        drainageline_shapefile.shp
+        catchment_shapefile.shp
+    gis_outputs/
+        (empty)
 ```
 
 ### 2 Create the Assignments Table
@@ -131,68 +131,59 @@ unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_
 
 ```python
 import rbc
-working_dir = '/path/to/project/directory/'
-rbc.prep.gen_assignments_table(working_dir)
+workdir = '/path/to/project/directory/'
+rbc.prep.gen_assignments_table(workdir)
 ```
 
 Your project's working directory now looks like
 ```
 working_directory/
-   assign_table.csv
-
-   kmeans_models/
-      (empty)
-   kmeans_images/
-      (empty)
-   data_simulated/
-      (empty)
-   data_observed/
-      (empty)
-   gis_inputs/
-      drain_table.csv
-      gauge_table.csv
-      drainageline_shapefile.shp
-      catchment_shapefile.shp
-   gis_outputs/
-      (empty)
+    assign_table.csv
+    
+    kmeans_models/
+        (empty)
+    kmeans_images/
+        (empty)
+    data_simulated/
+        (empty)
+    data_observed/
+        (empty)
+    gis_inputs/
+        drain_table.csv
+        gauge_table.csv
+        drainageline_shapefile.shp
+        catchment_shapefile.shp
+    gis_outputs/
+        (empty)
 ```
 
 ### 2 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
-1. Create a single large csv of the modeled historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
+1. Create a single large csv of the historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
 
-datetime   | model_id_1  | model_id_2  | model_id_3  
----------- | ----------- | ----------- | ----------- 
-1979-01-01 | 50          | 50          |  50          
-1979-01-02 | 60          | 60          |  60          
-1979-01-03 | 70          | 70          |  70          
-...        | ...         | ...         | ...          
+datetime    | model_id_1  | model_id_2  | model_id_3  
+----------- | ----------- | ----------- | ----------- 
+1979-01-01  | 50          | 50          |  50          
+1979-01-02  | 60          | 60          |  60          
+1979-01-03  | 70          | 70          |  70          
+...         | ...         | ...         | ...          
    
-2. Process the large historical discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
+2. Process the large simulated discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
 
-(blank)    | model_id_1  | model_id_2  | model_id_3   
----------- | ----------- | ----------- | ----------- 
-100        | 0           | 0           | 0                    
-99         | 10          | 10          | 10                   
-98         | 20          | 20          | 20                   
-...        | ...         | ...         | ...                  
+p_exceed    | model_id_1  | model_id_2  | model_id_3   
+----------- | ----------- | ----------- | ----------- 
+100         | 0           | 0           | 0                    
+99          | 10          | 10          | 10                   
+98          | 20          | 20          | 20                   
+...         | ...         | ...         | ...                  
 
-3. Normalize the flow duration curve csv by dividing each stream's flow duration curve by that stream's total average flow and save this as a 3rd csv (script provided).
+3. Process the large historical discharge csv to create a 3rd csv with the monthly averages on each segment (script provided).
 
-(blank)    | model_id_1  | model_id_2  | model_id_3   
----------- | ----------- | ----------- | ----------- 
-100        | 0           | 0           | 0                     
-99         | 0.1         | 0.1         | 0.1                   
-98         | 0.2         | 0.2         | 0.2                   
-...        | ...         | ...         | ...                   
-
-4. Process the large historical discharge csv to create a 4th csv with the monthly averages on each segment (script provided).
-
-(blank)    | model_id_1  | model_id_2  | model_id_3   
----------- | ----------- | ----------- | ----------- 
-1          | 60          | 60          | 60                   
-2          | 30          | 30          | 30                   
-3          | 70          | 70          | 70                   
-...        | ...         | ...         | ...                  
+month       | model_id_1  | model_id_2  | model_id_3   
+----------- | ----------- | ----------- | ----------- 
+1           | 60          | 60          | 60                   
+2           | 30          | 30          | 30                   
+3           | 70          | 70          | 70                   
+...         | ...         | ...         | ...                  
 
 ```python
 import rbc
@@ -207,55 +198,48 @@ After this step, you should have a directory of data that looks like this:
 
 ```
 working_directory/
-   assign_table.csv
+    assign_table.csv
 
-   kmeans_models/
-      (empty)
-   kmeans_images/
-      (empty)
-   data_simulated/
-      sim_fdc.csv
-      sim_fdc.pickle
-      sim_fdc_norm.csv
-      sim_fdc_norm.pickle
-      sim_monavg.csv
-      sim_monavg.pickle
-      sim_monavg_norm.csv
-      sim_monavg_norm.pickle
-      (historical_simulation.nc, optional)
-   data_observed/
-      sim_fdc.csv
-      sim_fdc.pickle
-      sim_fdc_norm.csv
-      sim_fdc_norm.pickle
-      sim_monavg.csv
-      sim_monavg.pickle
-      sim_monavg_norm.csv
-      sim_monavg_norm.pickle
-      (directory of raw observation data, optional)
+    kmeans_models/
+        (empty)
+    kmeans_images/
+        (empty)
+    data_simulated/
+        obs-fdc.csv
+        obs-fdc.pickle
+        obs-monavg.csv
+        obs-monavg.pickle
+        (historical_simulation.nc, optional)
+    data_observed/
+        obs-fdc.csv
+        obs-fdc.pickle
+        obs-monavg.csv
+        obs-monavg.pickle
+        (directory of raw observation data, optional)
    gis_inputs/
-      drain_table.csv
-      gauge_table.csv
-      drainageline_shapefile.shp
-      catchment_shapefile.shp
+        drain_table.csv
+        gauge_table.csv
+        drainageline_shapefile.shp
+        catchment_shapefile.shp
    gis_outputs/
-      (empty)
+        (empty)
 ```
 
 ### 3 K-means clustering
-For each of the following, generate and store clusters for many group sizes. Between 2 and 14 should be sufficient.
-1. Create clusters of the *simulated* data by their normalized flow duration curve.
-2. Create clusters of the *simulated* data by their normalized monthly averages.
-3. Create clusters of the *observed* data by their normalized flow duration curve.
-4. Create clusters of the *observed* data by their normalized monthly averages.
-5. Track and the average residual between clustered members and their centroids for each number of clusters identified.
+For each of the following, generate and store clusters for many group sizes- between 2 and 12 should be sufficient.
+1. Create clusters of the *simulated* data by their flow duration curve.
+2. Create clusters of the *simulated* data by their monthly averages.
+3. Create clusters of the *observed* data by their flow duration curve.
+4. Create clusters of the *observed* data by their monthly averages.
+5. Track the error/inertia/residuals for each number of clusters identified.
 
 Use this code:
 
 ```python
 import rbc
-working_dir = '/path/to/project/directory/'
-rbc.kmeans.generate_clusters(working_dir)
+
+workdir = '/path/to/project/directory/'
+rbc.cluster.generate(workdir)
 ```
 
 This function creates trained kmeans models saved as pickle files, plots (from matplotlib) of what each of the clusters 
@@ -266,34 +250,35 @@ Your working directory should be updated with the following
 
 ```
 working_directory/
-   assign_table.csv
-
-   kmeans_models/
-      sim-fdc-norm-inertia.csv
-      sim-monavg-norm-inertia.csv
-      obs-fdc-norm-inertia.csv
-      obs-monavg-norm-inertia.csv
-      
-      sim-fdc-norm-2-clusters-model.pickle
-      sim-fdc-norm-3-clusters-model.pickle
-      sim-fdc-norm-4-clusters-model.pickle
-      ...
-   kmeans_images/
-      sim-fdc-norm-2-clusters.png
-      sim-fdc-norm-3-clusters.png
-      sim-fdc-norm-4-clusters.png
-      ...
-   data_simulated/
-      ...
-   data_observed/
-      ...
-   gis_inputs/
-      ...
-   gis_outputs/
-      (empty)
+    assign_table.csv
+    
+    kmeans_models/
+        best-fit-cluster-count.csv
+        sim-fdc-inertia.csv
+        sim-monavg-inertia.csv
+        obs-fdc-inertia.csv
+        obs-monavg-inertia.csv
+           
+        sim-fdc-norm-2-clusters-model.pickle
+        sim-fdc-norm-3-clusters-model.pickle
+        sim-fdc-norm-4-clusters-model.pickle
+        ...
+    kmeans_images/
+        sim-fdc-norm-2-clusters.png
+        sim-fdc-norm-3-clusters.png
+        sim-fdc-norm-4-clusters.png
+        ...
+    data_simulated/
+        ...
+    data_observed/
+        ...
+    gis_inputs/
+        ...
+    gis_outputs/
+        (empty)
 ```
 
-### 3 Assign basins by Location (contains a gauge)
+### 4 Assign basins by Location (streams which contain a gauge)
 The justification for this is obvious. The observations are the actual streamflow for that basin. 
 
 - If a basin contains a gauge, the simulated basin should use the data from the gauge in that basin.
@@ -301,30 +286,36 @@ The justification for this is obvious. The observations are the actual streamflo
 
 ```python
 import rbc
-import pandas as pd
-
-workdir = '/path/to/'
-rbc.assign.gauged()
+workdir = '/path/to/project/directory/'
+rbc.assign.gauged(workdir)
 ```
 
-### 4 Assign basins by Propagation (hydraulically connected to a gauge)
+### 5 Assign basins by Propagation (hydraulically connected to a gauge)
 Theory: being up/down stream of the gauge but on the same stream order probably means that the seasonality of the flow is 
 probably the same (same FDC), but the monthly average may change depending on how many streams connect with/diverge from the stream. 
 This assumption becomes questionable as the stream order gets larger so the magnitude of flows joining the river may be larger, 
 be less sensitive to changes in flows up stream, may connect basins with different seasonality, etc.
 
 - Basins that are (1) immediately up or down stream of a gauge and (2) on streams of the same order should use that gauged data.
-- The reason listed for this assignment is "propagation-i" where i is the number of stream segments up/down from the gauge the river is.
+- The reason listed for this assignment is "propagation-{direction}-{i}" where direction is either "upstream" or "downstream" and 
+  i is the number of stream segments up/down from the gauge the river is.
 
-### 5 Assign basins by spatially refined clusters (spatial interpretation of machine learning results)
-This is where you will determine the number of clusters to use from both the observed and simulated data which were generated in a previous step.
-The number of clusters needed will depend on the number of gauged basins compared to the number of total basins. It may be influenced by the spatial 
-arrangement of the gauges and the distribution of gauges across streams of various orders.
+```python
+import os
+import rbc
+workdir = '/path/to/project/directory/'
+assign_table = os.path.join(workdir, 'assign_table.csv')
+rbc.assign.propagation(assign_table)
+```
 
+### 6 Assign basins by Clusters (hydrologically similar basins)
+Using the results of the optimal clusters
 - Spatially compare the locations of basins which were clustered for being similar on their flow duration curve.
 - Review assignments spatially. Run tests and view improvements. Adjust clusters and reassign as necessary.
 
-### 6 Assign remaining basins an average
+### 7 Assign remaining basins an average
 - Identify ungauged basins that were not assigned observed data for corrections.
 - Export the resulting csv of assignments.
 - Use the csv to guide applying the correction scripts in various applications.
+
+### 8 Compute the 

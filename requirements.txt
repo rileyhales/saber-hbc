@@ -10,3 +10,5 @@ requests
 plotly
 h5py
 scipy
+hydrostats
+kneed
