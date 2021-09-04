@@ -8,10 +8,11 @@ from .utils import compute_fdc
 
 from ._vocab import model_id_col
 from ._vocab import order_col
+from .table import read as read_table
 
 
 def historical_simulation(hist_nc_path: str,
-                          working_dir: str, ):
+                          workdir: str, ) -> None:
     """
     Fills the working_dir/data_simulated directory with information from the historical simulation netcdf file
 
@@ -23,15 +24,16 @@ def historical_simulation(hist_nc_path: str,
 
     Args:
         hist_nc_path: path to the historical simulation data netcdf
-        working_dir: path to the working directory for the project
+        workdir: path to the working directory for the project
 
     Returns:
         None
     """
     # read the drainage line table
-    a = pd.read_csv(os.path.join(working_dir, 'assign_table.csv'))
+    a = read_table(workdir)
     a = a[a[order_col] > 1]
-    a = sorted(a[model_id_col].tolist())
+    a = set(sorted(a[model_id_col].tolist()))
+    a = list(a)
 
     # open the historical data netcdf file
     hist_nc = xr.open_dataset(hist_nc_path)
@@ -50,22 +52,14 @@ def historical_simulation(hist_nc_path: str,
         ma_df = ma_df.merge(data.groupby(data.index.strftime('%m')).mean().to_frame(name=model_id),
                             how='outer', left_index=True, right_index=True)
 
-    mean_annual_flow = ma_df.mean()
-    sim_data_path = os.path.join(working_dir, 'data_simulated')
-
+    sim_data_path = os.path.join(workdir, 'data_simulated')
     fdc_df.to_csv(os.path.join(sim_data_path, 'sim-fdc.csv'))
-    fdc_df.to_pickle(os.path.join(sim_data_path, 'sim-fdc.pickle'))
     ma_df.to_csv(os.path.join(sim_data_path, 'sim-monavg.csv'))
-    ma_df.to_pickle(os.path.join(sim_data_path, 'sim-monavg.pickle'))
-    fdc_df.div(mean_annual_flow).to_csv(os.path.join(sim_data_path, 'sim-fdc-norm.csv'))
-    fdc_df.div(mean_annual_flow).to_pickle(os.path.join(sim_data_path, 'sim-fdc-norm.pickle'))
-    ma_df.div(mean_annual_flow).to_csv(os.path.join(sim_data_path, 'sim-monavg-norm.csv'))
-    ma_df.div(mean_annual_flow).to_pickle(os.path.join(sim_data_path, 'sim-monavg-norm.pickle'))
 
     return
 
 
-def scaffold_working_directory(path: str):
+def scaffold_working_directory(path: str) -> None:
     """
     Creates the correct directories for an RBC project within the a specified directory
 
@@ -86,7 +80,7 @@ def scaffold_working_directory(path: str):
     return
 
 
-def gen_assignments_table(working_dir):
+def gen_assignments_table(working_dir) -> pd.DataFrame:
     """
     Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
 
@@ -98,11 +92,9 @@ def gen_assignments_table(working_dir):
     """
     drain_table = os.path.join(working_dir, 'gis_inputs', 'drain_table.csv')
     gauge_table = os.path.join(working_dir, 'gis_inputs', 'gauge_table.csv')
-    drain_df = pd.read_csv(drain_table, index_col=0)
-    gauge_df = pd.read_csv(gauge_table, index_col=0)
-    assign_table_path = os.path.join(working_dir, 'assign_table.csv')
+    drain_df = pd.read_csv(drain_table)
+    gauge_df = pd.read_csv(gauge_table)
     assign_table = pd.merge(drain_df, gauge_df, on=model_id_col, how='outer')
     assign_table['assigned_id'] = np.nan
     assign_table['reason'] = np.nan
-    assign_table.to_csv(assign_table_path, index=False)
-    return
+    return assign_table

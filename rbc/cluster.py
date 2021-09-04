@@ -10,9 +10,9 @@ import pandas as pd
 from tslearn.clustering import TimeSeriesKMeans
 from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 
-from .assign import cache_table
 from ._vocab import cluster_count_file
 from ._vocab import model_id_col
+from ._vocab import gauge_id_col
 
 
 def generate(workdir: str):
@@ -77,13 +77,14 @@ def generate(workdir: str):
     return
 
 
-def summarize(workdir: str):
+def summarize(workdir: str, assign_table: pd.DataFrame):
     """
     Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
     to assign_table.csv
 
     Args:
         workdir: path to the project directory
+        assign_table: the assign_table dataframe
 
     Returns:
         None
@@ -96,21 +97,21 @@ def summarize(workdir: str):
     sim_ids = pd.read_csv(os.path.join(workdir, 'data_simulated', 'sim-fdc.csv'), index_col=0).columns
     optimal_model = os.path.join(workdir, 'kmeans_models', f'sim-fdc-{clusters["sim-fdc"]}-clusters-model.pickle')
     sim_labels = TimeSeriesKMeans.from_pickle(optimal_model).labels_.tolist()
-    sim_df = pd.DataFrame(np.transpose(sim_labels), index=sim_ids, columns=['sim-fdc-cluster', ])
-    sim_df.to_csv(os.path.join(workdir, 'kmeans_models', 'optimal-assigns-sim.csv'))
+    sim_df = pd.DataFrame(np.transpose([sim_labels, sim_ids]), columns=['sim-fdc-cluster', 'model_id'])
 
     # read the list of gauge id's, pair them with their cluster label, save to df
     obs_ids = pd.read_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'), index_col=0).columns
     optimal_model = os.path.join(workdir, 'kmeans_models', f'obs-fdc-{clusters["obs-fdc"]}-clusters-model.pickle')
     obs_labels = TimeSeriesKMeans.from_pickle(optimal_model).labels_.tolist()
-    obs_df = pd.DataFrame(np.transpose(obs_labels), index=obs_ids, columns=['obs-fdc-cluster', ])
+    obs_df = pd.DataFrame(np.transpose([obs_labels, obs_ids]), columns=['obs-fdc-cluster', 'gauge_id'])
+
+    sim_df[model_id_col] = sim_df[model_id_col].astype(int)
+    obs_df[gauge_id_col] = obs_df[gauge_id_col].astype(int)
+    assign_table[model_id_col] = assign_table[model_id_col].astype(int)
+    assign_table = assign_table.merge(sim_df, how='outer', on=model_id_col)
+    assign_table = assign_table.merge(obs_df, how='outer', on=gauge_id_col)
+
+    sim_df.to_csv(os.path.join(workdir, 'kmeans_models', 'optimal-assigns-sim.csv'))
     obs_df.to_csv(os.path.join(workdir, 'kmeans_models', 'optimal-assigns-obs.csv'))
 
-    assign_table = pd.read_csv(os.path.join(workdir, 'assign_table.csv'), index_col=0)
-    assign_table[assign_table['model_id']]
-
-    assign_table = assign_table.merge(sim_df, how='inner')
-    assign_table = assign_table.merge(sim_df, how='outer', left_index=True, right_index=True)
-    cache_table(assign_table, workdir)
-
-    return
+    return assign_table

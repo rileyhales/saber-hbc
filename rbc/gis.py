@@ -7,14 +7,14 @@ from ._vocab import model_id_col
 from ._vocab import reason_col
 
 
-def clip_by_assignment(atable: pd.DataFrame, drain_shape: str, workdir: str, prefix: str = '') -> None:
+def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
     """
     Creates geojsons in workdir/gis_outputs/assignments.
 
     Args:
-        atable: the assign_table dataframe
-        drain_shape: path to a drainage line shapefile which can be clipped
         workdir: the path to the working directory for the project
+        assign_table: the assign_table dataframe
+        drain_shape: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
 
     Returns:
@@ -23,14 +23,14 @@ def clip_by_assignment(atable: pd.DataFrame, drain_shape: str, workdir: str, pre
     # read the drainage line shapefile
     dl = gpd.read_file(drain_shape)
 
-    save_dir = os.path.join(workdir, 'gis_inputs', 'assignments')
+    save_dir = os.path.join(workdir, 'gis_outputs')
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
 
     # get the unique list of assignment reasons
-    reasons = set(atable[reason_col].dropna().tolist())
+    reasons = set(assign_table[reason_col].dropna().tolist())
     for reason in reasons:
-        selected_segments = dl[dl[model_id_col].isin(atable[atable[reason_col] == reason][model_id_col].tolist())]
+        selected_segments = dl[dl[model_id_col].isin(assign_table[assign_table[reason_col] == reason][model_id_col].tolist())]
         name = f'{prefix}{"_" if prefix else ""}assignments_{reason}.json'
         selected_segments.to_file(os.path.join(save_dir, name), driver='GeoJSON')
     return
