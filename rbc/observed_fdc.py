@@ -3,7 +3,7 @@ import rbc
 import os
 import numpy as np
 
-def get_observed_fdc(observed_data_dir: str, new_dir: str = "/Users/joshogden/Documents/regional-bias-correction-colombia_ex/examples/Australia/working_directory/data_observed"):
+def get_observed_fdc(observed_data_dir: str, new_dir: str):
     """
     Takes the path to a directory containing .csvs of historical
     observed water flow over any range of time, and creates a .csv
