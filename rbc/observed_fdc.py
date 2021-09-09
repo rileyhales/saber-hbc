@@ -3,7 +3,7 @@ import rbc
 import os
 import numpy as np
 
-def get_observed_fdc(observed_data_dir: str, new_dir: str):
+def Get_Observed_Fdc(observed_data_dir: str, new_dir: str):
     """
     Takes the path to a directory containing .csvs of historical
     observed water flow over any range of time, and creates a .csv
