@@ -1,5 +1,5 @@
 import pandas as pd
-import rbc
+from .utils import compute_fdc
 import os
 import numpy as np
 
@@ -16,9 +16,8 @@ def observed_data(observed_data_dir: str, new_dir: str):
     """
     #loop through directory and fill a dictionary with pd.DataFrames
     dict_of_df = {}
-    cnt = len(os.listdir(observed_data_dir))
-    for i in range(0,cnt):
-        filename = os.listdir(observed_data_dir)[i]
+    for i, csv_file in enumerate(os.listdir(observed_data_dir)):
+        filename = csv_file
         df_name = filename.replace('.csv', '')
 
         dict_of_df[f'{df_name}'] = pd.read_csv(
@@ -33,10 +32,16 @@ def observed_data(observed_data_dir: str, new_dir: str):
     fdc_dict = {}
     dict_keys = list(dict_of_df)
     dict_key_1 = dict_keys[0]
-    final_df = pd.DataFrame(rbc.utils.compute_fdc(np.array(dict_of_df[dict_key_1]['flow']), col_name = dict_key_1))
+    final_df = pd.DataFrame(
+                rbc.utils.compute_fdc(
+                    np.array(
+                        dict_of_df[dict_key_1]['flow']),
+                    col_name = dict_key_1
+                    )
+                )
 
-    for i in range(1, len(dict_keys)):
-        flows = np.array(dict_of_df[dict_keys[i]]['flow'])
-        final_df = final_df.join(rbc.utils.compute_fdc(flows, col_name = dict_keys[i]))
+    for k, df in dict_of_df:
+        flows = np.array(df['flow'])
+        final_df = final_df.join(compute_fdc(flows, col_name = k))
     final_df.to_csv(os.path.join(new_dir, 'obs_fdc.csv'))
     return final_df
