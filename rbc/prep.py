@@ -84,10 +84,12 @@ def observed_data(observed_data_dir: str, new_dir: str):
     Takes the path to a directory containing .csvs of historical
     observed water flow over any range of time, and creates a .csv
     showing the flow duration curve for each station
+    
     Args:
         observed_data_dir: path to directory containing observed data
             -each filename must be the station id alone
         new_dir: path to the directory which which you want the new file to be placed
+    
     Returns: none
     """
     #loop through directory and fill a dictionary with pd.DataFrames
