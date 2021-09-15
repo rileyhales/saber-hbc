@@ -30,6 +30,8 @@ file formats are acceptable
     - (Both) The ID of the next segment/catchment downstream
     - (Drainage lines, preferably both) The stream order of each segment
     - (Catchments, preferably both) Cumulative upstream drainage area
+    - (Drainage lines) the x coordinate of the centroid of each feature
+    - (Drainage lines) the y coordinate of the centroid of each feature
 1. Shapefile of points representing the location of each of the river gauging stations available.
    The attribute table should contain (at least) the following entries for each point
     - A unique ID number or name assigned to the gauge, preferably numeric. Randomly generate unique numeric ID's if they don't exist.

@@ -74,3 +74,23 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
             ids = assign_table[assign_table[ctype] == gnum][model_id_col].values
             dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
     return
+
+
+def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+    """
+    Creates geojsons (in workdir/gis_outputs) of the drainage lines which haven't been assigned a gauge yet
+
+    Args:
+        workdir: the path to the working directory for the project
+        assign_table: the assign_table dataframe
+        drain_shape: path to a drainage line shapefile which can be clipped
+        prefix: optional, a prefix to prepend to each created file's name
+
+    Returns:
+        None
+    """
+    dl_gdf = gpd.read_file(drain_shape)
+    savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.json')
+    ids = assign_table[assign_table[reason_col].isna()][model_id_col].values
+    dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
+    return
