@@ -7,7 +7,6 @@ import xarray as xr
 from .utils import compute_fdc
 
 from ._vocab import model_id_col
-from ._vocab import order_col
 from .table import read as read_table
 
 
@@ -29,9 +28,8 @@ def historical_simulation(hist_nc_path: str,
     Returns:
         None
     """
-    # read the drainage line table
+    # read the assignments table
     a = read_table(workdir)
-    a = a[a[order_col] > 1]
     a = set(sorted(a[model_id_col].tolist()))
     a = list(a)
 

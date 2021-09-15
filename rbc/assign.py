@@ -10,6 +10,8 @@ from ._vocab import model_id_col
 from ._vocab import gauge_id_col
 from ._vocab import assigned_id_col
 from ._vocab import reason_col
+from ._vocab import order_col
+from ._vocab import area_col
 
 
 def gauged(df: pd.DataFrame) -> pd.DataFrame:
@@ -50,7 +52,6 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
 
 # def clusters(workdir: str, assigns: pd.DataFrame) -> pd.DataFrame:
 #     """
-#     Scenario 1: SpatiallyClustered
 #     There is a gauged stream, of the same order as the ungauged, spatially in your cluster. Preference to the station
 #     with the closest upstream drainage areas when there are multiple options
 #
@@ -62,18 +63,17 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
 #         assigns (pd.Dataframe): the dataframe of the assigned and unassigned basins
 #
 #     """
-#     # todo use the geojson of observed data points to limit the assignments df to only points within the cluster
 #     # drop any of the basins that have already been assigned an ID to identify which still need assignment
-#     needs_assignment = cluster.drop(cluster[cluster['COMID'].isin(assigns[assigned_id_col].dropna())].index).values
+#     needs_assignment = cluster.drop(cluster[cluster[model_id_col].isin(assigns[assigned_id_col].dropna())].index).values
 #     # identify the stream orders in the basins needing to be assigned
-#     stream_orders = sorted(set(assigns[assigns[model_id_col].isin(cluster['COMID'])]['Order'].values))
+#     stream_orders = sorted(set(assigns[assigns[model_id_col].isin(cluster[model_id_col])][order_col].values))
 #
 #     # for each stream order with unassigned basins
 #     for stream_order in stream_orders:
 #         # filter a subset dataframe of assignments showing the simulated ID's that contain a station
-#         opts_to_assign = assigns[assigns[reason_col] == 'spatial']
+#         opts_to_assign = assigns[assigns[reason_col] == 'clustered']
 #         # the filter the remaining options to only include the stream order we're on
-#         opts_to_assign = opts_to_assign[opts_to_assign['Order'] == stream_order]
+#         opts_to_assign = opts_to_assign[opts_to_assign[order_col] == stream_order]
 #
 #         # if there were no station points, we cannot apply this option
 #         if opts_to_assign.empty:
@@ -84,7 +84,7 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
 #         elif len(opts_to_assign) == 1:
 #             ...
 #     for i in needs_assignment:
-#         assigns.loc[assigns[model_id_col] == i, assigned_id_col] = opts_to_assign['COMID'].values[0]
+#         assigns.loc[assigns[model_id_col] == i, assigned_id_col] = opts_to_assign[model_id_col].values[0]
 #         assigns.loc[assigns[model_id_col] == i, reason_col] = 'SpatiallyClustered'
 #
 #     # if there are multiple station options, assign the station with the upstream drainage area most similar to the
@@ -93,7 +93,7 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
 #         print(opts_to_assign)
 #     print(cluster)
 #     drain_areas = cluster.merge(opts_to_assign, left_on='COMID', right_on='model_id', how='right')
-#     drain_areas = drain_areas[['model_id', 'Tot_Drain_']]
+#     drain_areas = drain_areas[[model_id_col, area_col]]
 #     print(drain_areas)
 #     for i in needs_assignment:
 #         print(i)
@@ -108,10 +108,3 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
 #         assigns.loc[assigns[model_id_col] == i, assigned_id_col] = station
 #         assigns.loc[assigns[model_id_col] == i, reason_col] = 'SpatiallyClusteredwArea'
 #     return assigns
-
-
-# def assign_intersecting_clusters():
-#     # Apply option 2: when there is not a gauge of the correct order spatially within a cluster of simulated basins,
-#     # cluster the gauges and see if there is a gauge of the right order in the cluster of one of the gauges that is
-#     # spatially within the basin
-#     return
