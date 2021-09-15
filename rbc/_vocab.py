@@ -5,3 +5,5 @@ order_col = 'stream_order'
 gauge_id_col = 'gauge_id'
 assigned_id_col = 'assigned_id'
 reason_col = 'reason'
+
+cluster_count_file = 'best-fit-cluster-count.json'
