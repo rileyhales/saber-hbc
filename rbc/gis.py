@@ -67,8 +67,8 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
         None
     """
     dl_gdf = gpd.read_file(drain_shape)
-    ctypes = ('sim-fdc-cluster', 'obs-fdc-cluster')
-    for ctype in ctypes:
+    cluster_types = [a for a in assign_table if 'cluster' in a]
+    for ctype in cluster_types:
         for gnum in sorted(set(assign_table[ctype].dropna().values)):
             savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}{ctype}-{int(gnum)}.json')
             ids = assign_table[assign_table[ctype] == gnum][model_id_col].values

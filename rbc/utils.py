@@ -5,13 +5,6 @@ import hydrostats.data as hd
 import numpy as np
 import pandas as pd
 
-from ._vocab import model_id_col
-from ._vocab import downstream_id_col
-from ._vocab import order_col
-from ._vocab import gauge_id_col
-from ._vocab import assigned_id_col
-from ._vocab import reason_col
-
 
 def solve_gumbel1(std, xbar, rp):
     """

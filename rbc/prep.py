@@ -10,8 +10,7 @@ from ._vocab import model_id_col
 from .table import read as read_table
 
 
-def historical_simulation(hist_nc_path: str,
-                          workdir: str, ) -> None:
+def historical_simulation(hist_nc_path: str, workdir: str, ) -> None:
     """
     Fills the working_dir/data_simulated directory with information from the historical simulation netcdf file
 

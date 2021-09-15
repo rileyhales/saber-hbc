@@ -27,7 +27,7 @@ def generate(workdir: str):
     """
     best_fit = {}
 
-    for table in glob.glob(os.path.join(workdir, 'data_*', '*fdc.csv')):
+    for table in glob.glob(os.path.join(workdir, 'data_*', '*.csv')):
         # read the data and transform
         time_series = pd.read_csv(table, index_col=0).dropna(axis=1)
         time_series = np.transpose(time_series.values)
@@ -93,25 +93,24 @@ def summarize(workdir: str, assign_table: pd.DataFrame):
     with open(os.path.join(workdir, 'kmeans_models', cluster_count_file), 'r') as f:
         clusters = json.loads(f.read())
 
-    # read the list of simulated id's, pair them with their cluster label, save to df
-    sim_ids = pd.read_csv(os.path.join(workdir, 'data_simulated', 'sim-fdc.csv'), index_col=0).columns
-    optimal_model = os.path.join(workdir, 'kmeans_models', f'sim-fdc-{clusters["sim-fdc"]}-clusters-model.pickle')
-    sim_labels = TimeSeriesKMeans.from_pickle(optimal_model).labels_.tolist()
-    sim_df = pd.DataFrame(np.transpose([sim_labels, sim_ids]), columns=['sim-fdc-cluster', 'model_id'])
-
-    # read the list of gauge id's, pair them with their cluster label, save to df
-    obs_ids = pd.read_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'), index_col=0).columns
-    optimal_model = os.path.join(workdir, 'kmeans_models', f'obs-fdc-{clusters["obs-fdc"]}-clusters-model.pickle')
-    obs_labels = TimeSeriesKMeans.from_pickle(optimal_model).labels_.tolist()
-    obs_df = pd.DataFrame(np.transpose([obs_labels, obs_ids]), columns=['obs-fdc-cluster', 'gauge_id'])
-
-    sim_df[model_id_col] = sim_df[model_id_col].astype(int)
-    obs_df[gauge_id_col] = obs_df[gauge_id_col].astype(int)
     assign_table[model_id_col] = assign_table[model_id_col].astype(int)
-    assign_table = assign_table.merge(sim_df, how='outer', on=model_id_col)
-    assign_table = assign_table.merge(obs_df, how='outer', on=gauge_id_col)
 
-    sim_df.to_csv(os.path.join(workdir, 'kmeans_models', 'optimal-assigns-sim.csv'))
-    obs_df.to_csv(os.path.join(workdir, 'kmeans_models', 'optimal-assigns-obs.csv'))
+    for dataset, cluster_count in clusters.items():
+        # read the list of simulated id's, pair them with their cluster label, save to df
+        merge_col = model_id_col if "sim" in dataset else gauge_id_col
+        csv_path = os.path.join(workdir, f'data_{"simulated" if "sim" in dataset else "observed"}', f'{dataset}.csv')
+        ids = pd.read_csv(csv_path, index_col=0).columns
+
+        # open the optimal model pickle file
+        optimal_model = os.path.join(workdir, 'kmeans_models', f'{dataset}-{cluster_count}-clusters-model.pickle')
+        sim_labels = TimeSeriesKMeans.from_pickle(optimal_model).labels_.tolist()
+
+        # create a dataframe of the ids and their labels (assigned groups)
+        df = pd.DataFrame(np.transpose([sim_labels, ids]), columns=[f'{dataset}-cluster', merge_col])
+        df.to_csv(os.path.join(workdir, 'kmeans_models', f'optimal-assigns-{dataset}.csv'), index=False)
+
+        # merge the dataframes
+        df[merge_col] = df[merge_col].astype(int)
+        assign_table = assign_table.merge(df, how='outer', on=merge_col)
 
     return assign_table
