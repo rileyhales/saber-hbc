@@ -80,7 +80,7 @@ def gen_assignments_table(drain_table: str):
     return
 
 
-def observed_data(observed_data_dir: str, new_dir: str):
+def observed_data(observed_data_dir: str, workdir: str):
     """
     Takes the path to a directory containing .csvs of historical observed water flow over any range of time,
     and creates a csv showing the flow duration curve for each station
@@ -88,7 +88,7 @@ def observed_data(observed_data_dir: str, new_dir: str):
     Args:
         observed_data_dir: path to directory containing observed data
             -each filename must be the station id alone
-        new_dir: path to the directory which which you want the new file to be placed
+        workdir: path to project working directory
     
     Returns:
         None
@@ -133,5 +133,7 @@ def observed_data(observed_data_dir: str, new_dir: str):
     for k, df in dict_of_df:
         flows = np.array(df['flow'])
         final_df = final_df.join(compute_fdc(flows, col_name=k))
-    final_df.to_csv(os.path.join(new_dir, 'obs_fdc.csv'))
+
+    # todo double check that the file path is right
+    final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
     return final_df
