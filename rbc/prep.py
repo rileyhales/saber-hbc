@@ -1,3 +1,4 @@
+import glob
 import os
 
 import numpy as np
@@ -55,6 +56,54 @@ def historical_simulation(hist_nc_path: str, workdir: str, ) -> None:
 
     return
 
+
+def observed_data(obs_dir: str, workdir: str) -> None:
+    """
+    Takes the path to a directory containing csv data of observed discharge over any range of time and creates
+    a csv showing the flow duration curve for each station
+    
+    Args:
+        obs_dir: path to directory containing observed data csv files, each csv named: <station_number>.csv
+        workdir: path to project working directory
+    
+    Returns:
+        None
+    """
+    # create a list of file names and pop out the first station csv
+    csvs = glob.glob(os.path.join(obs_dir, '*.csv'))
+    csvs = list(csvs)
+
+    first_csv = csvs.pop(0)
+    first_id = os.path.splitext(os.path.basename(first_csv))[0]
+
+    # make a dataframe for the first station
+    first_station = pd.read_csv(
+            first_csv,
+            index_col=0,
+        )
+
+    # initialize final_df
+    final_df = pd.DataFrame(
+        compute_fdc(
+            first_station.values.flatten(),
+            col_name=first_id
+        )
+    )
+
+    # loop through the remaining stations
+    for csv in csvs:
+        station_id = os.path.splitext(os.path.basename(csv))[0]
+
+        # read data into a temporary df
+        tmp_df = pd.read_csv(
+            csv,
+            index_col=0,
+        )
+        final_df = final_df.join(compute_fdc(tmp_df.values.flatten(), col_name=station_id))
+
+    final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
+    return
+  
 
 def scaffold_working_directory(path: str) -> None:
     """
