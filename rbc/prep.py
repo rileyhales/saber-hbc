@@ -93,47 +93,42 @@ def observed_data(observed_data_dir: str, workdir: str):
     Returns:
         None
     """
-    # loop through directory and fill a dictionary with pd.DataFrames
-    dict_of_df = {}
+    # create a list of file names and pop out the first station csv
+    listofcsvs = os.listdir(observed_data_dir)
+    firstcsv = listofcsvs.pop(0)
 
-    # listofcsvs = os.listdir(observed_data_dir)  # [0,1,2,3,4]
-    # firstcsv = listofcsvs.pop()  # firstcsv = 0, listofcsvs = [1,2,3,4]
+    # make a dataframe for the *first station
+    first_station = pd.read_csv(
+            os.path.join(observed_data_dir, firstcsv),
+            index_col=False,
+            usecols=['datetime', 'flow'],
+            parse_dates=['datetime']
+        )
 
-    # todo: make a dataframe for the *first station
-    # get a df, can be called final_df like you have below
-    # final_df = pd.DataFrame(...
+    # initialize final_df
+    final_df = pd.DataFrame(
+        compute_fdc(
+            np.array(first_station['flow']),
+            col_name=firstcsv.replace('.csv', '')
+        )
+    )
 
     # loop through the remaining stations
     for i, csv_file in enumerate(listofcsvs):
         filename = csv_file
-        df_name = filename.replace('.csv', '')
+        station_id = filename.replace('.csv', '')
 
-        # modify to just read the data into a tmp variable instead of caching in a dictionary
-        dict_of_df[df_name] = pd.read_csv(
+        # read data into a temporary df
+        tmp_df = pd.read_csv(
             os.path.join(observed_data_dir, filename),
             index_col=False,
             usecols=['datetime', 'flow'],
             parse_dates=['datetime']
         )
-        # todo: compute the fdc (like on line 129)
+        tmp_df = tmp_df.set_index('datetime')
+        # compute the fdc and merge the fdc dataframe into the final_df from earlier
+        flows = np.array(tmp_df['flow'])
+        final_df = final_df.join(compute_fdc(flows, col_name=station_id))
 
-        # todo: merge the fdc dataframe into the final_df from earlier without caching in a dictionary (like line 135)
-
-        dict_of_df[df_name] = dict_of_df[df_name].set_index('datetime')
-
-    # loop through the dictionary and calculate the flow duration curve of each DataFrame
-    fdc_dict = {}
-    dict_keys = list(dict_of_df)
-    dict_key_1 = dict_keys[0]
-    final_df = pd.DataFrame(
-        compute_fdc(
-            np.array(dict_of_df[dict_key_1]['flow']), col_name=dict_key_1)
-    )
-
-    for k, df in dict_of_df:
-        flows = np.array(df['flow'])
-        final_df = final_df.join(compute_fdc(flows, col_name=k))
-
-    # todo double check that the file path is right
     final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
     return final_df
