@@ -2,10 +2,13 @@ pandas
 geopandas
 numpy
 xarray
+netCDF4
 tslearn
 matplotlib
-xarray
 geoglows
 requests
 plotly
 h5py
+scipy
+hydrostats
+kneed
