@@ -53,7 +53,8 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '') -> 
     return
 
 
-def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
+                    column_names: dict = {'model_id_col_name': None}) -> None:
     """
     Creates geojsons (in workdir/gis_outputs) of the drainage lines based on which fdc cluster they were assigned to
 
@@ -62,16 +63,22 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
         assign_table: the assign_table dataframe
         drain_shape: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
+        column_names: Takes a dictionary defining the name for the model ID column
+                      if attribute table has a different name for it, i.e. "COMID".
+                      Defaults to _vocab.model_id_col
 
     Returns:
         None
     """
+    model_id_col_name = column_names['model_id_col_name']
+    if model_id_col_name is None:
+        model_id_col_name = model_id_col
     dl_gdf = gpd.read_file(drain_shape)
     cluster_types = [a for a in assign_table if 'cluster' in a]
     for ctype in cluster_types:
         for gnum in sorted(set(assign_table[ctype].dropna().values)):
             savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}{ctype}-{int(gnum)}.json')
-            ids = assign_table[assign_table[ctype] == gnum][model_id_col].values
+            ids = assign_table[assign_table[ctype] == gnum][model_id_col_name].values
             dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
     return
 
