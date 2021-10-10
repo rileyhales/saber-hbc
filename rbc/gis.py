@@ -29,7 +29,10 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: st
         ids = assign_table[assign_table[reason_col] == reason][model_id_col].values
         subset = dl[dl[model_id_col].isin(ids)]
         name = f'{prefix}{"_" if prefix else ""}assignments_{reason}.json'
-        subset.to_file(os.path.join(save_dir, name), driver='GeoJSON')
+        if subset.empty:
+            continue
+        else:
+            subset.to_file(os.path.join(save_dir, name), driver='GeoJSON')
     return
 
 
@@ -79,7 +82,10 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
         for gnum in sorted(set(assign_table[ctype].dropna().values)):
             savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}{ctype}-{int(gnum)}.json')
             ids = assign_table[assign_table[ctype] == gnum][model_id_col_name].values
-            dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
+            if dl_gdf[dl_gdf[model_id_col].isin(ids)].empty:
+                continue
+            else:
+                dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
     return
 
 
@@ -99,5 +105,8 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: st
     dl_gdf = gpd.read_file(drain_shape)
     savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.json')
     ids = assign_table[assign_table[reason_col].isna()][model_id_col].values
-    dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
+    if dl_gdf[dl_gdf[model_id_col].isin(ids)].empty:
+        continue
+    else:
+        dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
     return
