@@ -75,12 +75,15 @@ def observed_data(obs_dir: str, workdir: str) -> None:
 
     first_csv = csvs.pop(0)
     first_id = os.path.splitext(os.path.basename(first_csv))[0]
+    print(first_id)
 
     # make a dataframe for the first station
     first_station = pd.read_csv(
             first_csv,
             index_col=0,
         )
+
+    print(first_station.values, first_station.values.dtype)
 
     # initialize final_df
     final_df = pd.DataFrame(
@@ -99,7 +102,10 @@ def observed_data(obs_dir: str, workdir: str) -> None:
             csv,
             index_col=0,
         )
-        final_df = final_df.join(compute_fdc(tmp_df.values.flatten(), col_name=station_id))
+        try:
+            final_df = final_df.join(compute_fdc(tmp_df.values.flatten(), col_name=station_id))
+        except:
+            print(csv, tmp_df)
 
     final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
     return

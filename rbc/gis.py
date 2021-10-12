@@ -106,7 +106,7 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: st
     savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.json')
     ids = assign_table[assign_table[reason_col].isna()][model_id_col].values
     if dl_gdf[dl_gdf[model_id_col].isin(ids)].empty:
-        continue
+        return
     else:
         dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
     return
