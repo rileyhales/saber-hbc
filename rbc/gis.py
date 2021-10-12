@@ -1,10 +1,20 @@
 import os
+import warnings
 
 import geopandas as gpd
 import pandas as pd
 
 from ._vocab import model_id_col
 from ._vocab import reason_col
+
+__all__ = ['clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids']
+
+
+# def clip_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+#     clip_by_assignment()
+#     clip_by_cluster()
+#     clip_by_unassigned()
+#     return
 
 
 def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
@@ -57,35 +67,30 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '') -> 
 
 
 def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
-                    column_names: dict = {'model_id_col_name': None}) -> None:
+                    id_column: str = model_id_col) -> None:
     """
-    Creates geojsons (in workdir/gis_outputs) of the drainage lines based on which fdc cluster they were assigned to
+    Creates GIS files (in workdir/gis_outputs) of the drainage lines based on which fdc cluster they were assigned to
 
     Args:
         workdir: the path to the working directory for the project
         assign_table: the assign_table dataframe
         drain_shape: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
-        column_names: Takes a dictionary defining the name for the model ID column
-                      if attribute table has a different name for it, i.e. "COMID".
-                      Defaults to _vocab.model_id_col
+        id_column: name of the id column in the attributes of the
 
     Returns:
         None
     """
-    model_id_col_name = column_names['model_id_col_name']
-    if model_id_col_name is None:
-        model_id_col_name = model_id_col
     dl_gdf = gpd.read_file(drain_shape)
     cluster_types = [a for a in assign_table if 'cluster' in a]
     for ctype in cluster_types:
         for gnum in sorted(set(assign_table[ctype].dropna().values)):
             savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}{ctype}-{int(gnum)}.json')
-            ids = assign_table[assign_table[ctype] == gnum][model_id_col_name].values
-            if dl_gdf[dl_gdf[model_id_col].isin(ids)].empty:
+            ids = assign_table[assign_table[ctype] == gnum][model_id_col].values
+            if dl_gdf[dl_gdf[id_column].isin(ids)].empty:
                 continue
             else:
-                dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
+                dl_gdf[dl_gdf[id_column].isin(ids)].to_file(savepath, driver='GeoJSON')
     return
 
 
@@ -103,10 +108,11 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: st
         None
     """
     dl_gdf = gpd.read_file(drain_shape)
-    savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.json')
     ids = assign_table[assign_table[reason_col].isna()][model_id_col].values
-    if dl_gdf[dl_gdf[model_id_col].isin(ids)].empty:
+    subset = dl_gdf[dl_gdf[model_id_col].isin(ids)]
+    if subset.empty:
+        warnings.warn('Empty filter: No streams are unassigned')
         return
-    else:
-        dl_gdf[dl_gdf[model_id_col].isin(ids)].to_file(savepath, driver='GeoJSON')
+    savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.json')
+    subset.to_file(savepath, driver='GeoJSON')
     return
