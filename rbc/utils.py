@@ -42,9 +42,9 @@ def compute_fdc(flows: np.array, steps: int = 500, exceed: bool = True, col_name
     return pd.DataFrame(flows, columns=[col_name, ], index=percentiles)
 
 
-def compute_scalar_fdc(first_fdc, seconds_fdc):
+def compute_scalar_fdc(first_fdc, second_fdc):
     first_fdc = compute_fdc(first_fdc)
-    second_fdc = compute_fdc(seconds_fdc)
+    second_fdc = compute_fdc(second_fdc)
     ratios = np.divide(first_fdc['Flow'].values.flatten(), second_fdc['Flow'].values.flatten())
     columns = (first_fdc.columns[0], 'Scalars')
     scalars_df = pd.DataFrame(np.transpose([first_fdc.values[:, 0], ratios]), columns=columns)
