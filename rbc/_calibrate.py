@@ -1,5 +1,9 @@
+import glob
+import os
 import statistics
 
+import grids
+import netCDF4 as nc
 import numpy as np
 import pandas as pd
 from scipy import interpolate, stats
@@ -124,4 +128,39 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
 
     return pd.DataFrame(data=np.transpose([values, scalars, percentiles]),
                         index=sim_flow_b.index.to_list(),
-                        columns=('CalibratedStreamflow', 'Scalars', 'Percentile'))
+                        columns=('flow', 'scalars', 'percentile'))
+
+
+def create_archive(workdir: str, assign_table: pd.DataFrame):
+    sim_nc_path = glob.glob(os.path.join(workdir, 'data_simulated', '*.nc'))[0]
+    bcs_nc_path = os.path.join(workdir, 'calibrated_simulated_flow.nc')
+
+    # get the simulated values and coordinate variables
+    coords = assign_table[['model_id']]
+    coords.loc[:, 'time'] = None
+    coords = coords[['time', 'model_id']].values.tolist()
+
+    # ts = grids.TimeSeries([sim_nc_path, ], 'Qout', ('time', 'rivid'))
+    # ts = ts.multipoint(*coords)
+    # ts.index = ts['datetime']
+    # del ts['datetime']
+    ts = pd.read_pickle('tmp.pickle')
+
+    bcs_nc = nc.Dataset(bcs_nc_path, 'w')
+    bcs_nc.createDimension('time', ts.values.shape[0])
+    bcs_nc.createDimension('model_id', ts.values.shape[1])
+
+    bcs_nc.createVariable('time', 'f4', ('time', ), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('model_id', 'f4', ('model_id', ), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+
+    bcs_nc['time'][:] = ts.index.values
+    bcs_nc['model_id'][:] = assign_table['model_id'].values.flatten()
+    bcs_nc['flow_sim'][:] = ts.values
+    del ts
+
+    bcs_nc.sync()
+    return

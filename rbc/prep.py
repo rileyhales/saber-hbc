@@ -78,9 +78,9 @@ def observed_data(obs_dir: str, workdir: str) -> None:
 
     # make a dataframe for the first station
     first_station = pd.read_csv(
-            first_csv,
-            index_col=0,
-        )
+        first_csv,
+        index_col=0,
+    )
 
     # initialize final_df
     final_df = pd.DataFrame(
@@ -103,7 +103,7 @@ def observed_data(obs_dir: str, workdir: str) -> None:
 
     final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
     return
-  
+
 
 def scaffold_working_directory(path: str) -> None:
     """
