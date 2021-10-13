@@ -7,11 +7,25 @@ import pandas as pd
 from ._vocab import model_id_col
 from ._vocab import reason_col
 
-__all__ = ['clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids']
+__all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids']
 
 
-def clip_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
-             id_column: str = model_id_col) -> None:
+def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
+                 id_column: str = model_id_col) -> None:
+    """
+    Runs all the clip functions which create subsets of the drainage lines GIS dataset based on how they were assigned
+    for bias correction.
+
+    Args:
+        workdir: the path to the working directory for the project
+        assign_table: the assign_table dataframe
+        drain_shape: path to a drainage line shapefile which can be clipped
+        prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
+        id_column: name of the id column in the attributes of the shape table
+
+    Returns:
+        None
+    """
     clip_by_assignment(workdir, assign_table, drain_shape, prefix, id_column)
     clip_by_cluster(workdir, assign_table, drain_shape, prefix, id_column)
     clip_by_unassigned(workdir, assign_table, drain_shape, prefix, id_column)
@@ -28,6 +42,7 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: st
         assign_table: the assign_table dataframe
         drain_shape: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
+        id_column: name of the id column in the attributes of the shape table
 
     Returns:
         None
@@ -58,6 +73,7 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
         ids: any iterable containing a series of model_ids
         drain_shape: path to the drainage shapefile to be clipped
         prefix: optional, a prefix to prepend to each created file's name
+        id_column: name of the id column in the attributes of the shape table
 
     Returns:
         None
@@ -107,6 +123,7 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: st
         assign_table: the assign_table dataframe
         drain_shape: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
+        id_column: name of the id column in the attributes of the shape table
 
     Returns:
         None
