@@ -99,7 +99,7 @@ def observed_data(obs_dir: str, workdir: str) -> None:
             csv,
             index_col=0,
         )
-        final_df = final_df.join(compute_fdc(tmp_df.values.flatten(), col_name=station_id))
+    final_df = final_df.join(compute_fdc(tmp_df.values.flatten(), col_name=station_id))
 
     final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
     return
