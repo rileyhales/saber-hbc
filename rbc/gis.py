@@ -4,14 +4,14 @@ import warnings
 import geopandas as gpd
 import pandas as pd
 
-from ._vocab import model_id_col
+from ._vocab import mid_col
 from ._vocab import reason_col
 
 __all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids']
 
 
 def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
-                 id_column: str = model_id_col) -> None:
+                 id_column: str = mid_col) -> None:
     """
     Runs all the clip functions which create subsets of the drainage lines GIS dataset based on how they were assigned
     for bias correction.
@@ -33,7 +33,7 @@ def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, pre
 
 
 def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
-                       id_column: str = model_id_col) -> None:
+                       id_column: str = mid_col) -> None:
     """
     Creates geojsons (in workdir/gis_outputs) for each unique value in the assignment column
 
@@ -64,7 +64,7 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: st
 
 
 def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
-                id_column: str = model_id_col) -> None:
+                id_column: str = mid_col) -> None:
     """
     Creates geojsons (in workdir/gis_outputs) of the subset of 'drain_shape' with an ID in the specified list
 
@@ -86,7 +86,7 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
 
 
 def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
-                    id_column: str = model_id_col) -> None:
+                    id_column: str = mid_col) -> None:
     """
     Creates GIS files (in workdir/gis_outputs) of the drainage lines based on which fdc cluster they were assigned to
 
@@ -114,7 +114,7 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
 
 
 def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
-                       id_column: str = model_id_col) -> None:
+                       id_column: str = mid_col) -> None:
     """
     Creates geojsons (in workdir/gis_outputs) of the drainage lines which haven't been assigned a gauge yet
 

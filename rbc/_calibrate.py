@@ -9,6 +9,9 @@ import pandas as pd
 from scipy import interpolate, stats
 
 from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
+from ._vocab import mid_col
+from ._vocab import asgn_mid_col
+from ._vocab import asgn_gid_col
 
 
 def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
@@ -142,25 +145,46 @@ def create_archive(workdir: str, assign_table: pd.DataFrame):
 
     # ts = grids.TimeSeries([sim_nc_path, ], 'Qout', ('time', 'rivid'))
     # ts = ts.multipoint(*coords)
-    # ts.index = ts['datetime']
-    # del ts['datetime']
+    # ts.set_index('datetime', inplace=True)
+    # ts.index = pd.to_datetime(ts.index, unit='s')
+    # ts.columns = assign_table['model_id'].values.flatten()
+    # ts.to_pickle('tmp.pickle')
     ts = pd.read_pickle('tmp.pickle')
 
-    bcs_nc = nc.Dataset(bcs_nc_path, 'w')
-    bcs_nc.createDimension('time', ts.values.shape[0])
-    bcs_nc.createDimension('model_id', ts.values.shape[1])
+    # # create the new netcdf
+    # bcs_nc = nc.Dataset(bcs_nc_path, 'w')
+    # bcs_nc.createDimension('time', ts.values.shape[0])
+    # bcs_nc.createDimension('model_id', ts.values.shape[1])
+    #
+    # bcs_nc.createVariable('time', 'f4', ('time', ), zlib=True, shuffle=True, fill_value=np.nan)
+    # bcs_nc.createVariable('model_id', 'f4', ('model_id', ), zlib=True, shuffle=True, fill_value=np.nan)
+    #
+    # bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    # bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    # bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    # bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    #
+    # bcs_nc['time'][:] = ts.index.values
+    # bcs_nc['model_id'][:] = assign_table['model_id'].values.flatten()
+    # bcs_nc['flow_sim'][:] = ts.values
+    # del ts
+    #
+    # bcs_nc.sync()
+    print()
 
-    bcs_nc.createVariable('time', 'f4', ('time', ), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('model_id', 'f4', ('model_id', ), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
+        model_id, asgn_mid, asgn_gid = triple
+        model_id = int(model_id)
+        asgn_mid = int(asgn_mid)
+        asgn_gid = int(asgn_gid)
 
-    bcs_nc['time'][:] = ts.index.values
-    bcs_nc['model_id'][:] = assign_table['model_id'].values.flatten()
-    bcs_nc['flow_sim'][:] = ts.values
-    del ts
+        # todo if the asgn_mid == model_id then use the point calibration method from geoglows package
+        # if isinstance(asgnd_id, np.nan):
+        #     continue
 
-    bcs_nc.sync()
+        calibrated_df = calibrate(
+            ts[[asgn_mid]],
+            pd.read_csv(os.path.join(workdir, 'data_observed', 'ideam_raw_csvs', f'{model_id}.csv'))
+        )
+
     return
