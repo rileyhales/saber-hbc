@@ -15,7 +15,7 @@ from ._vocab import mid_col
 from ._vocab import gid_col
 
 
-def generate(workdir: str):
+def generate(workdir: str) -> None:
     """
     Creates trained kmeans model pickle files and plots of the results saved as png images
 
@@ -77,7 +77,7 @@ def generate(workdir: str):
     return
 
 
-def summarize(workdir: str, assign_table: pd.DataFrame):
+def summarize(workdir: str, assign_table: pd.DataFrame) -> None:
     """
     Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
     to assign_table.csv
