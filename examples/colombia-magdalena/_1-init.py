@@ -29,13 +29,13 @@ assign_table = rbc.table.read(workdir)
 # rbc.table.cache(workdir, assign_table)
 
 # Assign basins which are gauged and propagate those gauges
-assign_table = rbc.assign.gauged(assign_table)
-assign_table = rbc.assign.propagation(assign_table)
-assign_table = rbc.assign.clusters_by_dist(assign_table)
+# assign_table = rbc.assign.gauged(assign_table)
+# assign_table = rbc.assign.propagation(assign_table)
+# assign_table = rbc.assign.clusters_by_dist(assign_table)
 # todo assign_table = rbc.assign.clusters_by_monavg(assign_table)
 
 # Cache the assignments table with the updates
-rbc.table.cache(workdir, assign_table)
+# rbc.table.cache(workdir, assign_table)
 
 # Generate GIS files so you can go explore your progress graphically
 # rbc.gis.clip_by_assignment(workdir, assign_table, drain_shape)

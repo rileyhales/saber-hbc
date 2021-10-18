@@ -1,4 +1,7 @@
 # Regional Bias Correction of Large Hydrological Models
+This repository contains Python code which can be used to calibrate biased, non-gridded hydrologic models. Most of the 
+code in this repository will work on any model's results. The data preprocessing and automated calibration functions 
+are programmed to expect data following the GEOGloWS ECMWF Streamflow Service's structure and format.
 
 ## Theory
 Basins and streams will be used interchangeably to refer to the specific stream subunit.
@@ -51,7 +54,7 @@ path_to_working_directory = '/my/file/path'
 rbc.prep.scaffold_working_directory(path_to_working_directory)
 ```
 
-Your working directory should like this
+Your working directory should exactly like this. 
 ```
 working_directory
     kmeans_models/
@@ -63,6 +66,9 @@ working_directory
 ```
 
 ### 1 Prepare Spatial Data (scripts not provided)
+This step instructs you to collect 3 gis files and use them to generate 2 csv tables. All 5 files (3 gis files and 2
+tables) should go in the `gis_inputs` directory 
+
 1. Clip model drainage lines and catchments shapefile to extents of the region of interest. 
    For speed/efficiency, merge their attribute tables and save as a csv.
    - read drainage line shapefile and with GeoPandas 
@@ -72,17 +78,22 @@ working_directory
       - COMID -> model_id
       - Tot_Drain -> drainage_area
       - order_ -> stream_order
+   - compute the x and y coordinates of the centroid of each feature (needs the geometry column)
    - delete geometry column
    - save as `drain_table.csv` in the `gis_inputs` directory
 
+Tip to compute the x and y coordinates using geopandas
+```python
+```
+
 Your table should look like this:
 
-downstream_model_id | model_id          | drainage_area_mod | stream_order  
-------------------- | ----------------- | ----------------- | ------------
-unique_stream_num   | unique_stream_num | area in km^2      | stream_order
-unique_stream_num   | unique_stream_num | area in km^2      | stream_order  
-unique_stream_num   | unique_stream_num | area in km^2      | stream_order  
-...                 | ...               | ...               | ...
+downstream_model_id | model_id          | drainage_area_mod | stream_order  | x   | y   |  
+------------------- | ----------------- | ----------------- | ------------- | --- | --- |
+unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##  | ##  |
+unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##  | ##  |  
+unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##  | ##  |  
+...                 | ...               | ...               | ...           | ... | ... |
 
 2. Prepare a csv of the attribute table of the gauge locations shapefile.
    - You need the columns:
@@ -110,11 +121,12 @@ working_directory/
         (empty)
     data_observed/
         (empty)
-        gis_inputs/
+    gis_inputs/
         drain_table.csv
         gauge_table.csv
-        drainageline_shapefile.shp
-        catchment_shapefile.shp
+        drainageline_shapefile.shp (name/gis_format do not need to match)
+        catchment_shapefile.shp (name/gis_format do not need to match)
+        gauge_shapefile.shp (name/gis_format do not need to match)
     gis_outputs/
         (empty)
 ```
@@ -140,7 +152,7 @@ rbc.prep.gen_assignments_table(workdir)
 Your project's working directory now looks like
 ```
 working_directory/
-    assign_table.csv
+    assign_table.csv    <-- New
     
     kmeans_models/
         (empty)
@@ -153,13 +165,18 @@ working_directory/
     gis_inputs/
         drain_table.csv
         gauge_table.csv
-        drainageline_shapefile.shp
-        catchment_shapefile.shp
+        drainageline_shapefile.shp (name/gis_format do not need to match)
+        catchment_shapefile.shp (name/gis_format do not need to match)
+        gauge_shapefile.shp (name/gis_format do not need to match)
     gis_outputs/
         (empty)
 ```
 
-### 2 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
+### 3 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
+This step instructs you to gather simulated data and observed data. The raw simulated data (netCDF) and raw observed 
+data (csvs) should be included in the `data_simulated` and `data_observed` folders respectively. They are used to 
+generate several additional csv files which will be used in machine learning algorthims later in the process.
+
 1. Create a single large csv of the historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
 
 datetime    | model_id_1  | model_id_2  | model_id_3  
@@ -211,13 +228,16 @@ working_directory/
         obs-fdc.pickle
         obs-monavg.csv
         obs-monavg.pickle
-        (historical_simulation.nc, optional)
+        historical_simulation.nc (name varies)
     data_observed/
         obs-fdc.csv
         obs-fdc.pickle
         obs-monavg.csv
         obs-monavg.pickle
-        (directory of raw observation data, optional)
+        csvs/
+            12345.csv
+            67890.csv
+            ...
    gis_inputs/
         drain_table.csv
         gauge_table.csv
@@ -227,7 +247,7 @@ working_directory/
         (empty)
 ```
 
-### 3 K-means clustering
+### 4 K-means clustering
 For each of the following, generate and store clusters for many group sizes- between 2 and 12 should be sufficient.
 1. Create clusters of the *simulated* data by their flow duration curve.
 2. Create clusters of the *simulated* data by their monthly averages.
@@ -271,16 +291,21 @@ working_directory/
         sim-fdc-norm-4-clusters.png
         ...
     data_simulated/
-        ...
+        (same as previous steps...)
     data_observed/
-        ...
+        (same as previous steps...)
     gis_inputs/
-        ...
+        (same as previous steps...)
     gis_outputs/
         (empty)
 ```
 
-### 4 Assign basins by Location (streams which contain a gauge)
+### 5 Assign basins by Location (streams which contain a gauge)
+This step uses the information prepared in the previous steps to assign observed streamflow information to modeled 
+stream segments which will be used for calibration. This step does not produce any new files but it does edit the 
+existing assign_table csv file. After running these lines, use the `rbc.table.cache` function to write the changes to 
+disc.
+
 The justification for this is obvious. The observations are the actual streamflow for that basin. 
 
 - If a basin contains a gauge, the simulated basin should use the data from the gauge in that basin.
@@ -292,7 +317,7 @@ workdir = '/path/to/project/directory/'
 rbc.assign.gauged(workdir)
 ```
 
-### 5 Assign basins by Propagation (hydraulically connected to a gauge)
+### 6 Assign basins by Propagation (hydraulically connected to a gauge)
 Theory: being up/down stream of the gauge but on the same stream order probably means that the seasonality of the flow is 
 probably the same (same FDC), but the monthly average may change depending on how many streams connect with/diverge from the stream. 
 This assumption becomes questionable as the stream order gets larger so the magnitude of flows joining the river may be larger, 
@@ -310,14 +335,18 @@ assign_table = os.path.join(workdir, 'assign_table.csv')
 rbc.assign.propagation(assign_table)
 ```
 
-### 6 Assign basins by Clusters (hydrologically similar basins)
+### 7 Assign basins by Clusters (hydrologically similar basins)
 Using the results of the optimal clusters
 - Spatially compare the locations of basins which were clustered for being similar on their flow duration curve.
 - Review assignments spatially. Run tests and view improvements. Adjust clusters and reassign as necessary.
 
-### 7 Assign remaining basins an average
+### 8 Assign remaining basins an average
 - Identify ungauged basins that were not assigned observed data for corrections.
 - Export the resulting csv of assignments.
 - Use the csv to guide applying the correction scripts in various applications.
 
-### 8 Compute the 
+### 9 Generate GIS files of the assignments
+use the rbc.gis functions to generate maps of the results
+
+### 10 Perform bias correction and archive results
+use the rbc.calibrate functions
