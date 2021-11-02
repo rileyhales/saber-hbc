@@ -2,7 +2,7 @@ import rbc.prep
 import rbc.assign
 import rbc.gis
 import rbc.cluster
-from rbc._calibrate import calibrate
+from rbc._calibrate import calibrate, create_archive
 import rbc.utils
 import rbc.table
 

@@ -11,11 +11,11 @@ from tslearn.clustering import TimeSeriesKMeans
 from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 
 from ._vocab import cluster_count_file
-from ._vocab import model_id_col
-from ._vocab import gauge_id_col
+from ._vocab import mid_col
+from ._vocab import gid_col
 
 
-def generate(workdir: str):
+def generate(workdir: str) -> None:
     """
     Creates trained kmeans model pickle files and plots of the results saved as png images
 
@@ -77,7 +77,7 @@ def generate(workdir: str):
     return
 
 
-def summarize(workdir: str, assign_table: pd.DataFrame):
+def summarize(workdir: str, assign_table: pd.DataFrame) -> None:
     """
     Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
     to assign_table.csv
@@ -93,11 +93,11 @@ def summarize(workdir: str, assign_table: pd.DataFrame):
     with open(os.path.join(workdir, 'kmeans_models', cluster_count_file), 'r') as f:
         clusters = json.loads(f.read())
 
-    assign_table[model_id_col] = assign_table[model_id_col].astype(int)
+    assign_table[mid_col] = assign_table[mid_col].astype(int)
 
     for dataset, cluster_count in clusters.items():
         # read the list of simulated id's, pair them with their cluster label, save to df
-        merge_col = model_id_col if "sim" in dataset else gauge_id_col
+        merge_col = mid_col if "sim" in dataset else gid_col
         csv_path = os.path.join(workdir, f'data_{"simulated" if "sim" in dataset else "observed"}', f'{dataset}.csv')
         ids = pd.read_csv(csv_path, index_col=0).columns
 

@@ -1,10 +1,18 @@
+import glob
+import os
 import statistics
+import warnings
 
+import grids
+import netCDF4 as nc
 import numpy as np
 import pandas as pd
 from scipy import interpolate, stats
 
 from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
+from ._vocab import mid_col
+from ._vocab import asgn_mid_col
+from ._vocab import asgn_gid_col
 
 
 def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
@@ -65,7 +73,7 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
         sim_fdc = compute_fdc(sim_flow_a)
         obs_fdc = compute_fdc(obs_flow_a)
 
-    scalar_fdc = compute_scalar_fdc(obs_fdc['Flow'].values.flatten(), sim_fdc['Flow'].values.flatten())
+    scalar_fdc = compute_scalar_fdc(obs_fdc['flow'].values.flatten(), sim_fdc['flow'].values.flatten())
 
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['Exceedence Probability'] >= filter_range[0]]
@@ -124,4 +132,80 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
 
     return pd.DataFrame(data=np.transpose([values, scalars, percentiles]),
                         index=sim_flow_b.index.to_list(),
-                        columns=('CalibratedStreamflow', 'Scalars', 'Percentile'))
+                        columns=('flow', 'scalars', 'percentile'))
+
+
+def create_archive(workdir: str, assign_table: pd.DataFrame):
+    sim_nc_path = glob.glob(os.path.join(workdir, 'data_simulated', '*.nc'))[0]
+    bcs_nc_path = os.path.join(workdir, 'calibrated_simulated_flow.nc')
+
+    # get the simulated values and coordinate variables
+    coords = assign_table[['model_id']]
+    coords.loc[:, 'time'] = None
+    coords = coords[['time', 'model_id']].values.tolist()
+
+    ts = grids.TimeSeries([sim_nc_path, ], 'Qout', ('time', 'rivid'))
+    ts = ts.multipoint(*coords)
+    ts.set_index('datetime', inplace=True)
+    ts.index = pd.to_datetime(ts.index, unit='s')
+    ts.columns = assign_table['model_id'].values.flatten()
+    ts.to_pickle('tmp.pickle')
+
+    t_size = ts.values.shape[0]
+    m_size = ts.values.shape[1]
+
+    # create the new netcdf
+    bcs_nc = nc.Dataset(bcs_nc_path, 'w')
+    bcs_nc.createDimension('time', t_size)
+    bcs_nc.createDimension('model_id', m_size)
+
+    bcs_nc.createVariable('time', 'f4', ('time', ), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('model_id', 'f4', ('model_id', ), zlib=True, shuffle=True, fill_value=np.nan)
+
+    bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
+
+    bcs_nc['time'][:] = ts.index.values
+    bcs_nc['model_id'][:] = assign_table['model_id'].values.flatten()
+    bcs_nc['flow_sim'][:] = ts.values
+
+    bcs_nc.sync()
+
+    c_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
+    p_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
+    s_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
+
+    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
+        try:
+            print(f'{idx}/{m_size}')
+
+            model_id, asgn_mid, asgn_gid = triple
+            if np.isnan(asgn_gid) or np.isnan(asgn_mid):
+                warnings.warn(f'unable to correct model id: {model_id}')
+                continue
+            model_id = int(model_id)
+            asgn_mid = int(asgn_mid)
+            asgn_gid = int(asgn_gid)
+
+            # todo if the asgn_mid == model_id then use the point calibration method from geoglows package
+
+            calibrated_df = calibrate(
+                ts[[asgn_mid]],
+                pd.read_csv(os.path.join(workdir, 'data_observed', 'csvs', f'{asgn_gid}.csv'), index_col=0, parse_dates=True),
+                ts[[model_id]],
+            )
+            c_array[:, idx] = calibrated_df['flow'].values
+            p_array[:, idx] = calibrated_df['percentile'].values
+            s_array[:, idx] = calibrated_df['scalars'].values
+        except Exception as e:
+            print(e)
+
+    bcs_nc['flow_bc'][:] = c_array
+    bcs_nc['percentiles'][:] = p_array
+    bcs_nc['scalars'][:] = s_array
+    bcs_nc.sync()
+    bcs_nc.close()
+
+    return

@@ -5,10 +5,12 @@ from ._propagation import walk_downstream
 from ._propagation import walk_upstream
 from ._propagation import propagate_in_table
 
-from ._vocab import model_id_col
-from ._vocab import gauge_id_col
-from ._vocab import assigned_id_col
+from ._vocab import mid_col
+from ._vocab import gid_col
+from ._vocab import asgn_mid_col
+from._vocab import asgn_gid_col
 from ._vocab import reason_col
+from ._vocab import order_col
 
 
 def gauged(df: pd.DataFrame) -> pd.DataFrame:
@@ -22,8 +24,9 @@ def gauged(df: pd.DataFrame) -> pd.DataFrame:
         Copy of df with assignments made
     """
     _df = df.copy()
-    _df.loc[~_df[gauge_id_col].isna(), assigned_id_col] = _df[gauge_id_col]
-    _df.loc[~_df[assigned_id_col].isna(), reason_col] = 'gauged'
+    _df.loc[~_df[gid_col].isna(), asgn_mid_col] = _df[mid_col]
+    _df.loc[~_df[gid_col].isna(), asgn_gid_col] = _df[gid_col]
+    _df.loc[~_df[gid_col].isna(), reason_col] = 'gauged'
     return _df
 
 
@@ -38,11 +41,14 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
         Copy of df with assignments made
     """
     _df = df.copy()
-    for gauged_stream in _df.loc[~_df[gauge_id_col].isna(), model_id_col]:
-        connected_segments = walk_downstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(_df, gauged_stream, connected_segments, max_prop, 'downstream')
+    for gauged_stream in _df.loc[~_df[gid_col].isna(), mid_col]:
+        if not _df.loc[_df[mid_col] == gauged_stream, gid_col].empty:
+            continue
+        start_gid = _df.loc[_df[mid_col] == gauged_stream, gid_col].values[0]
         connected_segments = walk_upstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(_df, gauged_stream, connected_segments, max_prop, 'upstream')
+        _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'upstream')
+        connected_segments = walk_downstream(df, gauged_stream, same_order=True)
+        _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'downstream')
 
     return _df
 
@@ -86,22 +92,28 @@ def clusters_by_dist(df: pd.DataFrame) -> pd.DataFrame:
     for c_num in sorted(set(_df['sim-fdc-cluster'].values)):
         c_sub = _df[_df['sim-fdc-cluster'] == c_num]
         # next filter by stream order
-        for so_num in sorted(set(c_sub['stream_order'])):
-            c_so_sub = c_sub[c_sub['stream_order'] == so_num]
+        for so_num in sorted(set(c_sub[order_col])):
+            c_so_sub = c_sub[c_sub[order_col] == so_num]
+
             # determine which ids **need** to be assigned
-            ids_to_assign = c_so_sub[c_so_sub['assigned_id'].isna()]['model_id'].values
-            avail_assigns = c_so_sub[c_so_sub['assigned_id'].notna()]
+            ids_to_assign = c_so_sub[c_so_sub[asgn_mid_col].isna()][mid_col].values
+            avail_assigns = c_so_sub[c_so_sub[asgn_mid_col].notna()]
             if ids_to_assign.size == 0 or avail_assigns.empty:
-                print(f'unable to assign cluster {c_num} at stream order {so_num}')
+                print(f'unable to assign cluster {c_num} to stream order {so_num}')
                 continue
             # now you find the closest gauge to each unassigned
             for id in ids_to_assign:
-                subset = c_so_sub.loc[c_so_sub['model_id'] == id, ['x', 'y']]
+                subset = c_so_sub.loc[c_so_sub[mid_col] == id, ['x', 'y']]
+
                 dx = avail_assigns.x.values - subset.x.values
                 dy = avail_assigns.y.values - subset.y.values
                 avail_assigns['dist'] = np.sqrt(dx * dx + dy * dy)
                 row_idx_to_assign = avail_assigns['dist'].idxmin()
-                id_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_id
-                _df.loc[_df['model_id'] == id, ['assigned_id', 'reason']] = [id_to_assign, f'cluster-{c_num}-dist']
+
+                mid_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_model_id
+                gid_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_gauge_id
+
+                _df.loc[_df[mid_col] == id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
+                    [mid_to_assign, gid_to_assign, f'cluster-{c_num}-dist']
 
     return _df

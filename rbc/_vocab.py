@@ -1,9 +1,11 @@
-model_id_col = 'model_id'
-downstream_id_col = 'downstream_model_id'
+mid_col = 'model_id'
+gid_col = 'gauge_id'
+asgn_mid_col = 'assigned_model_id'
+asgn_gid_col = 'assigned_gauge_id'
+down_mid_col = 'downstream_model_id'
+
+reason_col = 'reason'
 area_col = 'drain_area'
 order_col = 'stream_order'
-gauge_id_col = 'gauge_id'
-assigned_id_col = 'assigned_id'
-reason_col = 'reason'
 
 cluster_count_file = 'best-fit-cluster-count.json'

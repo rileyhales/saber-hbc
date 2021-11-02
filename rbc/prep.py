@@ -1,13 +1,12 @@
 import glob
 import os
 
-import numpy as np
 import pandas as pd
 import xarray as xr
 
 from .utils import compute_fdc
 
-from ._vocab import model_id_col
+from ._vocab import mid_col
 from .table import read as read_table
 
 
@@ -30,7 +29,7 @@ def historical_simulation(hist_nc_path: str, workdir: str, ) -> None:
     """
     # read the assignments table
     a = read_table(workdir)
-    a = set(sorted(a[model_id_col].tolist()))
+    a = set(sorted(a[mid_col].tolist()))
     a = list(a)
 
     # open the historical data netcdf file
@@ -78,9 +77,9 @@ def observed_data(obs_dir: str, workdir: str) -> None:
 
     # make a dataframe for the first station
     first_station = pd.read_csv(
-            first_csv,
-            index_col=0,
-        )
+        first_csv,
+        index_col=0,
+    )
 
     # initialize final_df
     final_df = pd.DataFrame(
@@ -103,7 +102,7 @@ def observed_data(obs_dir: str, workdir: str) -> None:
 
     final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
     return
-  
+
 
 def scaffold_working_directory(path: str) -> None:
     """
@@ -124,23 +123,3 @@ def scaffold_working_directory(path: str) -> None:
     os.mkdir(os.path.join(path, 'gis_inputs'))
     os.mkdir(os.path.join(path, 'gis_outputs'))
     return
-
-
-def gen_assignments_table(working_dir) -> pd.DataFrame:
-    """
-    Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
-
-    Args:
-        working_dir: path to the working directory
-
-    Returns:
-        None
-    """
-    drain_table = os.path.join(working_dir, 'gis_inputs', 'drain_table.csv')
-    gauge_table = os.path.join(working_dir, 'gis_inputs', 'gauge_table.csv')
-    drain_df = pd.read_csv(drain_table)
-    gauge_df = pd.read_csv(gauge_table)
-    assign_table = pd.merge(drain_df, gauge_df, on=model_id_col, how='outer')
-    assign_table['assigned_id'] = np.nan
-    assign_table['reason'] = np.nan
-    return assign_table
