@@ -48,10 +48,12 @@ file formats are acceptable
 
 ## Process
 ### 1 Create a Working Directory
+
 ```python
 import rbc
+
 path_to_working_directory = '/my/file/path'
-rbc.prep.scaffold_working_directory(path_to_working_directory)
+rbc.prep.scaffold_workdir(path_to_working_directory)
 ```
 
 Your working directory should exactly like this. 

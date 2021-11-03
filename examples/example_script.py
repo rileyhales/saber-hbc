@@ -40,4 +40,4 @@ rbc.gis.clip_by_cluster(workdir, assign_table, drain_shape)
 rbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
 
 # Compute the corrected simulation data
-rbc.create_archive(workdir, assign_table)
+rbc.calibrate_region(workdir, assign_table)
