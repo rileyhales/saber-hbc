@@ -74,8 +74,8 @@ def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flo
     scalar_fdc = compute_scalar_fdc(obs_fdc['flow'].values.flatten(), sim_fdc['flow'].values.flatten())
 
     if filter_scalar_fdc:
-        scalar_fdc = scalar_fdc[scalar_fdc['Exceedence Probability'] >= filter_range[0]]
-        scalar_fdc = scalar_fdc[scalar_fdc['Exceedence Probability'] <= filter_range[1]]
+        scalar_fdc = scalar_fdc[scalar_fdc['Exceedance Probability'] >= filter_range[0]]
+        scalar_fdc = scalar_fdc[scalar_fdc['Exceedance Probability'] <= filter_range[1]]
 
     # Convert the percentiles
     if extrapolate_method == 'nearest':
@@ -133,9 +133,11 @@ def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flo
                         columns=('flow', 'scalars', 'percentile'))
 
 
-def calibrate_region(workdir: str, assign_table: pd.DataFrame):
+def calibrate_region(workdir: str, assign_table: pd.DataFrame, obs_data_dir: str = None):
+    if obs_data_dir is None:
+        obs_data_dir = os.path.join(workdir, 'data_observed', 'obs_csvs')
     bcs_nc_path = os.path.join(workdir, 'calibrated_simulated_flow.nc')
-    ts = pd.read_pickle(os.path.join(workdir, 'data_simulated', 'subset_time_series.pickle'))
+    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', 'subset_time_series.pickle'))
 
     t_size = ts.values.shape[0]
     m_size = ts.values.shape[1]
@@ -179,7 +181,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame):
 
             calibrated_df = calibrate_stream(
                 ts[[asgn_mid]],
-                pd.read_csv(os.path.join(workdir, 'data_observed', 'csvs', f'{asgn_gid}.csv'), index_col=0,
+                pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0,
                             parse_dates=True),
                 ts[[model_id]],
             )

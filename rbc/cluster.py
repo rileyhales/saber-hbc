@@ -27,7 +27,7 @@ def generate(workdir: str) -> None:
     """
     best_fit = {}
 
-    for table in glob.glob(os.path.join(workdir, 'data_*', '*.csv')):
+    for table in glob.glob(os.path.join(workdir, 'data_processed', '*.csv')):
         # read the data and transform
         time_series = pd.read_csv(table, index_col=0).dropna(axis=1)
         time_series = np.transpose(time_series.values)
@@ -39,7 +39,7 @@ def generate(workdir: str) -> None:
 
         for num_cluster in range(2, 11):
             # build the kmeans model
-            km = TimeSeriesKMeans(n_clusters=num_cluster, verbose=True, random_state=0)
+            km = TimeSeriesKMeans(n_clusters=num_cluster, random_state=0)
             km.fit_predict(time_series)
             inertia['number'].append(num_cluster)
             inertia['inertia'].append(km.inertia_)
@@ -98,7 +98,7 @@ def summarize(workdir: str, assign_table: pd.DataFrame) -> pd.DataFrame:
     for dataset, cluster_count in clusters.items():
         # read the list of simulated id's, pair them with their cluster label, save to df
         merge_col = mid_col if "sim" in dataset else gid_col
-        csv_path = os.path.join(workdir, f'data_{"simulated" if "sim" in dataset else "observed"}', f'{dataset}.csv')
+        csv_path = os.path.join(workdir, f'data_processed', f'{dataset}.csv')
         ids = pd.read_csv(csv_path, index_col=0).columns
 
         # open the optimal model pickle file
