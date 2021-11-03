@@ -65,7 +65,7 @@ working_directory
     gis_outputs/
 ```
 
-### 1 Prepare Spatial Data (scripts not provided)
+### 2 Prepare Spatial Data (scripts not provided)
 This step instructs you to collect 3 gis files and use them to generate 2 csv tables. All 5 files (3 gis files and 2
 tables) should go in the `gis_inputs` directory 
 
@@ -83,7 +83,25 @@ tables) should go in the `gis_inputs` directory
    - save as `drain_table.csv` in the `gis_inputs` directory
 
 Tip to compute the x and y coordinates using geopandas
+
 ```python
+import geopandas as gpd
+
+
+def to_x(a):
+    return a.x
+
+
+def to_y(a):
+    return a.y
+
+
+drain_shape = '/path/to/drainagelines/shapefile'
+gdf = gpd.read_file(drain_shape)
+
+gdf['x'] = gdf.centroid.apply(to_x)
+gdf['y'] = gdf.centroid.apply(to_y)
+
 ```
 
 Your table should look like this:
@@ -131,16 +149,16 @@ working_directory/
         (empty)
 ```
 
-### 2 Create the Assignments Table
+### 3 Create the Assignments Table
 The Assignments Table is the core of the regional bias correction method it is a table which has a column for every 
 stream segment in the model and several columns of other information which are filled in during the RBC algorithm. It 
 looks like this:
 
 downstream_model_id | model_id          | drainage_area | stream_order | gauge_id  
-------------------- | ----------------- | ------------- | ------------ | ------------
-unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb
-unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb  
-unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_numb  
+------------------- | ----------------- | ------------- | ------------ | ----------------
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num  
+unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num  
 ...                 | ...               | ...           | ...          | ...
 
 ```python
@@ -172,7 +190,7 @@ working_directory/
         (empty)
 ```
 
-### 3 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
+### 4 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
 This step instructs you to gather simulated data and observed data. The raw simulated data (netCDF) and raw observed 
 data (csvs) should be included in the `data_simulated` and `data_observed` folders respectively. They are used to 
 generate several additional csv files which will be used in machine learning algorthims later in the process.
@@ -223,11 +241,9 @@ working_directory/
         (empty)
     kmeans_images/
         (empty)
-    data_simulated/
+    data_simulated/         <-- New \/
         obs-fdc.csv
-        obs-fdc.pickle
         obs-monavg.csv
-        obs-monavg.pickle
         historical_simulation.nc (name varies)
     data_observed/
         obs-fdc.csv
@@ -237,17 +253,14 @@ working_directory/
         csvs/
             12345.csv
             67890.csv
-            ...
+            ...             <-- New /\
    gis_inputs/
-        drain_table.csv
-        gauge_table.csv
-        drainageline_shapefile.shp
-        catchment_shapefile.shp
+        (same as previous steps...)
    gis_outputs/
         (empty)
 ```
 
-### 4 K-means clustering
+### 5 K-means clustering
 For each of the following, generate and store clusters for many group sizes- between 2 and 12 should be sufficient.
 1. Create clusters of the *simulated* data by their flow duration curve.
 2. Create clusters of the *simulated* data by their monthly averages.
@@ -300,7 +313,9 @@ working_directory/
         (empty)
 ```
 
-### 5 Assign basins by Location (streams which contain a gauge)
+### 6 Assign basins by Location (streams which contain a gauge)
+This step involves editing the `assign_table.csv` and but does not change the file structure of the project.
+
 This step uses the information prepared in the previous steps to assign observed streamflow information to modeled 
 stream segments which will be used for calibration. This step does not produce any new files but it does edit the 
 existing assign_table csv file. After running these lines, use the `rbc.table.cache` function to write the changes to 
@@ -313,11 +328,16 @@ The justification for this is obvious. The observations are the actual streamflo
 
 ```python
 import rbc
+
+# assign_table = pandas DataFrame (see rbc.table module)
 workdir = '/path/to/project/directory/'
-rbc.assign.gauged(workdir)
+assign_table = rbc.table.read(workdir)
+rbc.assign.gauged(assign_table)
 ```
 
-### 6 Assign basins by Propagation (hydraulically connected to a gauge)
+### 7 Assign basins by Propagation (hydraulically connected to a gauge)
+This step involves editing the `assign_table.csv` and but does not change the file structure of the project.
+
 Theory: being up/down stream of the gauge but on the same stream order probably means that the seasonality of the flow is 
 probably the same (same FDC), but the monthly average may change depending on how many streams connect with/diverge from the stream. 
 This assumption becomes questionable as the stream order gets larger so the magnitude of flows joining the river may be larger, 
@@ -328,25 +348,69 @@ be less sensitive to changes in flows up stream, may connect basins with differe
   i is the number of stream segments up/down from the gauge the river is.
 
 ```python
-import os
 import rbc
+
+# assign_table = pandas DataFrame (see rbc.table module)
 workdir = '/path/to/project/directory/'
-assign_table = os.path.join(workdir, 'assign_table.csv')
+assign_table = rbc.table.read(workdir)
 rbc.assign.propagation(assign_table)
 ```
 
-### 7 Assign basins by Clusters (hydrologically similar basins)
+### 8 Assign basins by Clusters (hydrologically similar basins)
+This step involves editing the `assign_table.csv` and but does not change the file structure of the project.
+
 Using the results of the optimal clusters
 - Spatially compare the locations of basins which were clustered for being similar on their flow duration curve.
 - Review assignments spatially. Run tests and view improvements. Adjust clusters and reassign as necessary.
 
-### 8 Assign remaining basins an average
-- Identify ungauged basins that were not assigned observed data for corrections.
-- Export the resulting csv of assignments.
-- Use the csv to guide applying the correction scripts in various applications.
+```python
+import rbc
+
+# assign_table = pandas DataFrame (see rbc.table module)
+workdir = '/path/to/project/directory/'
+assign_table = rbc.table.read(workdir)
+rbc.assign.clusters_by_dist(assign_table)
+```
 
 ### 9 Generate GIS files of the assignments
-use the rbc.gis functions to generate maps of the results
+At any time during these steps you can use the functions in the `rbc.gis` module to create GeoJSON files which you can 
+use to visualize the results of this process. These GIS files help you investigate which streams are being selected and 
+used at each step. Use this to monitor the results.
 
-### 10 Perform bias correction and archive results
-use the rbc.calibrate functions
+```python
+import rbc
+
+workdir = '/path/to/project/directory/'
+assign_table = rbc.table.read(workdir)
+drain_shape = '/my/file/path/'
+rbc.gis.clip_by_assignment(workdir, assign_table, drain_shape)
+rbc.gis.clip_by_cluster(workdir, assign_table, drain_shape)
+rbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
+
+# or if you have a specific set of ID's to check on
+list_of_model_ids = [123, 456, 789]
+rbc.gis.clip_by_ids(workdir, list_of_model_ids, drain_shape)
+```
+
+
+
+## Analyzing Performance
+This bias correction method should adjust all streams toward a more realistic but still not perfect value for discharge. 
+The following steps help you to analyze how well this method performed in a given area by iteratively running this 
+method on the same set of streams but with an increasing number of randomly selected observed data stations being 
+excluded each time. The code provided will help you partition your gauge table into randomly selected subsets.
+
+### Steps
+1. Perform the bias correction method with all available observed data.
+2. Generate 5 subsets of the gauge table (using provided code)
+   1. One with ~90% of the gauges (drop a random 10% of the observed data stations)
+   2. One with ~80% of the gauges (drop the same gauges as before ***and*** and additional random 10%)
+   3. One with ~70% of the gauges (drop the same gauges as before ***and*** and additional random 10%)
+   4. One with ~60% of the gauges (drop the same gauges as before ***and*** and additional random 10%)
+   5. One with ~50% of the gauges (drop the same gauges as before ***and*** and additional random 10%)
+3. Perform the bias correction method 5 additional times using the 5 new tables created in the previous step. You now
+   have 6 separate bias correction instances; 1 with all available observed data and 5 with decreasing amounts of 
+   observed data included.
+4. For each of the 5 corrected models with observed data withheld, use the provided code to generate plots and maps of 
+   the performance metrics. This will compare the best approximation of the bias corrected model data for that instance 
+   against the observed data which was withheld from the bias correction process.

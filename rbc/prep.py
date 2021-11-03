@@ -10,7 +10,7 @@ from ._vocab import mid_col
 from .table import read as read_table
 
 
-def historical_simulation(hist_nc_path: str, workdir: str, ) -> None:
+def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
     """
     Fills the working_dir/data_simulated directory with information from the historical simulation netcdf file
 
@@ -21,16 +21,18 @@ def historical_simulation(hist_nc_path: str, workdir: str, ) -> None:
         - monthly averages time series for each stream, normalized by the average flow
 
     Args:
-        hist_nc_path: path to the historical simulation data netcdf
         workdir: path to the working directory for the project
+        hist_nc_path: path to the historical simulation netcdf if not located at workdir/data_simulated/*.nc
 
     Returns:
         None
     """
+    if hist_nc_path is None:
+        hist_nc_path = glob.glob(os.path.join(workdir, 'data_simulated', '*.nc*'))[0]
+
     # read the assignments table
     a = read_table(workdir)
-    a = set(sorted(a[mid_col].tolist()))
-    a = list(a)
+    a = list(set(sorted(a[mid_col].tolist())))
 
     # open the historical data netcdf file
     hist_nc = xr.open_dataset(hist_nc_path)
@@ -56,20 +58,23 @@ def historical_simulation(hist_nc_path: str, workdir: str, ) -> None:
     return
 
 
-def observed_data(obs_dir: str, workdir: str) -> None:
+def observed_data(workdir: str, obs_data_path: str = None) -> None:
     """
     Takes the path to a directory containing csv data of observed discharge over any range of time and creates
     a csv showing the flow duration curve for each station
     
     Args:
-        obs_dir: path to directory containing observed data csv files, each csv named: <station_number>.csv
         workdir: path to project working directory
-    
+        obs_data_path: path to the observed data directory if not located at workdir/data_observed/csvs
+
     Returns:
         None
     """
+    if obs_data_path is None:
+        obs_data_path = os.path.join(workdir, 'data_observed', 'csvs')
+
     # create a list of file names and pop out the first station csv
-    csvs = glob.glob(os.path.join(obs_dir, '*.csv'))
+    csvs = glob.glob(os.path.join(obs_data_path, '*.csv'))
     csvs = list(csvs)
 
     first_csv = csvs.pop(0)

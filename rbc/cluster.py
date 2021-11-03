@@ -77,7 +77,7 @@ def generate(workdir: str) -> None:
     return
 
 
-def summarize(workdir: str, assign_table: pd.DataFrame) -> None:
+def summarize(workdir: str, assign_table: pd.DataFrame) -> pd.DataFrame:
     """
     Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
     to assign_table.csv
