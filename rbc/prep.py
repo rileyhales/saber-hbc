@@ -1,13 +1,17 @@
 import glob
 import os
 
+import grids
 import pandas as pd
 import xarray as xr
 
 from .utils import compute_fdc
 
 from ._vocab import mid_col
-from .table import read as read_table
+
+
+def guess_hist_sim_path(workdir: str) -> str:
+    return glob.glob(os.path.join(workdir, 'data_inputs', '*.nc*'))[0]
 
 
 def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
@@ -28,10 +32,10 @@ def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
         None
     """
     if hist_nc_path is None:
-        hist_nc_path = glob.glob(os.path.join(workdir, 'data_simulated', '*.nc*'))[0]
+        hist_nc_path = guess_hist_sim_path(workdir)
 
     # read the assignments table
-    a = read_table(workdir)
+    a = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'drain_table'))
     a = list(set(sorted(a[mid_col].tolist())))
 
     # open the historical data netcdf file
@@ -51,10 +55,28 @@ def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
         ma_df = ma_df.merge(data.groupby(data.index.strftime('%m')).mean().to_frame(name=model_id),
                             how='outer', left_index=True, right_index=True)
 
-    sim_data_path = os.path.join(workdir, 'data_simulated')
-    fdc_df.to_csv(os.path.join(sim_data_path, 'sim-fdc.csv'))
-    ma_df.to_csv(os.path.join(sim_data_path, 'sim-monavg.csv'))
+    data_out_path = os.path.join(workdir, 'data_processed')
+    fdc_df.to_csv(os.path.join(data_out_path, 'sim-fdc.csv'))
+    ma_df.to_csv(os.path.join(data_out_path, 'sim-monavg.csv'))
+    return
 
+
+def hist_sim_table(workdir: str, hist_nc_path: str = None) -> None:
+    if hist_nc_path is None:
+        hist_nc_path = guess_hist_sim_path(workdir)
+    ts_table = os.path.join(workdir, 'data_processed', 'subset_time_series.pickle')
+    drain_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'drain_table.csv'))
+
+    # get the simulated values and coordinate variables
+    coords = drain_table[[mid_col]]
+    coords.loc[:, 'time'] = None
+    coords = coords[['time', 'model_id']].values.tolist()
+    ts = grids.TimeSeries([hist_nc_path, ], 'Qout', ('time', 'rivid'))
+    ts = ts.multipoint(*coords)
+    ts.set_index('datetime', inplace=True)
+    ts.index = pd.to_datetime(ts.index, unit='s')
+    ts.columns = drain_table['model_id'].values.flatten()
+    ts.to_pickle(ts_table)
     return
 
 
@@ -71,7 +93,7 @@ def observed_data(workdir: str, obs_data_path: str = None) -> None:
         None
     """
     if obs_data_path is None:
-        obs_data_path = os.path.join(workdir, 'data_observed', 'csvs')
+        obs_data_path = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 
     # create a list of file names and pop out the first station csv
     csvs = glob.glob(os.path.join(obs_data_path, '*.csv'))
@@ -105,26 +127,29 @@ def observed_data(workdir: str, obs_data_path: str = None) -> None:
         )
     final_df = final_df.join(compute_fdc(tmp_df.values.flatten(), col_name=station_id))
 
-    final_df.to_csv(os.path.join(workdir, 'data_observed', 'obs-fdc.csv'))
+    final_df.to_csv(os.path.join(workdir, 'data_processed', 'obs-fdc.csv'))
     return
 
 
-def scaffold_working_directory(path: str) -> None:
+def scaffold_workdir(path: str, include_validation: bool = True) -> None:
     """
     Creates the correct directories for an RBC project within the a specified directory
 
     Args:
         path: the path to a directory where you want to create directories
+        include_validation: boolean, indicates whether or not to create the validation folder
 
     Returns:
         None
     """
     if not os.path.isdir(path):
         os.mkdir(path)
-    os.mkdir(os.path.join(path, 'kmeans_models'))
-    os.mkdir(os.path.join(path, 'kmeans_images'))
-    os.mkdir(os.path.join(path, 'data_simulated'))
-    os.mkdir(os.path.join(path, 'data_observed'))
+    os.mkdir(os.path.join(path, 'data_inputs'))
+    os.mkdir(os.path.join(path, 'data_processed'))
     os.mkdir(os.path.join(path, 'gis_inputs'))
     os.mkdir(os.path.join(path, 'gis_outputs'))
+    os.mkdir(os.path.join(path, 'kmeans_models'))
+    os.mkdir(os.path.join(path, 'kmeans_images'))
+    if include_validation:
+        os.mkdir(os.path.join(path, 'validation_runs'))
     return

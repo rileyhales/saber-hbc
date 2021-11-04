@@ -43,4 +43,4 @@ assign_table = rbc.table.read(workdir)
 # rbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
 
 # Compute the corrected simulation data
-rbc.create_archive(workdir, assign_table)
+rbc.calibrate_region(workdir, assign_table)

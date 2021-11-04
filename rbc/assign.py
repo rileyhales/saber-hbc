@@ -8,7 +8,7 @@ from ._propagation import propagate_in_table
 from ._vocab import mid_col
 from ._vocab import gid_col
 from ._vocab import asgn_mid_col
-from._vocab import asgn_gid_col
+from ._vocab import asgn_gid_col
 from ._vocab import reason_col
 from ._vocab import order_col
 

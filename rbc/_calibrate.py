@@ -1,9 +1,7 @@
-import glob
 import os
 import statistics
 import warnings
 
-import grids
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
@@ -15,12 +13,12 @@ from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
 
 
-def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
-              fix_seasonally: bool = True,
-              drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
-              filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
-              extrapolate_method: str = 'nearest', fill_value: int or float = None,
-              fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
+def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
+                     fix_seasonally: bool = True,
+                     drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
+                     filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
+                     extrapolate_method: str = 'nearest', fill_value: int or float = None,
+                     fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
     """
     Given the simulated and observed stream flow at location a, attempts to the remove the bias from simulated
     stream flow at point b. This
@@ -50,7 +48,7 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
             mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
             mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
             mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
-            monthly_results.append(calibrate(
+            monthly_results.append(calibrate_stream(
                 mon_sim_data, mon_obs_data, mon_cor_data,
                 fix_seasonally=False,
                 drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
@@ -76,8 +74,8 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
     scalar_fdc = compute_scalar_fdc(obs_fdc['flow'].values.flatten(), sim_fdc['flow'].values.flatten())
 
     if filter_scalar_fdc:
-        scalar_fdc = scalar_fdc[scalar_fdc['Exceedence Probability'] >= filter_range[0]]
-        scalar_fdc = scalar_fdc[scalar_fdc['Exceedence Probability'] <= filter_range[1]]
+        scalar_fdc = scalar_fdc[scalar_fdc['Exceedance Probability'] >= filter_range[0]]
+        scalar_fdc = scalar_fdc[scalar_fdc['Exceedance Probability'] <= filter_range[1]]
 
     # Convert the percentiles
     if extrapolate_method == 'nearest':
@@ -135,21 +133,11 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
                         columns=('flow', 'scalars', 'percentile'))
 
 
-def create_archive(workdir: str, assign_table: pd.DataFrame):
-    sim_nc_path = glob.glob(os.path.join(workdir, 'data_simulated', '*.nc'))[0]
+def calibrate_region(workdir: str, assign_table: pd.DataFrame, obs_data_dir: str = None):
+    if obs_data_dir is None:
+        obs_data_dir = os.path.join(workdir, 'data_observed', 'obs_csvs')
     bcs_nc_path = os.path.join(workdir, 'calibrated_simulated_flow.nc')
-
-    # get the simulated values and coordinate variables
-    coords = assign_table[['model_id']]
-    coords.loc[:, 'time'] = None
-    coords = coords[['time', 'model_id']].values.tolist()
-
-    ts = grids.TimeSeries([sim_nc_path, ], 'Qout', ('time', 'rivid'))
-    ts = ts.multipoint(*coords)
-    ts.set_index('datetime', inplace=True)
-    ts.index = pd.to_datetime(ts.index, unit='s')
-    ts.columns = assign_table['model_id'].values.flatten()
-    ts.to_pickle('tmp.pickle')
+    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', 'subset_time_series.pickle'))
 
     t_size = ts.values.shape[0]
     m_size = ts.values.shape[1]
@@ -159,8 +147,8 @@ def create_archive(workdir: str, assign_table: pd.DataFrame):
     bcs_nc.createDimension('time', t_size)
     bcs_nc.createDimension('model_id', m_size)
 
-    bcs_nc.createVariable('time', 'f4', ('time', ), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('model_id', 'f4', ('model_id', ), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('time', 'f4', ('time',), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('model_id', 'f4', ('model_id',), zlib=True, shuffle=True, fill_value=np.nan)
 
     bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
@@ -191,9 +179,10 @@ def create_archive(workdir: str, assign_table: pd.DataFrame):
 
             # todo if the asgn_mid == model_id then use the point calibration method from geoglows package
 
-            calibrated_df = calibrate(
+            calibrated_df = calibrate_stream(
                 ts[[asgn_mid]],
-                pd.read_csv(os.path.join(workdir, 'data_observed', 'csvs', f'{asgn_gid}.csv'), index_col=0, parse_dates=True),
+                pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0,
+                            parse_dates=True),
                 ts[[model_id]],
             )
             c_array[:, idx] = calibrated_df['flow'].values
