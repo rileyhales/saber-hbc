@@ -42,9 +42,10 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
     """
     _df = df.copy()
     for gauged_stream in _df.loc[~_df[gid_col].isna(), mid_col]:
-        if not _df.loc[_df[mid_col] == gauged_stream, gid_col].empty:
+        subset = _df.loc[_df[mid_col] == gauged_stream, gid_col]
+        if subset.empty:
             continue
-        start_gid = _df.loc[_df[mid_col] == gauged_stream, gid_col].values[0]
+        start_gid = subset.values[0]
         connected_segments = walk_upstream(df, gauged_stream, same_order=True)
         _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'upstream')
         connected_segments = walk_downstream(df, gauged_stream, same_order=True)
