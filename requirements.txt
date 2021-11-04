@@ -6,6 +6,7 @@ netCDF4
 tslearn
 matplotlib
 geoglows
+grids
 requests
 plotly
 h5py

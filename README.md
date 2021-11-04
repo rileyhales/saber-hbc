@@ -35,16 +35,16 @@ file formats are acceptable
     - (Catchments, preferably both) Cumulative upstream drainage area
     - (Drainage lines) the x coordinate of the centroid of each feature
     - (Drainage lines) the y coordinate of the centroid of each feature
-1. Shapefile of points representing the location of each of the river gauging stations available.
+2. Shapefile of points representing the location of each of the river gauging stations available.
    The attribute table should contain (at least) the following entries for each point
     - A unique ID number or name assigned to the gauge, preferably numeric. Randomly generate unique numeric ID's if they don't exist.
     - The ID of the stream segment in the model which corresponds to that gauge.
-1. Shapefile of the boundary (polygon) of the target region for bias calibration.
-1. The Shapefiles for the Drainage Lines, Catchments, Gauges/Stations, and boundary are all in the same projection.
-1. Historical simulated discharge for each stream segment and for as long (temporally) as is available.
-1. Observed discharge data for as many stream reaches as possible within the target region.
-1. The units of the simulation and observation data must be in the same units.
-1. A working directory folder on the computer where the scripts are going to be run.
+3. Shapefile of the boundary (polygon) of the target region for bias calibration.
+4. The Shapefiles for the Drainage Lines, Catchments, Gauges/Stations, and boundary are all in the same projection.
+5. Historical simulated discharge for each stream segment and for as long (temporally) as is available.
+6. Observed discharge data for as many stream reaches as possible within the target region.
+7. The units of the simulation and observation data must be in the same units.
+8. A working directory folder on the computer where the scripts are going to be run.
 
 ## Process
 ### 1 Create a Working Directory
@@ -61,10 +61,11 @@ Your working directory should exactly like this.
 working_directory
     kmeans_models/
     kmeans_images/
-    data_simulated/
-    data_observed/
+    data_inputs/
+    data_processed/
     gis_inputs/
     gis_outputs/
+    validation_sets/
 ```
 
 ### 2 Prepare Spatial Data (scripts not provided)
@@ -104,6 +105,8 @@ gdf = gpd.read_file(drain_shape)
 gdf['x'] = gdf.centroid.apply(to_x)
 gdf['y'] = gdf.centroid.apply(to_y)
 
+gdf.to_file('/file/path/to/save', driver='GeoJSON')
+
 ```
 
 Your table should look like this:
@@ -137,7 +140,7 @@ working_directory/
         (empty)
     kmeans_images/
         (empty)
-    data_simulated/
+    data_inputs/
         (empty)
     data_observed/
         (empty)
@@ -148,6 +151,8 @@ working_directory/
         catchment_shapefile.shp (name/gis_format do not need to match)
         gauge_shapefile.shp (name/gis_format do not need to match)
     gis_outputs/
+        (empty)
+    validation_sets/
         (empty)
 ```
 
@@ -178,9 +183,9 @@ working_directory/
         (empty)
     kmeans_images/
         (empty)
-    data_simulated/
+    data_inputs/
         (empty)
-    data_observed/
+    data_processed/
         (empty)
     gis_inputs/
         drain_table.csv
@@ -190,12 +195,18 @@ working_directory/
         gauge_shapefile.shp (name/gis_format do not need to match)
     gis_outputs/
         (empty)
+    validation_sets/
+        (empty)
 ```
 
 ### 4 Prepare Discharge Data -> Create 5 csv files (function available for geoglows data)
 This step instructs you to gather simulated data and observed data. The raw simulated data (netCDF) and raw observed 
-data (csvs) should be included in the `data_simulated` and `data_observed` folders respectively. They are used to 
-generate several additional csv files which will be used in machine learning algorthims later in the process.
+data (csvs) should be included in the `data_inputs` folder. You may keep them in another location and provide the path 
+as an argument in the functions that need it. These datasets are used to generate several additional csv files which 
+are stored in the `data_processed` directory and are used in later steps. The netCDF file may have any name and the 
+directory of observed data csvs should be called `obs_csvs`.
+
+Use the dat
 
 1. Create a single large csv of the historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
 
@@ -227,9 +238,19 @@ month       | model_id_1  | model_id_2  | model_id_3
 ```python
 import rbc
 
+workdir = '/path/to/working/directory'
+
 rbc.prep.historical_simulation(
-   '/path/to/historical/simulation/netcdf.nc',
-   '/path/to/working/directory'
+    workdir,
+    '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
+)
+rbc.prep.hist_sim_table(
+    workdir,
+    '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
+)
+rbc.prep.observed_data(
+    workdir,
+    '/path/to/obs/csv/directory' # optional - if csvs not stored in workdir/data_inputs/obs_csvs
 )
 ```
 
@@ -243,22 +264,23 @@ working_directory/
         (empty)
     kmeans_images/
         (empty)
-    data_simulated/         <-- New \/
-        obs-fdc.csv
-        obs-monavg.csv
+    data_inputs/                        <-- New \/
         historical_simulation.nc (name varies)
-    data_observed/
-        obs-fdc.csv
-        obs-fdc.pickle
-        obs-monavg.csv
-        obs-monavg.pickle
-        csvs/
+        obs_csvs/
             12345.csv
             67890.csv
-            ...             <-- New /\
+            ...
+    data_processed/
+        obs-fdc.csv
+        obs-monavg.csv
+        obs-fdc.csv
+        obs-monavg.csv
+        subset_time_series.pickle       <-- New /\
    gis_inputs/
         (same as previous steps...)
    gis_outputs/
+        (empty)
+    validation_sets/
         (empty)
 ```
 
@@ -305,13 +327,15 @@ working_directory/
         sim-fdc-norm-3-clusters.png
         sim-fdc-norm-4-clusters.png
         ...
-    data_simulated/
+    data_inputs/
         (same as previous steps...)
-    data_observed/
+    data_processed/
         (same as previous steps...)
     gis_inputs/
         (same as previous steps...)
     gis_outputs/
+        (empty)
+    validation_sets/
         (empty)
 ```
 
@@ -394,6 +418,72 @@ list_of_model_ids = [123, 456, 789]
 rbc.gis.clip_by_ids(workdir, list_of_model_ids, drain_shape)
 ```
 
+After this step, your project directory should look like this:
+
+
+```
+working_directory/
+    assign_table.csv
+    
+    kmeans_models/
+        (same as previous steps...)
+    kmeans_images/
+        (same as previous steps...)
+    data_inputs/
+        (same as previous steps...)
+    data_processed/
+        (same as previous steps...)
+    gis_inputs/
+        (same as previous steps...)
+    gis_outputs/
+        assignments_cluster_0.json               <-- New \/
+        assignments_cluster_1.json
+        ...
+        
+        assignments_gauged.json
+        
+        assignments_propagation-downstream-1.json
+        ...
+        
+        assignments_propagation-upstream-1.json
+        ...
+        
+        obs-fds-cluster-0.json
+        obs-fds-cluster-1.json
+        ...
+        
+        sim-fdc-cluster-0.json
+        sim-fdc-cluster-1.json
+        ...                                      <-- New /\
+        
+    validation_sets/
+        (empty)
+```
+
+
+### 10 Calibrate the region
+This step creates a netCDF of the best guess at historically simulated flows for all stream reaches in a region.
+
+```
+working_directory/
+    assign_table.csv
+    calibrated_simulated_flow.nc        <-- New
+    
+    kmeans_models/
+        (same as previous steps...)
+    kmeans_images/
+        (same as previous steps...)
+    data_inputs/
+        (same as previous steps...)
+    data_processed/
+        (same as previous steps...)
+    gis_inputs/
+        (same as previous steps...)
+    gis_outputs/
+        (same as previous steps...)
+    validation_sets/
+        (empty)
+```
 
 
 ## Analyzing Performance
@@ -416,3 +506,57 @@ excluded each time. The code provided will help you partition your gauge table i
 4. For each of the 5 corrected models with observed data withheld, use the provided code to generate plots and maps of 
    the performance metrics. This will compare the best approximation of the bias corrected model data for that instance 
    against the observed data which was withheld from the bias correction process.
+
+```python
+import rbc
+workdir = '/path/to/project/directory'
+drain_shape = '/path/to/drainageline/gis/file.shp'
+obs_data_dir = '/path/to/obs/data/directory'  # optional - if data not in workdir/data_inputs/obs_csvs
+
+rbc.validate.sample_gauges(workdir)
+rbc.validate.run_series(workdir, drain_shape, obs_data_dir)
+```
+
+After this step your working directory should look like this:
+
+```
+working_directory/
+    assign_table.csv
+    calibrated_simulated_flow.nc    
+    kmeans_models/
+        (same as previous steps...)
+    kmeans_images/
+        (same as previous steps...)
+    data_inputs/
+        (same as previous steps...)
+    data_processed/
+        (same as previous steps...)
+    gis_inputs/
+        (same as previous steps...)
+    gis_outputs/
+        (same as previous steps...)
+    validation_sets/
+        50/
+            assign_table.csv
+            calibrated_simulated_flow.nc    
+            kmeans_models/
+                (similar contents as in previous section)
+            kmeans_images/
+                (similar contents as in previous section)
+            data_inputs/
+                (empty)
+            data_processed/
+                (similar contents as in previous section)
+            gis_inputs/
+                (similar contents as in previous section)
+            gis_outputs/
+                (similar contents as in previous section)
+        60/
+            (same structure as 50/ but with a different gauge_table.csv)
+        70/
+            (same structure as 50/ but with a different gauge_table.csv)
+        80/
+            (same structure as 50/ but with a different gauge_table.csv)
+        90/
+            (same structure as 50/ but with a different gauge_table.csv)
+```

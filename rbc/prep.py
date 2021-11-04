@@ -61,16 +61,17 @@ def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
     return
 
 
-def hist_sim_table(workdir: str) -> None:
+def hist_sim_table(workdir: str, hist_nc_path: str = None) -> None:
+    if hist_nc_path is None:
+        hist_nc_path = guess_hist_sim_path(workdir)
     ts_table = os.path.join(workdir, 'data_processed', 'subset_time_series.pickle')
-    sim_nc_path = guess_hist_sim_path(workdir)
     drain_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'drain_table.csv'))
 
     # get the simulated values and coordinate variables
     coords = drain_table[[mid_col]]
     coords.loc[:, 'time'] = None
     coords = coords[['time', 'model_id']].values.tolist()
-    ts = grids.TimeSeries([sim_nc_path, ], 'Qout', ('time', 'rivid'))
+    ts = grids.TimeSeries([hist_nc_path, ], 'Qout', ('time', 'rivid'))
     ts = ts.multipoint(*coords)
     ts.set_index('datetime', inplace=True)
     ts.index = pd.to_datetime(ts.index, unit='s')
