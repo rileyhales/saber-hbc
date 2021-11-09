@@ -13,3 +13,4 @@ h5py
 scipy
 hydrostats
 kneed
+hydrostats

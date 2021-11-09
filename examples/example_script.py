@@ -9,7 +9,9 @@ np.seterr(all="ignore")
 
 workdir = '/Users/rchales/data/regional-bias-correction/colombia-magdalena'
 drain_shape = os.path.join(workdir, 'gis_inputs', 'magdalena_dl_attrname_xy.json')
+gauge_shape = os.path.join(workdir, 'gis_inputs', 'ideam_stations.json')
 obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
+hist_sim_nc = os.path.join(workdir, 'data_inputs', 'south_america_era5_qout.nc')
 
 # Prepare the working directory - only need to do this step 1x ever
 # rbc.prep.scaffold_working_directory(workdir)
@@ -19,8 +21,9 @@ obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 # Put the observed data csv files in the data_inputs/obs_csvs folder
 
 # Prepare the observation and simulation data - Only need to do this step 1x ever
-rbc.prep.historical_simulation(workdir)
-rbc.prep.observed_data(workdir)
+# rbc.prep.historical_simulation(workdir)
+# rbc.prep.hist_sim_table(workdir, hist_sim_nc)
+# rbc.prep.observed_data(workdir)
 
 # Generate the assignments table
 assign_table = rbc.table.gen(workdir)
@@ -49,4 +52,6 @@ rbc.calibrate_region(workdir, assign_table)
 
 # run the validation study
 rbc.validate.sample_gauges(workdir)
-rbc.validate.run_series(workdir, drain_shape, obs_data_dir)
+rbc.validate.run_series(workdir, drain_shape, gauge_shape, obs_data_dir)
+vtab = rbc.validate.gen_val_table(workdir)
+rbc.gis.validation_maps(workdir, vtab, gauge_shape)

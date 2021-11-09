@@ -137,3 +137,35 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
     name = f'{prefix}{"_" if prefix else ""}id_subset.json'
     dl[dl[id_column].isin(ids)].to_file(os.path.join(save_dir, name), driver='GeoJSON')
     return
+
+
+def validation_maps(workdir: str, val_table: pd.DataFrame, gauge_shape: str, prefix: str = '') -> None:
+    """
+    Creates geojsons (in workdir/gis_outputs) of subsets of the gauge_shape which were included in the validation tests
+
+    Args:
+        workdir: path to the project directory
+        val_table: the validation table produced by rbc.validate
+        gauge_shape: path to the gauge locations shapefile
+        prefix: optional, a prefix to prepend to each created file's name
+
+    Returns:
+        None
+    """
+    save_dir = os.path.join(workdir, 'gis_outputs')
+
+    gdf = gpd.read_file(gauge_shape)
+
+    gdf = gdf.merge(val_table, on='gauge_id', how='inner')
+
+    gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.json'), driver='GeoJSON')
+
+    for val_set in ('50', '60', '70', '80', '90'):
+        name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_included.json'
+        gdf[gdf['gauge_id'].isin(val_table[val_set].values.flatten())]\
+            .to_file(os.path.join(save_dir, name), driver='GeoJSON')
+        name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_excluded.json'
+        gdf[~gdf['gauge_id'].isin(val_table[val_set].values.flatten())]\
+            .to_file(os.path.join(save_dir, name), driver='GeoJSON')
+
+    return

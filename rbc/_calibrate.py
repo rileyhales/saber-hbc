@@ -1,7 +1,8 @@
 import os
 import statistics
-import warnings
 
+import hydrostats as hs
+import hydrostats.data as hd
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
@@ -11,6 +12,9 @@ from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
 from ._vocab import mid_col
 from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
+from ._vocab import reason_col
+from ._vocab import metric_list
+from ._vocab import metric_nc_name_list
 
 
 def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
@@ -133,30 +137,52 @@ def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flo
                         columns=('flow', 'scalars', 'percentile'))
 
 
-def calibrate_region(workdir: str, assign_table: pd.DataFrame, obs_data_dir: str = None):
+def calibrate_region(workdir: str, assign_table: pd.DataFrame,
+                     gauge_table: pd.DataFrame = None, obs_data_dir: str = None):
+    """
+
+    Args:
+        workdir:
+        assign_table:
+        gauge_table:
+        obs_data_dir:
+
+    Returns:
+
+    """
+    if gauge_table is None:
+        gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
     if obs_data_dir is None:
-        obs_data_dir = os.path.join(workdir, 'data_observed', 'obs_csvs')
+        obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
+
     bcs_nc_path = os.path.join(workdir, 'calibrated_simulated_flow.nc')
     ts = pd.read_pickle(os.path.join(workdir, 'data_processed', 'subset_time_series.pickle'))
 
     t_size = ts.values.shape[0]
     m_size = ts.values.shape[1]
+    c_size = 2
 
     # create the new netcdf
     bcs_nc = nc.Dataset(bcs_nc_path, 'w')
     bcs_nc.createDimension('time', t_size)
     bcs_nc.createDimension('model_id', m_size)
+    bcs_nc.createDimension('corrected', c_size)
 
     bcs_nc.createVariable('time', 'f4', ('time',), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('model_id', 'f4', ('model_id',), zlib=True, shuffle=True, fill_value=np.nan)
+    bcs_nc.createVariable('corrected', 'i4', ('corrected',), zlib=True, shuffle=True, fill_value=-1)
 
     bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
 
+    for metric in metric_nc_name_list:
+        bcs_nc.createVariable(metric, 'f4', ('model_id', 'corrected'), zlib=True, shuffle=True, fill_value=np.nan)
+
     bcs_nc['time'][:] = ts.index.values
     bcs_nc['model_id'][:] = assign_table['model_id'].values.flatten()
+    bcs_nc['corrected'][:] = np.array((0, 1))
     bcs_nc['flow_sim'][:] = ts.values
 
     bcs_nc.sync()
@@ -165,36 +191,80 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame, obs_data_dir: str
     p_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
     s_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
 
-    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
-        try:
-            print(f'{idx}/{m_size}')
+    computed_metrics = {}
+    for metric in metric_list:
+        computed_metrics[metric] = np.array([np.nan] * m_size * c_size).reshape(m_size, c_size)
 
-            model_id, asgn_mid, asgn_gid = triple
-            if np.isnan(asgn_gid) or np.isnan(asgn_mid):
-                warnings.warn(f'unable to correct model id: {model_id}')
-                continue
+    # ts.index = ts.index.tz_localize('UTC')
+    errors = {'g1': 0, 'g2': 0, 'g3': 0, 'g4': 0}
+    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col, reason_col]].values):
+        try:
+            print(f'{idx + 1}/{m_size}')
+
+            model_id, asgn_mid, asgn_gid, reason = triple
+            # if np.isnan(asgn_gid) or np.isnan(asgn_mid):
+            #     continue
             model_id = int(model_id)
             asgn_mid = int(asgn_mid)
             asgn_gid = int(asgn_gid)
+        except Exception as e:
+            print('Failed in the first block of code')
+            print(model_id)
+            print(asgn_mid)
+            print(asgn_gid)
+            print(reason)
+            print(e)
+            errors['g1'] += 1
+            continue
 
+        try:
+            obs_df = pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0, parse_dates=True)
+        except Exception as e:
+            print('failed to read the observed data')
+            print(e)
+            errors['g2'] += 1
+            continue
+
+        try:
             # todo if the asgn_mid == model_id then use the point calibration method from geoglows package
-
-            calibrated_df = calibrate_stream(
-                ts[[asgn_mid]],
-                pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0,
-                            parse_dates=True),
-                ts[[model_id]],
-            )
+            calibrated_df = calibrate_stream(ts[[asgn_mid]], obs_df, ts[[model_id]], )
             c_array[:, idx] = calibrated_df['flow'].values
             p_array[:, idx] = calibrated_df['percentile'].values
             s_array[:, idx] = calibrated_df['scalars'].values
         except Exception as e:
+            print('failed during the calibration step')
             print(e)
+            errors['g3'] += 1
+            continue
+
+        try:
+            if model_id in gauge_table['model_id'].values:
+                correct_id = gauge_table.loc[gauge_table['model_id'] == model_id, 'gauge_id'].values[0]
+                obs_df = pd.read_csv(os.path.join(obs_data_dir, f'{correct_id}.csv'), index_col=0, parse_dates=True)
+                sim_obs_stats = hs.make_table(hd.merge_data(sim_df=ts[[model_id]], obs_df=obs_df), metric_list)
+                bcs_obs_stats = hs.make_table(hd.merge_data(sim_df=calibrated_df[['flow']], obs_df=obs_df), metric_list)
+                for metric in metric_list:
+                    computed_metrics[metric][idx, :] = \
+                        float(sim_obs_stats[metric].values[0]), float(bcs_obs_stats[metric].values[0])
+
+        except Exception as e:
+            print('failed during collecting stats')
+            print(e)
+            errors['g4'] += 1
+            continue
 
     bcs_nc['flow_bc'][:] = c_array
     bcs_nc['percentiles'][:] = p_array
     bcs_nc['scalars'][:] = s_array
+    for idx, metric in enumerate(metric_list):
+        bcs_nc[metric_nc_name_list[idx]][:] = computed_metrics[metric]
+
     bcs_nc.sync()
     bcs_nc.close()
+
+    import pprint
+    pprint.pprint(errors)
+    with open(os.path.join(workdir, 'calibration_errors.json'), 'w') as f:
+        f.write(str(errors))
 
     return

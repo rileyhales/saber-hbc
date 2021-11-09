@@ -35,7 +35,7 @@ def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
         hist_nc_path = guess_hist_sim_path(workdir)
 
     # read the assignments table
-    a = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'drain_table'))
+    a = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'drain_table.csv'))
     a = list(set(sorted(a[mid_col].tolist())))
 
     # open the historical data netcdf file
@@ -62,6 +62,16 @@ def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
 
 
 def hist_sim_table(workdir: str, hist_nc_path: str = None) -> None:
+    """
+    Prepares the times series of simulated data for each river segment which will be used in the calibration phase.
+
+    Args:
+        workdir: the project working directory
+        hist_nc_path: path to the historical simulation netCDF file
+
+    Returns:
+        None
+    """
     if hist_nc_path is None:
         hist_nc_path = guess_hist_sim_path(workdir)
     ts_table = os.path.join(workdir, 'data_processed', 'subset_time_series.pickle')
@@ -76,6 +86,7 @@ def hist_sim_table(workdir: str, hist_nc_path: str = None) -> None:
     ts.set_index('datetime', inplace=True)
     ts.index = pd.to_datetime(ts.index, unit='s')
     ts.columns = drain_table['model_id'].values.flatten()
+    ts.index = ts.index.tz_localize('UTC')
     ts.to_pickle(ts_table)
     return
 
