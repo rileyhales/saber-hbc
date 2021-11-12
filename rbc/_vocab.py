@@ -13,6 +13,5 @@ cluster_count_file = 'best-fit-cluster-count.json'
 # name of nc with all the simulated and calibrated flows plus metrics
 cal_nc_name = 'calibrated_simulated_flow.nc'
 
-metric_list = ["ME", "RMSE", "NRMSE (Mean)", "MAPE", "NSE", "KGE (2009)", "KGE (2012)", "R (Spearman)", "R (Pearson)",
-               "r2"]
-metric_nc_name_list = ['ME', 'MAE', 'RMSE', 'NRMSE', 'MAPE', 'NSE', 'KGE2009', 'KGE2012', 'R_SP', 'R_PR', 'R2']
+metric_list = ["ME", "RMSE", "NRMSE (Mean)", "MAPE", "NSE", "KGE (2009)", "KGE (2012)", "R (Spearman)", "R (Pearson)"]
+metric_nc_name_list = ['ME', 'MAE', 'RMSE', 'NRMSE', 'MAPE', 'NSE', 'KGE2009', 'KGE2012', 'R_SP', 'R_PR']

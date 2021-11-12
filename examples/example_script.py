@@ -21,13 +21,14 @@ hist_sim_nc = os.path.join(workdir, 'data_inputs', 'south_america_era5_qout.nc')
 # Put the observed data csv files in the data_inputs/obs_csvs folder
 
 # Prepare the observation and simulation data - Only need to do this step 1x ever
-# rbc.prep.historical_simulation(workdir)
-# rbc.prep.hist_sim_table(workdir, hist_sim_nc)
-# rbc.prep.observed_data(workdir)
+rbc.prep.historical_simulation(workdir)
+rbc.prep.observed_data(workdir)
+rbc.prep.hist_sim_table(workdir, hist_sim_nc)
 
 # Generate the assignments table
 assign_table = rbc.table.gen(workdir)
 rbc.table.cache(workdir, assign_table)
+assign_table = rbc.table.read(workdir)
 
 # Generate the clusters using the historical simulation data
 rbc.cluster.generate(workdir)
@@ -51,7 +52,7 @@ rbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
 rbc.calibrate_region(workdir, assign_table)
 
 # run the validation study
-rbc.validate.sample_gauges(workdir)
-rbc.validate.run_series(workdir, drain_shape, gauge_shape, obs_data_dir)
+rbc.validate.sample_gauges(workdir, overwrite=True)
+rbc.validate.run_series(workdir, drain_shape, obs_data_dir)
 vtab = rbc.validate.gen_val_table(workdir)
-rbc.gis.validation_maps(workdir, vtab, gauge_shape)
+rbc.gis.validation_maps(workdir, gauge_shape, vtab)

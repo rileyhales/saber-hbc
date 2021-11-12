@@ -8,6 +8,7 @@ import numpy as np
 
 from .prep import scaffold_workdir
 from ._workflow import analyze_region
+from ._vocab import mid_col
 from ._vocab import gid_col
 from ._vocab import metric_nc_name_list
 from ._vocab import cal_nc_name
@@ -63,10 +64,9 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
         processed_sim_data = glob.glob(os.path.join(subpath, 'data_processed', 'obs-*.csv'))
         for f in processed_sim_data:
             a = pd.read_csv(f, index_col=0)
-            a = a.filter(items=gt['gauge_id'].astype(str))
+            a = a.filter(items=gt[gid_col].astype(str))
             a.to_csv(f)
 
-    gen_val_table(workdir)
     return
 
 
@@ -82,7 +82,7 @@ def run_series(workdir: str, drain_shape: str, obs_data_dir: str = None) -> None
     Returns:
         None
     """
-    gauge_table = pd.read_csv(workdir, 'gis_inputs', 'gauge_table.csv')
+    gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
     val_workdirs = [i for i in glob.glob(os.path.join(workdir, 'validation_runs', '*')) if os.path.isdir(i)]
     for val_workdir in val_workdirs:
         print(f'\n\n\t\t\tworking on {val_workdir}\n\n')
@@ -102,32 +102,36 @@ def gen_val_table(workdir: str) -> pd.DataFrame:
         pandas.DataFrame
     """
     df = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
-    df['100'] = df[gid_col]
+    df['100'] = 1
 
     stats_df = {}
     a = nc.Dataset(os.path.join(workdir, cal_nc_name))
-    stats_df['model_id'] = np.asarray(a['model_id'][:])
+    stats_df[mid_col] = np.asarray(a[mid_col][:])
     for metric in metric_nc_name_list:
         arr = np.asarray(a[metric][:])
-        stats_df[f'{metric}_original_100'] = arr[:, 0]
-        stats_df[f'{metric}_corrected_100'] = arr[:, 1]
+        stats_df[f'{metric}_raw'] = arr[:, 0]
+        stats_df[f'{metric}_adj'] = arr[:, 1]
     a.close()
 
-    for d in sorted([a for a in glob.glob(os.path.join(workdir, 'validation_runs', '*')) if os.path.isdir(a)]):
+    for d in sorted(
+            [a for a in glob.glob(os.path.join(workdir, 'validation_runs', '*')) if os.path.isdir(a)],
+            reverse=True
+    ):
         val_percent = os.path.basename(d)
         valset_gids = pd.read_csv(os.path.join(d, 'gis_inputs', 'gauge_table.csv'))[gid_col].values.tolist()
 
         # mark a column indicating the gauges included in the validation set
-        df.loc[df[gid_col].isin(valset_gids), val_percent] = df[gid_col]
+        df[val_percent] = 0
+        df.loc[df[gid_col].isin(valset_gids), val_percent] = 1
 
         # add columns for the metrics of all gauges during this validation set
         a = nc.Dataset(os.path.join(d, cal_nc_name))
         for metric in metric_nc_name_list:
-            stats_df[f'{metric}_corrected_{val_percent}'] = np.asarray(a[metric][:])[:, 1]
+            stats_df[f'{metric}_{val_percent}'] = np.asarray(a[metric][:])[:, 1]
         a.close()
 
     # merge gauge_table with the stats, save and return
-    df = df.merge(pd.DataFrame(stats_df), on='model_id', how='inner')
-    df.to_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'))
+    df = df.merge(pd.DataFrame(stats_df), on=mid_col, how='inner')
+    df.to_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'), index=False)
 
     return df

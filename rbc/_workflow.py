@@ -16,7 +16,7 @@ def prep_region(workdir: str) -> None:
     return
 
 
-def analyze_region(workdir: str, drain_shape: str, obs_data_dir: str = None, gauge_table: pd.DataFrame = None) -> None:
+def analyze_region(workdir: str, drain_shape: str, gauge_table: pd.DataFrame = None, obs_data_dir: str = None) -> None:
     # Generate the assignments table
     print("gen assign_table")
     assign_table = gen(workdir)

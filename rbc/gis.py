@@ -5,9 +5,12 @@ import geopandas as gpd
 import pandas as pd
 
 from ._vocab import mid_col
+from ._vocab import gid_col
 from ._vocab import reason_col
+from ._vocab import metric_nc_name_list
 
-__all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids']
+__all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
+           'validation_maps']
 
 
 def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
@@ -139,9 +142,12 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
     return
 
 
-def validation_maps(workdir: str, val_table: pd.DataFrame, gauge_shape: str, prefix: str = '') -> None:
+def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = None, prefix: str = '') -> None:
     """
-    Creates geojsons (in workdir/gis_outputs) of subsets of the gauge_shape which were included in the validation tests
+    Creates geojsons (in workdir/gis_outputs) of subsets of the gauge_shape.
+    1 is the fill gauge shape with added attribute columns for all the computed stats. There are 2 for each of the 5
+    validation groups; 1 which shows the gauges included in the validation set and 1 which shows gauges that were
+    excluded from the validation set.
 
     Args:
         workdir: path to the project directory
@@ -152,20 +158,25 @@ def validation_maps(workdir: str, val_table: pd.DataFrame, gauge_shape: str, pre
     Returns:
         None
     """
+    if val_table is None:
+        val_table = pd.read_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'))
     save_dir = os.path.join(workdir, 'gis_outputs')
 
     gdf = gpd.read_file(gauge_shape)
-
-    gdf = gdf.merge(val_table, on='gauge_id', how='inner')
+    gdf = gdf.merge(val_table, on=gid_col, how='inner')
 
     gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.json'), driver='GeoJSON')
 
+    core_columns = [mid_col, gid_col, 'geometry']
     for val_set in ('50', '60', '70', '80', '90'):
-        name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_included.json'
-        gdf[gdf['gauge_id'].isin(val_table[val_set].values.flatten())]\
-            .to_file(os.path.join(save_dir, name), driver='GeoJSON')
-        name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_excluded.json'
-        gdf[~gdf['gauge_id'].isin(val_table[val_set].values.flatten())]\
-            .to_file(os.path.join(save_dir, name), driver='GeoJSON')
+        for metric in metric_nc_name_list:
+            # select only columns for the validation run we're iterating on - too complex for filter/regex
+            cols_to_select = core_columns + [val_set, f'{metric}_{val_set}']
+            gdf_sub = gdf[cols_to_select]
+            gdf_sub = gdf_sub.rename(columns={f'{metric}_{val_set}': metric})
+            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_included.json'
+            gdf_sub[gdf_sub[val_set] == 1].to_file(os.path.join(save_dir, name), driver='GeoJSON')
+            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.json'
+            gdf_sub[gdf_sub[val_set] == 0].to_file(os.path.join(save_dir, name), driver='GeoJSON')
 
     return

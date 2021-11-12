@@ -1,3 +1,4 @@
+import logging
 import os
 import statistics
 
@@ -12,7 +13,6 @@ from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
 from ._vocab import mid_col
 from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
-from ._vocab import reason_col
 from ._vocab import metric_list
 from ._vocab import metric_nc_name_list
 
@@ -181,7 +181,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
         bcs_nc.createVariable(metric, 'f4', ('model_id', 'corrected'), zlib=True, shuffle=True, fill_value=np.nan)
 
     bcs_nc['time'][:] = ts.index.values
-    bcs_nc['model_id'][:] = assign_table['model_id'].values.flatten()
+    bcs_nc['model_id'][:] = ts.columns.to_list()
     bcs_nc['corrected'][:] = np.array((0, 1))
     bcs_nc['flow_sim'][:] = ts.values
 
@@ -195,30 +195,26 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     for metric in metric_list:
         computed_metrics[metric] = np.array([np.nan] * m_size * c_size).reshape(m_size, c_size)
 
-    # ts.index = ts.index.tz_localize('UTC')
     errors = {'g1': 0, 'g2': 0, 'g3': 0, 'g4': 0}
-    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col, reason_col]].values):
+    # assign_table = assign_table.sort_index(ascending=False)
+    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
         try:
-            print(f'{idx + 1}/{m_size}')
+            if (idx % 25 == 0):
+                print(f'\n\t\t{idx + 1}/{m_size}\n')
 
-            model_id, asgn_mid, asgn_gid, reason = triple
-            # if np.isnan(asgn_gid) or np.isnan(asgn_mid):
-            #     continue
+            model_id, asgn_mid, asgn_gid = triple
+            if np.isnan(asgn_gid) or np.isnan(asgn_mid):
+                continue
             model_id = int(model_id)
             asgn_mid = int(asgn_mid)
             asgn_gid = int(asgn_gid)
         except Exception as e:
-            print('Failed in the first block of code')
-            print(model_id)
-            print(asgn_mid)
-            print(asgn_gid)
-            print(reason)
-            print(e)
             errors['g1'] += 1
             continue
 
         try:
             obs_df = pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0, parse_dates=True)
+            obs_df = obs_df.dropna()
         except Exception as e:
             print('failed to read the observed data')
             print(e)
@@ -226,7 +222,6 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
             continue
 
         try:
-            # todo if the asgn_mid == model_id then use the point calibration method from geoglows package
             calibrated_df = calibrate_stream(ts[[asgn_mid]], obs_df, ts[[model_id]], )
             c_array[:, idx] = calibrated_df['flow'].values
             p_array[:, idx] = calibrated_df['percentile'].values
@@ -262,8 +257,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     bcs_nc.sync()
     bcs_nc.close()
 
-    import pprint
-    pprint.pprint(errors)
+    print(errors)
     with open(os.path.join(workdir, 'calibration_errors.json'), 'w') as f:
         f.write(str(errors))
 
