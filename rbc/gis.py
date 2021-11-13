@@ -2,12 +2,16 @@ import os
 import warnings
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 
 from ._vocab import mid_col
 from ._vocab import gid_col
 from ._vocab import reason_col
 from ._vocab import metric_nc_name_list
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 __all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
            'validation_maps']
@@ -162,12 +166,14 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
         val_table = pd.read_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'))
     save_dir = os.path.join(workdir, 'gis_outputs')
 
+    # merge gauge table with the validation table
     gdf = gpd.read_file(gauge_shape)
     gdf = gdf.merge(val_table, on=gid_col, how='inner')
-
     gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.json'), driver='GeoJSON')
 
     core_columns = [mid_col, gid_col, 'geometry']
+
+    # generate gis files by validation run, by stat, and by included/excluded
     for val_set in ('50', '60', '70', '80', '90'):
         for metric in metric_nc_name_list:
             # select only columns for the validation run we're iterating on - too complex for filter/regex
@@ -178,5 +184,31 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
             gdf_sub[gdf_sub[val_set] == 1].to_file(os.path.join(save_dir, name), driver='GeoJSON')
             name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.json'
             gdf_sub[gdf_sub[val_set] == 0].to_file(os.path.join(save_dir, name), driver='GeoJSON')
+
+    # generate matplotlib maps
+    colors = ['#dc112e', '#d6db12', '#da9707', '#13c208', '#0824c2']
+    bins = [-10, 0, 0.25, 0.5, 0.75, 1]
+    cmap = mpl.colors.ListedColormap(colors)
+    norm = mpl.colors.BoundaryNorm(boundaries=bins, ncolors=len(cmap.colors))
+    for metric in [c for c in gdf.columns if str(c).startswith('KGE2012_')]:
+        print(metric)
+        kge_fig, (ax_hist, ax_map) = plt.subplots(1, 2, tight_layout=True, figsize=(10, 5), dpi=700)
+        ax_hist.set_title('Histogram')
+        ax_hist.set_xlabel('KGE 2012')
+        ax_hist.set_ylabel('Count')
+        ax_map.set_title('Gauge Map')
+        ax_map.set_xlabel('Longitude')
+        ax_map.set_ylabel('Latitude')
+        # N, bins, patches = ax_hist.hist(gdf[metric].values, bins=20)
+        # for n, patch in zip(N, patches):
+        #     print(n)
+        #     print(norm(n))
+        #     print(cmap(norm(n)))
+        #     patch.set_facecolor(colors[cmap(norm(n))[-1]])
+        gdf[metric].hist(ax=ax_hist)
+        gdf[core_columns + [metric, ]].plot(metric, ax=ax_map, cmap=cmap, norm=norm, legend=True)
+        kge_fig.suptitle(metric.replace('KGE2012', 'Kling Gupta Efficiency 2012').replace('_', ' - '), fontsize=20)
+        kge_fig.savefig(os.path.join(workdir, 'gis_outputs', f'{metric}.png'))
+        # kge_fig.show()
 
     return
