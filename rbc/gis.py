@@ -12,6 +12,7 @@ from ._vocab import metric_nc_name_list
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import contextily as cx
 
 __all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
            'validation_maps']
@@ -180,35 +181,60 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
             cols_to_select = core_columns + [val_set, f'{metric}_{val_set}']
             gdf_sub = gdf[cols_to_select]
             gdf_sub = gdf_sub.rename(columns={f'{metric}_{val_set}': metric})
+
             name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_included.json'
             gdf_sub[gdf_sub[val_set] == 1].to_file(os.path.join(save_dir, name), driver='GeoJSON')
-            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.json'
-            gdf_sub[gdf_sub[val_set] == 0].to_file(os.path.join(save_dir, name), driver='GeoJSON')
 
-    # generate matplotlib maps
+            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.json'
+            exc = gdf_sub[gdf_sub[val_set] == 0]
+            exc.to_file(os.path.join(save_dir, name), driver='GeoJSON')
+            if metric == 'KGE2012':
+                histomaps(exc, metric, val_set, workdir)
+
+    return
+
+
+def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> None:
+    core_columns = [mid_col, gid_col, 'geometry']
+    # world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+    # world.plot(ax=axm, color='white', edgecolor='black')
+
     colors = ['#dc112e', '#d6db12', '#da9707', '#13c208', '#0824c2']
     bins = [-10, 0, 0.25, 0.5, 0.75, 1]
     cmap = mpl.colors.ListedColormap(colors)
     norm = mpl.colors.BoundaryNorm(boundaries=bins, ncolors=len(cmap.colors))
-    for metric in [c for c in gdf.columns if str(c).startswith('KGE2012_')]:
-        print(metric)
-        kge_fig, (ax_hist, ax_map) = plt.subplots(1, 2, tight_layout=True, figsize=(10, 5), dpi=700)
-        ax_hist.set_title('Histogram')
-        ax_hist.set_xlabel('KGE 2012')
-        ax_hist.set_ylabel('Count')
-        ax_map.set_title('Gauge Map')
-        ax_map.set_xlabel('Longitude')
-        ax_map.set_ylabel('Latitude')
-        # N, bins, patches = ax_hist.hist(gdf[metric].values, bins=20)
-        # for n, patch in zip(N, patches):
-        #     print(n)
-        #     print(norm(n))
-        #     print(cmap(norm(n)))
-        #     patch.set_facecolor(colors[cmap(norm(n))[-1]])
-        gdf[metric].hist(ax=ax_hist)
-        gdf[core_columns + [metric, ]].plot(metric, ax=ax_map, cmap=cmap, norm=norm, legend=True)
-        kge_fig.suptitle(metric.replace('KGE2012', 'Kling Gupta Efficiency 2012').replace('_', ' - '), fontsize=20)
-        kge_fig.savefig(os.path.join(workdir, 'gis_outputs', f'{metric}.png'))
-        # kge_fig.show()
+    title = metric.replace('KGE2012', 'Kling Gupta Efficiency 2012 - ') + f' {prct}% Gauges Excluded'
 
+    hist_groups = []
+    hist_colors = []
+    categorize_by = [-np.inf, 0, 0.25, 0.5, 0.75, 1]
+    for idx in range(len(categorize_by) - 1):
+        gdfsub = gdf[gdf[metric] >= categorize_by[idx]]
+        gdfsub = gdfsub[gdfsub[metric] < categorize_by[idx + 1]]
+        if not gdfsub.empty:
+            hist_groups.append(gdfsub[metric].values)
+            hist_colors.append(colors[idx])
+
+    fig, (axh, axm) = plt.subplots(
+        1, 2, tight_layout=True, figsize=(9, 5), dpi=400, gridspec_kw={'width_ratios': [1, 1]})
+    fig.suptitle(title, fontsize=20)
+
+    median = round(gdf[metric].median(), 2)
+    axh.set_title(f'Histogram (Median = {median})')
+    axh.set_ylabel('Count')
+    axh.set_xlabel('KGE 2012')
+    axh.hist(hist_groups, color=hist_colors, bins=25, histtype='barstacked', edgecolor='black')
+    axh.axvline(median, color='k', linestyle='dashed', linewidth=3)
+
+    axm.set_title('Gauge Map')
+    axm.set_ylabel('Latitude')
+    axm.set_xlabel('Longitude')
+    axm.set_xticks([])
+    axm.set_yticks([])
+    gdf[core_columns + [metric, ]].to_crs(epsg=3857).plot(
+        metric, ax=axm, cmap=cmap, norm=norm, legend=True, markersize=10)
+    cx.add_basemap(ax=axm, zoom=9, source=cx.providers.Esri.WorldTopoMap, attribution='')
+
+    fig.show()
+    fig.savefig(os.path.join(workdir, 'gis_outputs', f'{metric}_{prct}.png'))
     return

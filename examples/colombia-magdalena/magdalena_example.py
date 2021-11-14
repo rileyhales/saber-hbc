@@ -51,7 +51,7 @@ obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 # Compute the corrected simulation data
 # assign_table = rbc.table.read(workdir)
 # rbc.calibrate_region(workdir, assign_table)
-vtab = rbc.validate.gen_val_table(workdir)
+# vtab = rbc.validate.gen_val_table(workdir)
 rbc.gis.validation_maps(workdir, gauge_shape)
 
 
