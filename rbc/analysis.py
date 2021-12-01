@@ -1,4 +1,38 @@
+import os
+
+import grids
+import pandas as pd
 import plotly.graph_objects as go
+
+
+def plot(workdir, obs_data_dir, model_id) -> go.Figure:
+    files = [os.path.join(workdir, 'calibrated_simulated_flow.nc'), ]
+    variables = ('flow_sim', 'flow_bc')
+    dim_order = ('time', 'model_id')
+    a = grids.TimeSeries(files, variables, dim_order)
+    ts = a.point(None, model_id)
+    obs = pd.read_csv(os.path.join(obs_data_dir, ))
+    a = go.Figure(
+        [
+            go.Scatter(
+                name='Original Simulation',
+                x=ts.index,
+                y=ts['flow_sim']
+            ),
+            go.Scatter(
+                name='Adjusted Simulation',
+                x=ts.index,
+                y=ts['flow_bc']
+            ),
+            go.Scatter(
+                name='Adjusted Simulation',
+                x=ts.index,
+                y=ts['flow_bc']
+            )
+        ]
+    )
+    a.show()
+    return
 
 
 def plot_results(sim, obs, bc, bcp, title):

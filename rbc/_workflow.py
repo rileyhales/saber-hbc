@@ -1,4 +1,6 @@
-from .prep import historical_simulation, hist_sim_table, observed_data
+import pandas as pd
+
+from .prep import historical_simulation
 
 from .table import gen, cache
 from .cluster import generate, summarize
@@ -9,12 +11,11 @@ from ._calibrate import calibrate_region
 
 def prep_region(workdir: str) -> None:
     historical_simulation(workdir)
-    hist_sim_table(workdir)
-    observed_data(workdir)
+    # observed_data(workdir)
     return
 
 
-def analyze_region(workdir: str, drain_shape: str, obs_data_dir: str = None) -> None:
+def analyze_region(workdir: str, drain_shape: str, gauge_table: pd.DataFrame = None, obs_data_dir: str = None) -> None:
     # Generate the assignments table
     print("gen assign_table")
     assign_table = gen(workdir)
@@ -44,5 +45,5 @@ def analyze_region(workdir: str, drain_shape: str, obs_data_dir: str = None) -> 
 
     # Compute the corrected simulation data
     print("calibrating region netcdf")
-    calibrate_region(workdir, assign_table, obs_data_dir)
+    calibrate_region(workdir, assign_table, gauge_table, obs_data_dir)
     return
