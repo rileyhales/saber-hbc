@@ -15,5 +15,5 @@ __all__ = ['prep_region', 'analyze_region',
            'calibrate_stream', 'calibrate_region',
            'table', 'prep', 'assign', 'gis', 'cluster', 'utils', 'validate', 'analysis']
 __author__ = 'Riley Hales'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __license__ = 'BSD 3 Clause Clear'
