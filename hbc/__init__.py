@@ -1,14 +1,14 @@
-from rbc._workflow import prep_region, analyze_region
-from rbc._calibrate import calibrate_stream, calibrate_region
+from hbc._workflow import prep_region, analyze_region
+from hbc._calibrate import calibrate_stream, calibrate_region
 
-import rbc.table
-import rbc.prep
-import rbc.cluster
-import rbc.assign
-import rbc.gis
-import rbc.utils
-import rbc.validate
-import rbc.analysis
+import hbc.table
+import hbc.prep
+import hbc.cluster
+import hbc.assign
+import hbc.gis
+import hbc.utils
+import hbc.validate
+import hbc.analysis
 
 
 __all__ = ['prep_region', 'analyze_region',

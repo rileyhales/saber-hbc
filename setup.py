@@ -6,12 +6,12 @@ with open("README.md", "r") as readme:
 with open('requirements.txt', 'r') as req:
     install_requires = req.read().splitlines()
 
-description = 'tools for bias correcting large scale hydrologic models limited by observed data'
+description = 'tools for hydrological bias correction on large scale models'
 
 setup(
-    name='rbc',
-    packages=['rbc'],
-    version='0.1.0',
+    name='hbc',
+    packages=['hbc'],
+    version='0.2.0',
     description=description,
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -21,8 +21,10 @@ setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'Programming Language :: Python :: 3',
+        'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Hydrology',
         'Topic :: Scientific/Engineering :: Visualization',
+        'Topic :: Scientific/Engineering :: GIS',
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',

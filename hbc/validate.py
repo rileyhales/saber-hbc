@@ -72,7 +72,7 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
 
 def run_series(workdir: str, drain_shape: str, obs_data_dir: str = None) -> None:
     """
-    Runs rbc.analyze_region on each project in the validation_runs directory
+    Runs hbc.analyze_region on each project in the validation_runs directory
 
     Args:
         workdir: the project working directory

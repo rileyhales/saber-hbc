@@ -1,4 +1,4 @@
-# Regional Bias Correction of Large Hydrological Models
+# Hydrological Bias Correction on Large Mode
 This repository contains Python code which can be used to calibrate biased, non-gridded hydrologic models. Most of the 
 code in this repository will work on any model's results. The data preprocessing and automated calibration functions 
 are programmed to expect data following the GEOGloWS ECMWF Streamflow Service's structure and format.
@@ -17,6 +17,7 @@ to tweak. We do this in an attempt to avoid requiring the source model data or t
 Both of those conditions are not always available or practical when dealing with large scale models or datasets.
 
 ## Python environment
+See requirements.txt
 - python >= 3.7
 - numpy
 - pandas
@@ -50,10 +51,10 @@ file formats are acceptable
 ### 1 Create a Working Directory
 
 ```python
-import rbc
+import hbc
 
 path_to_working_directory = '/my/file/path'
-rbc.prep.scaffold_workdir(path_to_working_directory)
+hbc.prep.scaffold_workdir(path_to_working_directory)
 ```
 
 Your working directory should exactly like this. 
@@ -169,9 +170,9 @@ unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_
 ...                 | ...               | ...           | ...          | ...
 
 ```python
-import rbc
+import hbc
 workdir = '/path/to/project/directory/'
-rbc.prep.gen_assignments_table(workdir)
+hbc.prep.gen_assignments_table(workdir)
 ```
 
 Your project's working directory now looks like
@@ -233,22 +234,22 @@ month       | model_id_1  | model_id_2  | model_id_3
 1           | 60          | 60          | 60                   
 2           | 30          | 30          | 30                   
 3           | 70          | 70          | 70                   
-...         | ...         | ...         | ...                  
+...         | ...         | ...         | ...
 
 ```python
-import rbc
+import hbc
 
 workdir = '/path/to/working/directory'
 
-rbc.prep.historical_simulation(
+hbc.prep.historical_simulation(
     workdir,
     '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
 )
-rbc.prep.hist_sim_table(
+hbc.prep.hist_sim_table(
     workdir,
     '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
 )
-rbc.prep.observed_data(
+hbc.prep.observed_data(
     workdir,
     '/path/to/obs/csv/directory' # optional - if csvs not stored in workdir/data_inputs/obs_csvs
 )
@@ -295,10 +296,10 @@ For each of the following, generate and store clusters for many group sizes- bet
 Use this code:
 
 ```python
-import rbc
+import hbc
 
 workdir = '/path/to/project/directory/'
-rbc.cluster.generate(workdir)
+hbc.cluster.generate(workdir)
 ```
 
 This function creates trained kmeans models saved as pickle files, plots (from matplotlib) of what each of the clusters 
@@ -353,16 +354,16 @@ The justification for this is obvious. The observations are the actual streamflo
 - The reason listed for this assignment is "gauged"
 
 ```python
-import rbc
+import hbc
 
-# assign_table = pandas DataFrame (see rbc.table module)
+# assign_table = pandas DataFrame (see hbc.table module)
 workdir = '/path/to/project/directory/'
-assign_table = rbc.table.read(workdir)
-rbc.assign.gauged(assign_table)
+assign_table = hbc.table.read(workdir)
+hbc.assign.gauged(assign_table)
 ```
 
 ### 7 Assign basins by Propagation (hydraulically connected to a gauge)
-This step involves editing the `assign_table.csv` and but does not change the file structure of the project.
+This step involves editing the `assign_table.csv` and does not change the file structure of the project.
 
 Theory: being up/down stream of the gauge but on the same stream order probably means that the seasonality of the flow is 
 probably the same (same FDC), but the monthly average may change depending on how many streams connect with/diverge from the stream. 
@@ -374,12 +375,12 @@ be less sensitive to changes in flows up stream, may connect basins with differe
   i is the number of stream segments up/down from the gauge the river is.
 
 ```python
-import rbc
+import hbc
 
-# assign_table = pandas DataFrame (see rbc.table module)
+# assign_table = pandas DataFrame (see hbc.table module)
 workdir = '/path/to/project/directory/'
-assign_table = rbc.table.read(workdir)
-rbc.assign.propagation(assign_table)
+assign_table = hbc.table.read(workdir)
+hbc.assign.propagation(assign_table)
 ```
 
 ### 8 Assign basins by Clusters (hydrologically similar basins)
@@ -390,12 +391,12 @@ Using the results of the optimal clusters
 - Review assignments spatially. Run tests and view improvements. Adjust clusters and reassign as necessary.
 
 ```python
-import rbc
+import hbc
 
-# assign_table = pandas DataFrame (see rbc.table module)
+# assign_table = pandas DataFrame (see hbc.table module)
 workdir = '/path/to/project/directory/'
-assign_table = rbc.table.read(workdir)
-rbc.assign.clusters_by_dist(assign_table)
+assign_table = hbc.table.read(workdir)
+hbc.assign.clusters_by_dist(assign_table)
 ```
 
 ### 9 Generate GIS files of the assignments
@@ -404,18 +405,18 @@ use to visualize the results of this process. These GIS files help you investiga
 used at each step. Use this to monitor the results.
 
 ```python
-import rbc
+import hbc
 
 workdir = '/path/to/project/directory/'
-assign_table = rbc.table.read(workdir)
+assign_table = hbc.table.read(workdir)
 drain_shape = '/my/file/path/'
-rbc.gis.clip_by_assignment(workdir, assign_table, drain_shape)
-rbc.gis.clip_by_cluster(workdir, assign_table, drain_shape)
-rbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
+hbc.gis.clip_by_assignment(workdir, assign_table, drain_shape)
+hbc.gis.clip_by_cluster(workdir, assign_table, drain_shape)
+hbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
 
 # or if you have a specific set of ID's to check on
 list_of_model_ids = [123, 456, 789]
-rbc.gis.clip_by_ids(workdir, list_of_model_ids, drain_shape)
+hbc.gis.clip_by_ids(workdir, list_of_model_ids, drain_shape)
 ```
 
 After this step, your project directory should look like this:
@@ -508,13 +509,13 @@ excluded each time. The code provided will help you partition your gauge table i
    against the observed data which was withheld from the bias correction process.
 
 ```python
-import rbc
+import hbc
 workdir = '/path/to/project/directory'
 drain_shape = '/path/to/drainageline/gis/file.shp'
 obs_data_dir = '/path/to/obs/data/directory'  # optional - if data not in workdir/data_inputs/obs_csvs
 
-rbc.validate.sample_gauges(workdir)
-rbc.validate.run_series(workdir, drain_shape, obs_data_dir)
+hbc.validate.sample_gauges(workdir)
+hbc.validate.run_series(workdir, drain_shape, obs_data_dir)
 ```
 
 After this step your working directory should look like this:
