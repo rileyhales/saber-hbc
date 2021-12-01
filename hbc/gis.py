@@ -156,7 +156,7 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
 
     Args:
         workdir: path to the project directory
-        val_table: the validation table produced by rbc.validate
+        val_table: the validation table produced by hbc.validate
         gauge_shape: path to the gauge locations shapefile
         prefix: optional, a prefix to prepend to each created file's name
 
