@@ -53,6 +53,7 @@ obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 # rbc.calibrate_region(workdir, assign_table)
 # vtab = rbc.validate.gen_val_table(workdir)
 rbc.gis.validation_maps(workdir, gauge_shape)
+rbc.analysis.plot(workdir, obs_data_dir, 9007721)
 
 
 # import pandas as pd

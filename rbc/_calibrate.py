@@ -1,4 +1,4 @@
-import logging
+import datetime
 import os
 import statistics
 
@@ -15,6 +15,8 @@ from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
 from ._vocab import metric_list
 from ._vocab import metric_nc_name_list
+from ._vocab import sim_ts_pickle
+from ._vocab import cal_nc_name
 
 
 def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
@@ -138,55 +140,70 @@ def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flo
 
 
 def calibrate_region(workdir: str, assign_table: pd.DataFrame,
-                     gauge_table: pd.DataFrame = None, obs_data_dir: str = None):
+                     gauge_table: pd.DataFrame = None, obs_data_dir: str = None) -> None:
     """
+    Creates a netCDF with the
 
     Args:
-        workdir:
-        assign_table:
-        gauge_table:
-        obs_data_dir:
+        workdir: path to project working directory
+        assign_table: the assign_table dataframe
+        gauge_table: path to the gauge table
+        obs_data_dir: path to the observed data
 
     Returns:
-
+        None
     """
     if gauge_table is None:
         gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
     if obs_data_dir is None:
         obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 
-    bcs_nc_path = os.path.join(workdir, 'calibrated_simulated_flow.nc')
-    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', 'subset_time_series.pickle'))
-
-    t_size = ts.values.shape[0]
-    m_size = ts.values.shape[1]
-    c_size = 2
+    bcs_nc_path = os.path.join(workdir, cal_nc_name)
+    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', sim_ts_pickle))
 
     # create the new netcdf
     bcs_nc = nc.Dataset(bcs_nc_path, 'w')
+
+    # set up the dimensions
+    t_size = ts.values.shape[0]
+    m_size = ts.values.shape[1]
+    c_size = 2
     bcs_nc.createDimension('time', t_size)
     bcs_nc.createDimension('model_id', m_size)
     bcs_nc.createDimension('corrected', c_size)
 
-    bcs_nc.createVariable('time', 'f4', ('time',), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('model_id', 'f4', ('model_id',), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('corrected', 'i4', ('corrected',), zlib=True, shuffle=True, fill_value=-1)
+    # coordinate variables
+    bcs_nc.createVariable('time', 'i', ('time',), zlib=True, shuffle=True, fill_value=-9999)
+    bcs_nc.createVariable('model_id', 'i', ('model_id',), zlib=True, shuffle=True, fill_value=-9999)
+    bcs_nc.createVariable('corrected', 'i', ('corrected',), zlib=True, shuffle=True, fill_value=-1)
 
+    # other variables
     bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
     bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-
     for metric in metric_nc_name_list:
         bcs_nc.createVariable(metric, 'f4', ('model_id', 'corrected'), zlib=True, shuffle=True, fill_value=np.nan)
 
-    bcs_nc['time'][:] = ts.index.values
+    # times from the datetime index
+    times = ts.index.values.astype(datetime.datetime)
+    # convert nanoseconds to milliseconds
+    times = times / 1000000
+    # convert to dates
+    times = nc.num2date(times, 'milliseconds since 1970-01-01 00:00:00', calendar='standard')
+    # convert to a simpler unit
+    times = nc.date2num(times, 'days since 1970-01-01 00:00:00', calendar='standard')
+
+    # fill the values we already know
+    bcs_nc['time'].unit = 'days since 1970-01-01 00:00:00+00'
+    bcs_nc['time'][:] = times
     bcs_nc['model_id'][:] = ts.columns.to_list()
     bcs_nc['corrected'][:] = np.array((0, 1))
     bcs_nc['flow_sim'][:] = ts.values
 
     bcs_nc.sync()
 
+    # set up arrays to compute the corrected, percentile and scalar arrays
     c_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
     p_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
     s_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
@@ -196,11 +213,10 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
         computed_metrics[metric] = np.array([np.nan] * m_size * c_size).reshape(m_size, c_size)
 
     errors = {'g1': 0, 'g2': 0, 'g3': 0, 'g4': 0}
-    # assign_table = assign_table.sort_index(ascending=False)
     for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
         try:
-            if (idx % 25 == 0):
-                print(f'\n\t\t{idx + 1}/{m_size}\n')
+            if idx % 25 == 0:
+                print(f'\n\t\t{idx + 1}/{m_size}')
 
             model_id, asgn_mid, asgn_gid = triple
             if np.isnan(asgn_gid) or np.isnan(asgn_mid):
