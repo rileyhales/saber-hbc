@@ -156,7 +156,7 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
 
     Args:
         workdir: path to the project directory
-        val_table: the validation table produced by hbc.validate
+        val_table: the validation table produced by saber.validate
         gauge_shape: path to the gauge locations shapefile
         prefix: optional, a prefix to prepend to each created file's name
 
@@ -235,6 +235,5 @@ def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> No
         metric, ax=axm, cmap=cmap, norm=norm, legend=True, markersize=10)
     cx.add_basemap(ax=axm, zoom=9, source=cx.providers.Esri.WorldTopoMap, attribution='')
 
-    fig.show()
     fig.savefig(os.path.join(workdir, 'gis_outputs', f'{metric}_{prct}.png'))
     return

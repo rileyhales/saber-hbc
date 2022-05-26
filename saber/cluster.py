@@ -57,7 +57,7 @@ def generate(workdir: str) -> None:
                     plt.plot(j.ravel(), "k-", alpha=.2)
                 plt.plot(km.cluster_centers_[i].ravel(), "r-")
                 plt.xlim(0, size)
-                plt.ylim(-5, 5)
+                plt.ylim(-3.5, 3.5)
                 plt.text(0.55, 0.85, f'Cluster {i}', transform=plt.gca().transAxes)
                 if i == math.floor(num_cluster / 4):
                     plt.title("Euclidean $k$-means")

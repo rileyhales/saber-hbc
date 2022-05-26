@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 
-import hbc
+import saber
 
 
 np.seterr(all="ignore")
@@ -13,47 +13,47 @@ gauge_shape = os.path.join(workdir, 'gis_inputs', 'ideam_stations.json')
 obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 
 # Only need to do this step 1x ever
-# hbc.prep.scaffold_working_directory(workdir)
+# saber.prep.scaffold_working_directory(workdir)
 
 # Create the gauge_table and drain_table.csv
 # Scripts not provided, check readme for instructions
 
 # Generate the assignments table
-# assign_table = hbc.table.gen(workdir)
-# hbc.table.cache(workdir, assign_table)
+# assign_table = saber.table.gen(workdir)
+# saber.table.cache(workdir, assign_table)
 # Or read the existing table
-# assign_table = hbc.table.read(workdir)
+# assign_table = saber.table.read(workdir)
 
 # Prepare the observation and simulation data
 # Only need to do this step 1x ever
-# hbc.prep.historical_simulation(os.path.join(workdir, 'data_simulated', 'south_america_era5_qout.nc'), workdir)
-# hbc.prep.observation_data(workdir)
+# saber.prep.historical_simulation(os.path.join(workdir, 'data_simulated', 'south_america_era5_qout.nc'), workdir)
+# saber.prep.observation_data(workdir)
 
 # Generate the clusters using the historical simulation data
-# hbc.cluster.generate(workdir)
-# assign_table = hbc.cluster.summarize(workdir, assign_table)
-# hbc.table.cache(workdir, assign_table)
+# saber.cluster.generate(workdir)
+# assign_table = saber.cluster.summarize(workdir, assign_table)
+# saber.table.cache(workdir, assign_table)
 
 # Assign basins which are gauged and propagate those gauges
-# assign_table = hbc.assign.gauged(assign_table)
-# assign_table = hbc.assign.propagation(assign_table)
-# assign_table = hbc.assign.clusters_by_dist(assign_table)
-# todo assign_table = hbc.assign.clusters_by_monavg(assign_table)
+# assign_table = saber.assign.gauged(assign_table)
+# assign_table = saber.assign.propagation(assign_table)
+# assign_table = saber.assign.clusters_by_dist(assign_table)
+# todo assign_table = saber.assign.clusters_by_monavg(assign_table)
 
 # Cache the assignments table with the updates
-# hbc.table.cache(workdir, assign_table)
+# saber.table.cache(workdir, assign_table)
 
 # Generate GIS files so you can go explore your progress graphically
-# hbc.gis.clip_by_assignment(workdir, assign_table, drain_shape)
-# hbc.gis.clip_by_cluster(workdir, assign_table, drain_shape)
-# hbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
+# saber.gis.clip_by_assignment(workdir, assign_table, drain_shape)
+# saber.gis.clip_by_cluster(workdir, assign_table, drain_shape)
+# saber.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
 
 # Compute the corrected simulation data
-# assign_table = hbc.table.read(workdir)
-# hbc.calibrate_region(workdir, assign_table)
-# vtab = hbc.validate.gen_val_table(workdir)
-hbc.gis.validation_maps(workdir, gauge_shape)
-hbc.analysis.plot(workdir, obs_data_dir, 9007721)
+# assign_table = saber.table.read(workdir)
+# saber.calibrate_region(workdir, assign_table)
+# vtab = saber.validate.gen_val_table(workdir)
+saber.gis.validation_maps(workdir, gauge_shape)
+saber.analysis.plot(workdir, obs_data_dir, 9007721)
 
 
 # import pandas as pd

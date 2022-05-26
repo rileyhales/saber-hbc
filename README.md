@@ -1,7 +1,4 @@
-# Hydrological Bias Correction on Large Mode
-This repository contains Python code which can be used to calibrate biased, non-gridded hydrologic models. Most of the 
-code in this repository will work on any model's results. The data preprocessing and automated calibration functions 
-are programmed to expect data following the GEOGloWS ECMWF Streamflow Service's structure and format.
+# Stream Analysis for Bias Estimation and Reduction
 
 ## Theory
 Basins and streams will be used interchangeably to refer to the specific stream subunit.
@@ -45,16 +42,16 @@ file formats are acceptable
 5. Historical simulated discharge for each stream segment and for as long (temporally) as is available.
 6. Observed discharge data for as many stream reaches as possible within the target region.
 7. The units of the simulation and observation data must be in the same units.
-8. A working directory folder on the computer where the scripts are going to be run.
+8. A working directory on the computer where the scripts are going to be run.
 
 ## Process
 ### 1 Create a Working Directory
 
 ```python
-import hbc
+import saber as saber
 
 path_to_working_directory = '/my/file/path'
-hbc.prep.scaffold_workdir(path_to_working_directory)
+saber.prep.scaffold_workdir(path_to_working_directory)
 ```
 
 Your working directory should exactly like this. 
@@ -112,12 +109,12 @@ gdf.to_file('/file/path/to/save', driver='GeoJSON')
 
 Your table should look like this:
 
-downstream_model_id | model_id          | drainage_area_mod | stream_order  | x   | y   |  
-------------------- | ----------------- | ----------------- | ------------- | --- | --- |
-unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##  | ##  |
-unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##  | ##  |  
-unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##  | ##  |  
-...                 | ...               | ...               | ...           | ... | ... |
+| downstream_model_id | model_id        | drainage_area_mod | stream_order | x   | y   |  
+|---------------------|-----------------|-------------------|--------------|-----|-----|
+| unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |
+| unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |  
+| unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |  
+| ...                 | ...             | ...               | ...          | ... | ... |
 
 2. Prepare a csv of the attribute table of the gauge locations shapefile.
    - You need the columns:
@@ -127,12 +124,12 @@ unique_stream_#     | unique_stream_#   | area in km^2      | stream_order  | ##
 
 Your table should look like this (column order is irrelevant):
 
-model_id          | drainage_area_obs | gauge_id  
------------------ | ----------------- | ------------
-unique_stream_num | area in km^2      | unique_gauge_num
-unique_stream_num | area in km^2      | unique_gauge_num  
-unique_stream_num | area in km^2      | unique_gauge_num  
-...               | ...               | ...
+| model_id          | drainage_area_obs | gauge_id         |
+|-------------------|-------------------|------------------|
+| unique_stream_num | area in km^2      | unique_gauge_num |
+| unique_stream_num | area in km^2      | unique_gauge_num |
+| unique_stream_num | area in km^2      | unique_gauge_num |
+| ...               | ...               | ...              |
 
 Your project's working directory now looks like
 ```
@@ -162,17 +159,17 @@ The Assignments Table is the core of the regional bias correction method it is a
 stream segment in the model and several columns of other information which are filled in during the RBC algorithm. It 
 looks like this:
 
-downstream_model_id | model_id          | drainage_area | stream_order | gauge_id  
-------------------- | ----------------- | ------------- | ------------ | ----------------
-unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num
-unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num  
-unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num  
-...                 | ...               | ...           | ...          | ...
+| downstream_model_id | model_id          | drainage_area | stream_order | gauge_id         |
+|---------------------|-------------------|---------------|--------------|------------------|
+| unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num |
+| unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num |
+| unique_stream_num   | unique_stream_num | area in km^2  | stream_order | unique_gauge_num |
+| ...                 | ...               | ...           | ...          | ...              |
 
 ```python
-import hbc
+import saber as saber
 workdir = '/path/to/project/directory/'
-hbc.prep.gen_assignments_table(workdir)
+saber.prep.gen_assignments_table(workdir)
 ```
 
 Your project's working directory now looks like
@@ -211,45 +208,45 @@ Use the dat
 
 1. Create a single large csv of the historical simulation data with a datetime column and 1 column per stream segment labeled by the stream's ID number.
 
-datetime    | model_id_1  | model_id_2  | model_id_3  
------------ | ----------- | ----------- | ----------- 
-1979-01-01  | 50          | 50          |  50          
-1979-01-02  | 60          | 60          |  60          
-1979-01-03  | 70          | 70          |  70          
-...         | ...         | ...         | ...          
-   
+| datetime   | model_id_1 | model_id_2 | model_id_3 |
+|------------|------------|------------|------------|
+| 1979-01-01 | 50         | 50         | 50         |
+| 1979-01-02 | 60         | 60         | 60         |
+| 1979-01-03 | 70         | 70         | 70         |
+| ...        | ...        | ...        | ...        |
+
 2. Process the large simulated discharge csv to create a 2nd csv with the flow duration curve on each segment (script provided).
 
-p_exceed    | model_id_1  | model_id_2  | model_id_3   
------------ | ----------- | ----------- | ----------- 
-100         | 0           | 0           | 0                    
-99          | 10          | 10          | 10                   
-98          | 20          | 20          | 20                   
-...         | ...         | ...         | ...                  
+| p_exceed | model_id_1 | model_id_2 | model_id_3 |
+|----------|------------|------------|------------|
+| 100      | 0          | 0          | 0          |
+| 99       | 10         | 10         | 10         |
+| 98       | 20         | 20         | 20         |
+| ...      | ...        | ...        | ...        |
 
 3. Process the large historical discharge csv to create a 3rd csv with the monthly averages on each segment (script provided).
 
-month       | model_id_1  | model_id_2  | model_id_3   
------------ | ----------- | ----------- | ----------- 
-1           | 60          | 60          | 60                   
-2           | 30          | 30          | 30                   
-3           | 70          | 70          | 70                   
-...         | ...         | ...         | ...
+| month | model_id_1 | model_id_2 | model_id_3 |
+|-------|------------|------------|------------|
+| 1     | 60         | 60         | 60         |
+| 2     | 30         | 30         | 30         |
+| 3     | 70         | 70         | 70         |
+| ...   | ...        | ...        | ...        |
 
 ```python
-import hbc
+import saber as saber
 
 workdir = '/path/to/working/directory'
 
-hbc.prep.historical_simulation(
+saber.prep.historical_simulation(
     workdir,
     '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
 )
-hbc.prep.hist_sim_table(
+saber.prep.hist_sim_table(
     workdir,
     '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
 )
-hbc.prep.observed_data(
+saber.prep.observed_data(
     workdir,
     '/path/to/obs/csv/directory' # optional - if csvs not stored in workdir/data_inputs/obs_csvs
 )
@@ -296,10 +293,10 @@ For each of the following, generate and store clusters for many group sizes- bet
 Use this code:
 
 ```python
-import hbc
+import saber as saber
 
 workdir = '/path/to/project/directory/'
-hbc.cluster.generate(workdir)
+saber.cluster.generate(workdir)
 ```
 
 This function creates trained kmeans models saved as pickle files, plots (from matplotlib) of what each of the clusters 
@@ -354,12 +351,12 @@ The justification for this is obvious. The observations are the actual streamflo
 - The reason listed for this assignment is "gauged"
 
 ```python
-import hbc
+import saber as saber
 
-# assign_table = pandas DataFrame (see hbc.table module)
+# assign_table = pandas DataFrame (see saber.table module)
 workdir = '/path/to/project/directory/'
-assign_table = hbc.table.read(workdir)
-hbc.assign.gauged(assign_table)
+assign_table = saber.table.read(workdir)
+saber.assign.gauged(assign_table)
 ```
 
 ### 7 Assign basins by Propagation (hydraulically connected to a gauge)
@@ -375,12 +372,12 @@ be less sensitive to changes in flows up stream, may connect basins with differe
   i is the number of stream segments up/down from the gauge the river is.
 
 ```python
-import hbc
+import saber as saber
 
-# assign_table = pandas DataFrame (see hbc.table module)
+# assign_table = pandas DataFrame (see saber.table module)
 workdir = '/path/to/project/directory/'
-assign_table = hbc.table.read(workdir)
-hbc.assign.propagation(assign_table)
+assign_table = saber.table.read(workdir)
+saber.assign.propagation(assign_table)
 ```
 
 ### 8 Assign basins by Clusters (hydrologically similar basins)
@@ -391,12 +388,12 @@ Using the results of the optimal clusters
 - Review assignments spatially. Run tests and view improvements. Adjust clusters and reassign as necessary.
 
 ```python
-import hbc
+import saber as saber
 
-# assign_table = pandas DataFrame (see hbc.table module)
+# assign_table = pandas DataFrame (see saber.table module)
 workdir = '/path/to/project/directory/'
-assign_table = hbc.table.read(workdir)
-hbc.assign.clusters_by_dist(assign_table)
+assign_table = saber.table.read(workdir)
+saber.assign.clusters_by_dist(assign_table)
 ```
 
 ### 9 Generate GIS files of the assignments
@@ -405,18 +402,18 @@ use to visualize the results of this process. These GIS files help you investiga
 used at each step. Use this to monitor the results.
 
 ```python
-import hbc
+import saber as saber
 
 workdir = '/path/to/project/directory/'
-assign_table = hbc.table.read(workdir)
+assign_table = saber.table.read(workdir)
 drain_shape = '/my/file/path/'
-hbc.gis.clip_by_assignment(workdir, assign_table, drain_shape)
-hbc.gis.clip_by_cluster(workdir, assign_table, drain_shape)
-hbc.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
+saber.gis.clip_by_assignment(workdir, assign_table, drain_shape)
+saber.gis.clip_by_cluster(workdir, assign_table, drain_shape)
+saber.gis.clip_by_unassigned(workdir, assign_table, drain_shape)
 
 # or if you have a specific set of ID's to check on
 list_of_model_ids = [123, 456, 789]
-hbc.gis.clip_by_ids(workdir, list_of_model_ids, drain_shape)
+saber.gis.clip_by_ids(workdir, list_of_model_ids, drain_shape)
 ```
 
 After this step, your project directory should look like this:
@@ -509,13 +506,13 @@ excluded each time. The code provided will help you partition your gauge table i
    against the observed data which was withheld from the bias correction process.
 
 ```python
-import hbc
+import saber as saber
 workdir = '/path/to/project/directory'
 drain_shape = '/path/to/drainageline/gis/file.shp'
 obs_data_dir = '/path/to/obs/data/directory'  # optional - if data not in workdir/data_inputs/obs_csvs
 
-hbc.validate.sample_gauges(workdir)
-hbc.validate.run_series(workdir, drain_shape, obs_data_dir)
+saber.validate.sample_gauges(workdir)
+saber.validate.run_series(workdir, drain_shape, obs_data_dir)
 ```
 
 After this step your working directory should look like this:

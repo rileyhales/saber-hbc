@@ -34,12 +34,12 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
         os.mkdir(vr_path)
 
     gt = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
-    start_row_count = gt.shape[0]
+    initial_row_count = gt.shape[0]
     rows_to_drop = round(gt.shape[0] / 10)
 
     for i in range(5):
         # some math related to which iteration of filtering we're on
-        n = start_row_count - rows_to_drop * (i + 1)
+        n = initial_row_count - rows_to_drop * (i + 1)
         pct_remain = 100 - 10 * (i + 1)
         subpath = os.path.join(vr_path, f'{pct_remain}')
 
@@ -72,7 +72,7 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
 
 def run_series(workdir: str, drain_shape: str, obs_data_dir: str = None) -> None:
     """
-    Runs hbc.analyze_region on each project in the validation_runs directory
+    Runs saber.analyze_region on each project in the validation_runs directory
 
     Args:
         workdir: the project working directory

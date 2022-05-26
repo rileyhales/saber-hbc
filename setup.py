@@ -6,12 +6,13 @@ with open("README.md", "r") as readme:
 with open('requirements.txt', 'r') as req:
     install_requires = req.read().splitlines()
 
-description = 'tools for hydrological bias correction on large scale models'
+description = 'tools for hydrological bias correction on large models'
+version = '0.3.0'
 
 setup(
-    name='hbc',
-    packages=['hbc'],
-    version='0.2.0',
+    name='saber',
+    packages=['saber'],
+    version=version,
     description=description,
     long_description=long_description,
     long_description_content_type="text/markdown",

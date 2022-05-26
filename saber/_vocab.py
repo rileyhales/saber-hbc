@@ -8,11 +8,11 @@ reason_col = 'reason'
 area_col = 'drain_area'
 order_col = 'stream_order'
 
-# name of some of the files produced by the algorithm
+# name of some files produced by the algorithm
 cluster_count_file = 'best-fit-cluster-count.json'
 cal_nc_name = 'calibrated_simulated_flow.nc'
 sim_ts_pickle = 'sim_time_series.pickle'
 
 # metrics computed on validation sets
-metric_list = ["ME", 'MAE', "RMSE", "NRMSE (Mean)", "MAPE", "NSE", "KGE (2012)"]
+metric_list = ['ME', 'MAE', 'RMSE', 'NRMSE (Mean)', 'MAPE', 'NSE', 'KGE (2012)']
 metric_nc_name_list = ['ME', 'MAE', 'RMSE', 'NRMSE', 'MAPE', 'NSE', 'KGE2012']
