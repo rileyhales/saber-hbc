@@ -238,17 +238,17 @@ import saber as saber
 
 workdir = '/path/to/working/directory'
 
-saber.prep.historical_simulation(
+saber.prep.hindcast(
     workdir,
-    '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
+    '/path/to/historical/simulation/netcdf.nc'  # optional - if nc not stored in data_inputs folder
 )
 saber.prep.hist_sim_table(
     workdir,
-    '/path/to/historical/simulation/netcdf.nc' # optional - if nc not stored in data_inputs folder
+    '/path/to/historical/simulation/netcdf.nc'  # optional - if nc not stored in data_inputs folder
 )
 saber.prep.observed_data(
     workdir,
-    '/path/to/obs/csv/directory' # optional - if csvs not stored in workdir/data_inputs/obs_csvs
+    '/path/to/obs/csv/directory'  # optional - if csvs not stored in workdir/data_inputs/obs_csvs
 )
 ```
 

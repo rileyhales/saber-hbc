@@ -30,7 +30,7 @@ np.seterr(all="ignore")
 
 # Prepare the observation and simulation data - Only need to do this step 1x ever
 print('Preparing data')
-saber.prep.historical_simulation(workdir)
+saber.prep.hindcast(workdir)
 
 # Generate the assignments table
 print('Generate Assignment Table')

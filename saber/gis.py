@@ -43,7 +43,7 @@ def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, pre
 def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
                        id_column: str = mid_col) -> None:
     """
-    Creates geojsons (in workdir/gis_outputs) for each unique value in the assignment column
+    Creates Geopackage files in workdir/gis_outputs for each unique value in the assignment column
 
     Args:
         workdir: the path to the working directory for the project
@@ -63,18 +63,18 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: st
     for reason in set(assign_table[reason_col].dropna().values):
         ids = assign_table[assign_table[reason_col] == reason][mid_col].values
         subset = dl[dl[id_column].isin(ids)]
-        name = f'{prefix}{"_" if prefix else ""}assignments_{reason}.json'
+        name = f'{prefix}{"_" if prefix else ""}assignments_{reason}.gpkg'
         if subset.empty:
             continue
         else:
-            subset.to_file(os.path.join(save_dir, name), driver='GeoJSON')
+            subset.to_file(os.path.join(save_dir, name))
     return
 
 
 def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
                     id_column: str = mid_col) -> None:
     """
-    Creates GIS files (in workdir/gis_outputs) of the drainage lines based on which fdc cluster they were assigned to
+    Creates Geopackage files in workdir/gis_outputs of the drainage lines based on the fdc cluster they were assigned to
 
     Args:
         workdir: the path to the working directory for the project
@@ -90,19 +90,19 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
     cluster_types = [a for a in assign_table if 'cluster' in a]
     for ctype in cluster_types:
         for gnum in sorted(set(assign_table[ctype].dropna().values)):
-            savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}{ctype}-{int(gnum)}.json')
+            savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}{ctype}-{int(gnum)}.gpkg')
             ids = assign_table[assign_table[ctype] == gnum][mid_col].values
             if dl_gdf[dl_gdf[id_column].isin(ids)].empty:
                 continue
             else:
-                dl_gdf[dl_gdf[id_column].isin(ids)].to_file(savepath, driver='GeoJSON')
+                dl_gdf[dl_gdf[id_column].isin(ids)].to_file(savepath)
     return
 
 
 def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '',
                        id_column: str = mid_col) -> None:
     """
-    Creates geojsons (in workdir/gis_outputs) of the drainage lines which haven't been assigned a gauge yet
+    Creates Geopackage files in workdir/gis_outputs of the drainage lines which haven't been assigned a gauge yet
 
     Args:
         workdir: the path to the working directory for the project
@@ -120,15 +120,15 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: st
     if subset.empty:
         warnings.warn('Empty filter: No streams are unassigned')
         return
-    savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.json')
-    subset.to_file(savepath, driver='GeoJSON')
+    savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
+    subset.to_file(savepath)
     return
 
 
 def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
                 id_column: str = mid_col) -> None:
     """
-    Creates geojsons (in workdir/gis_outputs) of the subset of 'drain_shape' with an ID in the specified list
+    Creates Geopackage files in workdir/gis_outputs of the subset of 'drain_shape' with an ID in the specified list
 
     Args:
         workdir: path to the project directory
@@ -142,14 +142,14 @@ def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
     """
     dl = gpd.read_file(drain_shape)
     save_dir = os.path.join(workdir, 'gis_outputs')
-    name = f'{prefix}{"_" if prefix else ""}id_subset.json'
-    dl[dl[id_column].isin(ids)].to_file(os.path.join(save_dir, name), driver='GeoJSON')
+    name = f'{prefix}{"_" if prefix else ""}id_subset.gpkg'
+    dl[dl[id_column].isin(ids)].to_file(os.path.join(save_dir, name))
     return
 
 
 def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = None, prefix: str = '') -> None:
     """
-    Creates geojsons (in workdir/gis_outputs) of subsets of the gauge_shape.
+    Creates Geopackage files in workdir/gis_outputs of subsets of the gauge_shape.
     1 is the fill gauge shape with added attribute columns for all the computed stats. There are 2 for each of the 5
     validation groups; 1 which shows the gauges included in the validation set and 1 which shows gauges that were
     excluded from the validation set.
@@ -170,7 +170,7 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
     # merge gauge table with the validation table
     gdf = gpd.read_file(gauge_shape)
     gdf = gdf.merge(val_table, on=gid_col, how='inner')
-    gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.json'), driver='GeoJSON')
+    gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.gpkg'))
 
     core_columns = [mid_col, gid_col, 'geometry']
 
@@ -182,12 +182,12 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
             gdf_sub = gdf[cols_to_select]
             gdf_sub = gdf_sub.rename(columns={f'{metric}_{val_set}': metric})
 
-            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_included.json'
-            gdf_sub[gdf_sub[val_set] == 1].to_file(os.path.join(save_dir, name), driver='GeoJSON')
+            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_included.gpkg'
+            gdf_sub[gdf_sub[val_set] == 1].to_file(os.path.join(save_dir, name))
 
-            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.json'
+            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.gpkg'
             exc = gdf_sub[gdf_sub[val_set] == 0]
-            exc.to_file(os.path.join(save_dir, name), driver='GeoJSON')
+            exc.to_file(os.path.join(save_dir, name))
             if metric == 'KGE2012':
                 histomaps(exc, metric, val_set, workdir)
 
@@ -195,6 +195,17 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
 
 
 def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> None:
+    """
+
+    Args:
+        gdf:
+        metric:
+        prct:
+        workdir:
+
+    Returns:
+
+    """
     core_columns = [mid_col, gid_col, 'geometry']
     # world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
     # world.plot(ax=axm, color='white', edgecolor='black')

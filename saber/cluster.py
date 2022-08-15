@@ -17,7 +17,7 @@ from ._vocab import gid_col
 
 def generate(workdir: str) -> None:
     """
-    Creates trained kmeans model pickle files and plots of the results saved as png images
+    Trains DTW kmeans model pickle files and plots of the results saved as png images
 
     Args:
         workdir: path to the project directory
@@ -27,9 +27,9 @@ def generate(workdir: str) -> None:
     """
     best_fit = {}
 
-    for table in glob.glob(os.path.join(workdir, 'data_processed', '*.csv')):
+    for table in glob.glob(os.path.join(workdir, 'data_processed', '*_fdc_*.parquet.gzip')):
         # read the data and transform
-        time_series = pd.read_csv(table, index_col=0).dropna(axis=1)
+        time_series = pd.read_parquet(table)
         time_series = np.transpose(time_series.values)
         time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 
@@ -37,7 +37,7 @@ def generate(workdir: str) -> None:
         dataset = os.path.splitext(os.path.basename(table))[0]
         inertia = {'number': [], 'inertia': []}
 
-        for num_cluster in range(2, 11):
+        for num_cluster in range(2, 16):
             # build the kmeans model
             km = TimeSeriesKMeans(n_clusters=num_cluster, random_state=0)
             km.fit_predict(time_series)
@@ -50,6 +50,7 @@ def generate(workdir: str) -> None:
             # generate a plot of the clusters
             size = time_series.shape[1]
             fig = plt.figure(figsize=(30, 15), dpi=450)
+            fig.suptitle("Dynamic Time Warping Clustering")
             assigned_clusters = km.labels_
             for i in range(num_cluster):
                 plt.subplot(2, math.ceil(num_cluster / 2), i + 1)
@@ -59,8 +60,6 @@ def generate(workdir: str) -> None:
                 plt.xlim(0, size)
                 plt.ylim(-3.5, 3.5)
                 plt.text(0.55, 0.85, f'Cluster {i}', transform=plt.gca().transAxes)
-                if i == math.floor(num_cluster / 4):
-                    plt.title("Euclidean $k$-means")
             plt.tight_layout()
             fig.savefig(os.path.join(workdir, 'kmeans_images', f'{dataset}-{num_cluster}-clusters.png'))
             plt.close(fig)

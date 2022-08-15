@@ -1,6 +1,6 @@
 import pandas as pd
 
-from .prep import historical_simulation
+from .prep import hindcast
 
 from .table import gen, cache
 from .cluster import generate, summarize
@@ -10,8 +10,7 @@ from ._calibrate import calibrate_region
 
 
 def prep_region(workdir: str) -> None:
-    historical_simulation(workdir)
-    # observed_data(workdir)
+    hindcast(workdir)
     return
 
 

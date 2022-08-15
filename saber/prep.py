@@ -1,76 +1,92 @@
-import glob
 import os
 
 import grids
 import pandas as pd
-import xarray as xr
+import geopandas as gpd
+import netCDF4 as nc
+import numpy as np
 
 from .utils import compute_fdc
 
 from ._vocab import mid_col
+from ._vocab import hindcast_archive
+from ._vocab import hindcast_fdc_archive
+from ._vocab import read_drain_table
+from ._vocab import guess_hindcast_path
+
+__all__ = ['gis_tables', 'hindcast', 'scaffold_workdir']
 
 
-def guess_hist_sim_path(workdir: str) -> str:
-    return glob.glob(os.path.join(workdir, 'data_inputs', '*.nc*'))[0]
-
-
-def historical_simulation(workdir: str, hist_nc_path: str = None) -> None:
+def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> None:
     """
-    Creates sim-fdc.csv and sim_time_series.pickle in workdir/data_processed for geoglows historical simulation data
+    Generate copies of the drainage line attribute tables in parquet format using the Saber package vocabulary
 
     Args:
         workdir: path to the working directory for the project
-        hist_nc_path: path to the historical simulation netcdf if not located at workdir/data_simulated/*.nc
+        gauge_gis: path to the GIS dataset (e.g. geopackage) for the gauge locations (points)
+        drain_gis: path to the GIS dataset (e.g. geopackage) for the drainage line locations (polylines)
 
     Returns:
         None
     """
-    if hist_nc_path is None:
-        hist_nc_path = guess_hist_sim_path(workdir)
+    if gauge_gis is not None:
+        gdf = gpd.read_file(gauge_gis).drop('geometry', axis=1)
+        gdf[['x', 'y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
+        pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
+            os.path.join(workdir, 'gis_inputs', 'gauge_table.parquet'))
+    if drain_gis is not None:
+        gdf = gpd.read_file(drain_gis).drop('geometry', axis=1)
+        gdf[['x', 'y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
+        pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
+            os.path.join(workdir, 'gis_inputs', 'drain_table.parquet'))
+    return
+
+
+def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
+    """
+    Creates sim-fdc.parquet and sim_time_series.parquet in workdir/data_processed for geoglows historical simulation data
+
+    Args:
+        workdir: path to the working directory for the project
+        hind_nc_path: path to the hindcast or historical simulation netcdf if not located at workdir/data_simulated/*.nc
+
+    Returns:
+        None
+    """
+    if hind_nc_path is None:
+        hind_nc_path = guess_hindcast_path(workdir)
 
     # read the assignments table
-    drain_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'drain_table.csv'))
+    drain_table = read_drain_table(workdir)
     model_ids = list(set(sorted(drain_table[mid_col].tolist())))
 
-    # open the historical data netcdf file
-    hist_nc = xr.open_dataset(hist_nc_path)
+    # read the hindcast netcdf and convert to dataframe
+    hnc = nc.Dataset(hind_nc_path)
+    ids = pd.Series(hnc['rivid'][:])
+    ids_selector = ids.isin(model_ids)
+    df = pd.DataFrame(
+        hnc['Qout'][:, ids_selector],
+        columns=ids[ids_selector].astype(str),
+        index=pd.to_datetime(hnc.variables['time'][:], unit='s')
+    )
+    df.index.name = 'datetime'
+    df.to_parquet(os.path.join(workdir, 'data_processed', 'hindcast_series_table.parquet.gzip'), compression='gzip')
 
-    # start dataframes for the flow duration curve (fdc) and the monthly averages (ma) using the first comid in the list
-    first_id = model_ids.pop(0)
-    first_data = hist_nc.sel(rivid=first_id).Qout.to_dataframe()['Qout']
-    fdc_df = compute_fdc(first_data.tolist(), col_name=first_id)
-    # ma_df = first_data.groupby(first_data.index.strftime('%m')).mean().to_frame(name=first_id)
-
-    # for each remaining stream ID in the list, merge/append the fdc and ma with the previously created dataframes
-    for model_id in model_ids:
-        data = hist_nc.sel(rivid=model_id).Qout.to_dataframe()['Qout']
-        fdc_df = fdc_df.merge(compute_fdc(data.tolist(), col_name=model_id),
-                              how='outer', left_index=True, right_index=True)
-
-    fdc_df.to_csv(os.path.join(workdir, 'data_processed', 'sim-fdc.csv'))
-
-    # create the time series table of simulated flow values
-    coords = drain_table[[mid_col]]
-    coords.loc[:, 'time'] = None
-    coords = coords[['time', 'model_id']].values.tolist()
-    ts = grids.TimeSeries([hist_nc_path, ], 'Qout', ('time', 'rivid'))
-    ts = ts.multipoint(*coords)
-    ts.set_index('datetime', inplace=True)
-    ts.index = pd.to_datetime(ts.index, unit='s')
-    ts.columns = drain_table[mid_col].values.flatten()
-    ts.index = ts.index.tz_localize('UTC')
-    ts.to_pickle(os.path.join(workdir, 'data_processed', 'sim_time_series.pickle')
-)
+    exceed_prob = np.linspace(0, 100, 401)[::-1]
+    df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
+    df.index = exceed_prob
+    df.index.name = 'exceed_prob'
+    df.to_parquet(os.path.join(workdir, 'data_processed', 'hindcast_fdc_table.parquet.gzip'), compression='gzip')
     return
 
 
 def scaffold_workdir(path: str, include_validation: bool = True) -> None:
     """
-    Creates the correct directories for an RBC project within the a specified directory
+    Creates the correct directories for a Saber project within the specified directory
 
     Args:
         path: the path to a directory where you want to create directories
-        include_validation: boolean, indicates whether or not to create the validation folder
+        include_validation: boolean, indicates whether to create the validation folder
 
     Returns:
         None

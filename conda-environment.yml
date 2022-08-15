@@ -1,0 +1,15 @@
+name: saber
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3
+  - geopandas
+  - pandas
+  - numpy
+  - contextily
+  - xarray
+  - netCDF4
+  - tslearn
+  - pyarrow
+  - kneed

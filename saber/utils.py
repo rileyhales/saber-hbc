@@ -42,12 +42,15 @@ def compute_fdc(flows: np.array, steps: int = 500, exceed: bool = True, col_name
     return pd.DataFrame(flows, columns=[col_name, ], index=percentiles)
 
 
-def compute_scalar_fdc(first_fdc, second_fdc):
-    first_fdc = compute_fdc(first_fdc)
-    second_fdc = compute_fdc(second_fdc)
-    ratios = np.divide(first_fdc['flow'].values.flatten(), second_fdc['flow'].values.flatten())
-    columns = (first_fdc.columns[0], 'Scalars')
-    scalars_df = pd.DataFrame(np.transpose([first_fdc.values[:, 0], ratios]), columns=columns)
+def compute_scalar_fdc(sim_fdc: pd.DataFrame, obs_fdc: pd.DataFrame):
+    sim_fdc = compute_fdc(sim_fdc)
+    obs_fdc = compute_fdc(obs_fdc)
+    ratios = np.divide(sim_fdc['flow'].values.flatten(), obs_fdc['flow'].values.flatten())
+    columns = (sim_fdc.columns[0], 'p_exceed', 'scalars')
+    scalars_df = pd.DataFrame(
+        np.transpose([sim_fdc.values[:, 0], sim_fdc['p_exceed'].values.flatten(), ratios]),
+        columns=columns
+    )
     scalars_df.replace(np.inf, np.nan, inplace=True)
     scalars_df.dropna(inplace=True)
 
