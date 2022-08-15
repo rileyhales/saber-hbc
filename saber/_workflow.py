@@ -9,11 +9,6 @@ from .gis import clip_by_assignment, clip_by_cluster, clip_by_unassigned
 from ._calibrate import calibrate_region
 
 
-def prep_region(workdir: str) -> None:
-    hindcast(workdir)
-    return
-
-
 def analyze_region(workdir: str, drain_shape: str, gauge_table: pd.DataFrame = None, obs_data_dir: str = None) -> None:
     # Generate the assignments table
     print("gen assign_table")

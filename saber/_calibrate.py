@@ -15,7 +15,7 @@ from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
 from ._vocab import metric_list
 from ._vocab import metric_nc_name_list
-from ._vocab import hindcast_archive
+from ._vocab import hindcast_table
 from ._vocab import cal_nc_name
 
 
@@ -177,7 +177,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
         obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 
     bcs_nc_path = os.path.join(workdir, cal_nc_name)
-    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', hindcast_archive))
+    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', hindcast_table))
 
     # create the new netcdf
     bcs_nc = nc.Dataset(bcs_nc_path, 'w')

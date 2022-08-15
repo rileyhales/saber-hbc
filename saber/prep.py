@@ -9,8 +9,8 @@ import numpy as np
 from .utils import compute_fdc
 
 from ._vocab import mid_col
-from ._vocab import hindcast_archive
-from ._vocab import hindcast_fdc_archive
+from ._vocab import hindcast_table
+from ._vocab import hindcast_fdc_table
 from ._vocab import read_drain_table
 from ._vocab import guess_hindcast_path
 
@@ -33,18 +33,19 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
         gdf = gpd.read_file(gauge_gis).drop('geometry', axis=1)
         gdf[['x', 'y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
         pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
-            os.path.join(workdir, 'gis_inputs', 'gauge_table.parquet'))
+            os.path.join(workdir, 'tables', 'gauge_table.parquet.gzip'), compression='gzip')
     if drain_gis is not None:
         gdf = gpd.read_file(drain_gis).drop('geometry', axis=1)
         gdf[['x', 'y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
         pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
-            os.path.join(workdir, 'gis_inputs', 'drain_table.parquet'))
+            os.path.join(workdir, 'tables', 'drain_table.parquet.gzip'), compression='gzip')
     return
 
 
 def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
     """
-    Creates sim-fdc.parquet and sim_time_series.parquet in workdir/data_processed for geoglows historical simulation data
+    Creates hindcast_series_table.parquet.gzip and hindcast_fdc_table.parquet.gzip in the workdir/tables directory
+    for the GEOGloWS hindcast data
 
     Args:
         workdir: path to the working directory for the project
@@ -70,13 +71,13 @@ def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
         index=pd.to_datetime(hnc.variables['time'][:], unit='s')
     )
     df.index.name = 'datetime'
-    df.to_parquet(os.path.join(workdir, 'data_processed', 'hindcast_series_table.parquet.gzip'), compression='gzip')
+    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_series_table.parquet.gzip'), compression='gzip')
 
     exceed_prob = np.linspace(0, 100, 401)[::-1]
     df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
     df.index = exceed_prob
     df.index.name = 'exceed_prob'
-    df.to_parquet(os.path.join(workdir, 'data_processed', 'hindcast_fdc_table.parquet.gzip'), compression='gzip')
+    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_table.parquet.gzip'), compression='gzip')
     return
 
 
@@ -93,12 +94,10 @@ def scaffold_workdir(path: str, include_validation: bool = True) -> None:
     """
     if not os.path.isdir(path):
         os.mkdir(path)
-    os.mkdir(os.path.join(path, 'data_inputs'))
-    os.mkdir(os.path.join(path, 'data_processed'))
-    os.mkdir(os.path.join(path, 'gis_inputs'))
+    os.mkdir(os.path.join(path, 'tables'))
+    os.mkdir(os.path.join(path, 'inputs'))
     os.mkdir(os.path.join(path, 'gis_outputs'))
-    os.mkdir(os.path.join(path, 'kmeans_models'))
-    os.mkdir(os.path.join(path, 'kmeans_images'))
+    os.mkdir(os.path.join(path, 'kmeans_outputs'))
     if include_validation:
         os.mkdir(os.path.join(path, 'validation_runs'))
     return
