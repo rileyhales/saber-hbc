@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as req:
     install_requires = req.read().splitlines()
 
 description = 'tools for hydrological bias correction on large models'
-version = '0.3.0'
+version = '0.4.0'
 
 setup(
     name='saber',
