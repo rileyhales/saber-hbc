@@ -10,7 +10,7 @@ description = 'tools for hydrological bias correction on large models'
 version = '0.4.0'
 
 setup(
-    name='saber',
+    name='saberbc',
     packages=['saber'],
     version=version,
     description=description,
