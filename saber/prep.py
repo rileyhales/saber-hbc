@@ -1,18 +1,14 @@
 import os
 
-import grids
 import pandas as pd
 import geopandas as gpd
 import netCDF4 as nc
 import numpy as np
 
-from .utils import compute_fdc
-
 from ._vocab import mid_col
-from ._vocab import hindcast_table
-from ._vocab import hindcast_fdc_table
 from ._vocab import read_drain_table
 from ._vocab import guess_hindcast_path
+from ._vocab import get_table_path
 
 __all__ = ['gis_tables', 'hindcast', 'scaffold_workdir']
 
@@ -70,14 +66,15 @@ def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
         columns=ids[ids_selector].astype(str),
         index=pd.to_datetime(hnc.variables['time'][:], unit='s')
     )
+    df = df[df.index.year >= 1980]
     df.index.name = 'datetime'
-    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_series_table.parquet.gzip'), compression='gzip')
+    df.to_parquet(get_table_path(workdir, 'hindcast_series'), compression='gzip')
 
-    exceed_prob = np.linspace(0, 100, 401)[::-1]
+    exceed_prob = np.linspace(0, 100, 201)[::-1]
     df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
     df.index = exceed_prob
     df.index.name = 'exceed_prob'
-    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_table.parquet.gzip'), compression='gzip')
+    df.to_parquet(get_table_path(workdir, 'hindcast_fdc'), compression='gzip')
     return
 
 

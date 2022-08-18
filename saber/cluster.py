@@ -7,7 +7,7 @@ import kneed
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tslearn.clustering import TimeSeriesKMeans
+from tslearn.clustering import KShape
 from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 
 from ._vocab import cluster_count_file
@@ -17,7 +17,7 @@ from ._vocab import gid_col
 
 def generate(workdir: str) -> None:
     """
-    Trains DTW kmeans model pickle files and plots of the results saved as png images
+    Trains kmeans clustering models, saves the model as pickle, generates images and supplementary files
 
     Args:
         workdir: path to the project directory
@@ -27,51 +27,58 @@ def generate(workdir: str) -> None:
     """
     best_fit = {}
 
-    for table in glob.glob(os.path.join(workdir, 'data_processed', '*_fdc_*.parquet.gzip')):
+    for table in glob.glob(os.path.join(workdir, 'tables', '*_fdc_*.parquet.gzip')):
         # read the data and transform
         time_series = pd.read_parquet(table)
         time_series = np.transpose(time_series.values)
         time_series = TimeSeriesScalerMeanVariance().fit_transform(time_series)
 
         # get the name of the data and start tracking stats
-        dataset = os.path.splitext(os.path.basename(table))[0]
-        inertia = {'number': [], 'inertia': []}
+        dataset = os.path.basename(table).split('.')[0]
+        inertia = {'number': [], 'inertia': [], 'n_iter': []}
 
-        for num_cluster in range(2, 16):
+        for n_clusters in range(1, 17):
+            print(n_clusters)
             # build the kmeans model
-            km = TimeSeriesKMeans(n_clusters=num_cluster, random_state=0)
-            km.fit_predict(time_series)
-            inertia['number'].append(num_cluster)
-            inertia['inertia'].append(km.inertia_)
+            ks = KShape(n_clusters=n_clusters, random_state=0, max_iter=150)
+            ks.fit_predict(time_series)
+            inertia['number'].append(n_clusters)
+            inertia['inertia'].append(ks.inertia_)
+            inertia['n_iter'].append(ks.n_iter_)
 
             # save the trained model
-            km.to_pickle(os.path.join(workdir, 'kmeans_models', f'{dataset}-{num_cluster}-clusters-model.pickle'))
+            ks.to_pickle(os.path.join(workdir, 'kmeans_outputs', f'{dataset}-kshape-{n_clusters}_clusters-model.pickle'))
 
             # generate a plot of the clusters
             size = time_series.shape[1]
-            fig = plt.figure(figsize=(30, 15), dpi=450)
-            fig.suptitle("Dynamic Time Warping Clustering")
-            assigned_clusters = km.labels_
-            for i in range(num_cluster):
-                plt.subplot(2, math.ceil(num_cluster / 2), i + 1)
+            # up to 3 cols, rows determined by number of columns
+            n_cols = min(n_clusters, 3)
+            n_rows = math.ceil(n_clusters / n_cols)
+            img_size = 2.5
+            fig = plt.figure(figsize=(img_size * n_cols, img_size * n_rows), dpi=750)
+
+            fig.suptitle("KShape Clustering")
+            assigned_clusters = ks.labels_
+            for i in range(n_clusters):
+                plt.subplot(n_rows, n_cols, i + 1)
                 for j in time_series[assigned_clusters == i]:
                     plt.plot(j.ravel(), "k-", alpha=.2)
-                plt.plot(km.cluster_centers_[i].ravel(), "r-")
+                plt.plot(ks.cluster_centers_[i].ravel(), "r-")
                 plt.xlim(0, size)
-                plt.ylim(-3.5, 3.5)
-                plt.text(0.55, 0.85, f'Cluster {i}', transform=plt.gca().transAxes)
+                plt.ylim(-2, 4)
+                plt.text(0.55, 0.85, f'Cluster {i + 1}', transform=plt.gca().transAxes)
             plt.tight_layout()
-            fig.savefig(os.path.join(workdir, 'kmeans_images', f'{dataset}-{num_cluster}-clusters.png'))
+            fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'{dataset}-kshape-{n_clusters}_clusters.png'))
             plt.close(fig)
 
         # save the inertia results as a csv
-        pd.DataFrame.from_dict(inertia).to_csv(os.path.join(workdir, 'kmeans_models', f'{dataset}-inertia.csv'))
+        pd.DataFrame.from_dict(inertia).to_csv(os.path.join(workdir, 'kmeans_outputs', f'{dataset}-inertia.csv'))
         # find the knee/elbow
         knee = kneed.KneeLocator(inertia['number'], inertia['inertia'], curve='convex', direction='decreasing').knee
         best_fit[dataset] = int(knee)
 
     # save the best fitting cluster counts to a csv
-    with open(os.path.join(workdir, 'kmeans_models', cluster_count_file), 'w') as f:
+    with open(os.path.join(workdir, 'kmeans_outputs', cluster_count_file), 'w') as f:
         f.write(json.dumps(best_fit))
     return
 
@@ -102,7 +109,7 @@ def summarize(workdir: str, assign_table: pd.DataFrame) -> pd.DataFrame:
 
         # open the optimal model pickle file
         optimal_model = os.path.join(workdir, 'kmeans_models', f'{dataset}-{cluster_count}-clusters-model.pickle')
-        sim_labels = TimeSeriesKMeans.from_pickle(optimal_model).labels_.tolist()
+        sim_labels = KShape.from_pickle(optimal_model).labels_.tolist()
 
         # create a dataframe of the ids and their labels (assigned groups)
         df = pd.DataFrame(np.transpose([sim_labels, ids]), columns=[f'{dataset}-cluster', merge_col])

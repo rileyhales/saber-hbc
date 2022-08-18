@@ -40,12 +40,11 @@ def read_gauge_table(workdir: str) -> pd.DataFrame:
     return pd.read_parquet(os.path.join(workdir, tables, gauge_table))
 
 
-# todo: make everything in prep and other modules use this function for getting table paths
 def get_table_path(workdir: str, table_name: str) -> str:
     if table_name == 'hindcast_series':
-        return os.path.join(workdir, data_in, hindcast_table)
+        return os.path.join(workdir, tables, hindcast_table)
     elif table_name == 'hindcast_fdc':
-        return os.path.join(workdir, data_in, hindcast_fdc_table)
+        return os.path.join(workdir, tables, hindcast_fdc_table)
     elif table_name == 'drain_table':
         return os.path.join(workdir, tables, drain_table)
     elif table_name == 'gauge_table':

@@ -1,4 +1,4 @@
-from saber._workflow import prep_region, analyze_region
+from saber._workflow import analyze_region
 from saber._calibrate import calibrate, calibrate_region
 
 import saber.table
@@ -13,7 +13,7 @@ import saber.analysis
 import saber._vocab
 
 
-__all__ = ['prep_region', 'analyze_region',
+__all__ = ['analyze_region',
            'calibrate', 'calibrate_region',
            'table', 'prep', 'assign', 'gis', 'cluster', 'utils', 'validate', 'analysis']
 __author__ = 'Riley Hales'

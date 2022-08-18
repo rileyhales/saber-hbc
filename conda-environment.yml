@@ -7,9 +7,14 @@ dependencies:
   - geopandas
   - pandas
   - numpy
+  - numba
   - contextily
-  - xarray
   - netCDF4
   - tslearn
   - pyarrow
   - kneed
+  - tslearn
+  - matplotlib
+  - geoglows
+  - requests
+  - scipy

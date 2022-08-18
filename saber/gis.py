@@ -28,7 +28,7 @@ def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, pre
         workdir: the path to the working directory for the project
         assign_table: the assign_table dataframe
         drain_shape: path to a drainage line shapefile which can be clipped
-        prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
+        prefix: a prefix for names of the outputs to distinguish between data generated in separate instances
         id_column: name of the id column in the attributes of the shape table
 
     Returns:
