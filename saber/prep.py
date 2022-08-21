@@ -32,7 +32,7 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
             os.path.join(workdir, 'tables', 'gauge_table.parquet.gzip'), compression='gzip')
     if drain_gis is not None:
         gdf = gpd.read_file(drain_gis).drop('geometry', axis=1)
-        gdf[['x', 'y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
+        gdf[['centroid_x', 'centroid_y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
         pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
             os.path.join(workdir, 'tables', 'drain_table.parquet.gzip'), compression='gzip')
     return
