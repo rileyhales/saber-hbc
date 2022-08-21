@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 import netCDF4 as nc
 import numpy as np
+from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 
 from ._vocab import mid_col
 from ._vocab import read_drain_table
@@ -27,7 +28,6 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
     """
     if gauge_gis is not None:
         gdf = gpd.read_file(gauge_gis).drop('geometry', axis=1)
-        gdf[['x', 'y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
         pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
             os.path.join(workdir, 'tables', 'gauge_table.parquet.gzip'), compression='gzip')
     if drain_gis is not None:
@@ -57,24 +57,38 @@ def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
     drain_table = read_drain_table(workdir)
     model_ids = list(set(sorted(drain_table[mid_col].tolist())))
 
-    # read the hindcast netcdf and convert to dataframe
+    # read the hindcast netcdf, convert to dataframe, store as parquet
     hnc = nc.Dataset(hind_nc_path)
     ids = pd.Series(hnc['rivid'][:])
     ids_selector = ids.isin(model_ids)
+    ids = ids[ids_selector].astype(str).values.flatten()
+
+    # save the model ids to table for reference
+    pd.DataFrame(ids, columns=['model_id', ]).to_parquet(
+        os.path.join(workdir, 'tables', 'model_ids.parquet.gzip'), compression='gzip')
+
+    # save the hindcast series to parquet
     df = pd.DataFrame(
         hnc['Qout'][:, ids_selector],
-        columns=ids[ids_selector].astype(str),
+        columns=ids,
         index=pd.to_datetime(hnc.variables['time'][:], unit='s')
     )
     df = df[df.index.year >= 1980]
     df.index.name = 'datetime'
     df.to_parquet(get_table_path(workdir, 'hindcast_series'), compression='gzip')
 
+    # calculate the FDC and save to parquet
     exceed_prob = np.linspace(0, 100, 201)[::-1]
     df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
     df.index = exceed_prob
     df.index.name = 'exceed_prob'
     df.to_parquet(get_table_path(workdir, 'hindcast_fdc'), compression='gzip')
+
+    # transform and prepare for clustering
+    df = pd.DataFrame(TimeSeriesScalerMeanVariance().fit_transform(np.transpose(df.values)))
+    df.index = ids
+    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet.gzip'), compression='gzip')
+
     return
 
 

@@ -1,69 +1,57 @@
 # Stream Analysis for Bias Estimation and Reduction
 
 ## Theory
-Basins and streams will be used interchangeably to refer to the specific stream subunit.
-
-Large scale hydrologic models are generally not strongly physically based because of the extreme amounts of input data, 
-computing power, and computing time that would be required to run it. The model uses the results of other physically based 
-models. This is advantageous to us because we rely on the land surface model's behavior of mapping basins with similar 
-hydrologically important geophysical physical characteristics to similar discharge forecasts.
-
-This method relies on spatial analysis, machine learning, and statistical refinements. This is a post processing step which 
-makes it applicable to many models when the source data, code, or other inputs make the model inaccessible or impractical 
-to tweak. We do this in an attempt to avoid requiring the source model data or the ability to run the model. 
-Both of those conditions are not always available or practical when dealing with large scale models or datasets.
+Large scale hydrological models are often biased despite the best calibration efforts. Bias correction is a pre- or 
+post-processing step applied to the model's inputs or outputs to empirically alter datasets and improve model performance. 
+SABER is a bias correction post processor for discharge predictions. SABER builds on frequency matching ideas used in several 
+other methods that match biased predictions with observed data with corresponding exceedance probabilities; that is, 
+using the flow duration curve. SABER expands this approach to ungauged stream reaches using spatial analysis, clustering 
+(machine learning), and statistical refinements and a new concept- the scalar flow duration curve. 
 
 ## Python environment
 See requirements.txt
-- python >= 3.7
-- numpy
-- pandas
-- geopandas (https://github.com/geopandas/geopandas)
-- scikit-learn
-- tslearn (https://github.com/tslearn-team/tslearn)
 
 ## Required Data/Inputs 
-You need the following data to follow this procedure. The instructions list Shapefile but other vector spatial data 
-file formats are acceptable
-1. Shapefiles for the Drainage Lines (lines) and Catchments (polygons) in the watershed as used by the hydrological model. 
-   The attribute table should contain (at least) the following entries for each feature:
-    - (Both) An identifier number
-    - (Both) The ID of the next segment/catchment downstream
-    - (Drainage lines, preferably both) The stream order of each segment
-    - (Catchments, preferably both) Cumulative upstream drainage area
-    - (Drainage lines) the x coordinate of the centroid of each feature
-    - (Drainage lines) the y coordinate of the centroid of each feature
-2. Shapefile of points representing the location of each of the river gauging stations available.
-   The attribute table should contain (at least) the following entries for each point
-    - A unique ID number or name assigned to the gauge, preferably numeric. Randomly generate unique numeric ID's if they don't exist.
+You need the following data to follow this procedure. Geopackage format GIS data may be substituted with Shapefile or 
+equivalent formats that can be read by `geopandas`.
+1. Geopackage drainage Lines (usually delineated center lines) and catchments/subbasins (polygons) in the watershed. The 
+   attribute tables for both should contain (at least) the following entries for each feature:
+    - An identifier column (alphanumeric) labeled `model_id`.
+    - The ID of the next downstream reach/subbasin
+    - The stream order of each reach/subbasin
+    - Cumulative upstream drainage area
+    - The x coordinate of the centroid of each feature (precalculated for faster results later)
+    - The y coordinate of the centroid of each feature (precalculated for faster results later)
+2. Geopackage points representing the location of each of the river gauging stations available. The attribute table 
+   should contain (at least) the following entries for each point
+    - A unique ID number or name assigned to the gauge, preferably short alphanumeric. You can randomly generate them if convenient
     - The ID of the stream segment in the model which corresponds to that gauge.
-3. Shapefile of the boundary (polygon) of the target region for bias calibration.
-4. The Shapefiles for the Drainage Lines, Catchments, Gauges/Stations, and boundary are all in the same projection.
-5. Historical simulated discharge for each stream segment and for as long (temporally) as is available.
-6. Observed discharge data for as many stream reaches as possible within the target region.
-7. The units of the simulation and observation data must be in the same units.
-8. A working directory on the computer where the scripts are going to be run.
+3. Hindcast/historical simulation discharge for each stream reach
+4. Observed discharge data for each gauge
+
+Things to check when preparing your data
+1. The units of the simulated and observed data are in the same units
+2. The GIS datasets are all in the same projection.
+3. The GIS datasets should only contain gauges and reaches/subbasins within the area of interest. Clip/delete anything
+   else. You might find it helpful to keep a watershed boundary geopackage.
 
 ## Process
 ### 1 Create a Working Directory
 
 ```python
-import saber as saber
+import saber
 
-path_to_working_directory = '/my/file/path'
-saber.prep.scaffold_workdir(path_to_working_directory)
+workdir = '/my/file/path'
+saber.prep.scaffold_workdir(workdir)
 ```
 
 Your working directory should exactly like this. 
 ```
 working_directory
-    kmeans_models/
-    kmeans_images/
     data_inputs/
-    data_processed/
-    gis_inputs/
+    tables/
+    kmeans_outputs/
     gis_outputs/
-    validation_sets/
 ```
 
 ### 2 Prepare Spatial Data (scripts not provided)
