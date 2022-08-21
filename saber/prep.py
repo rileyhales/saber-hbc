@@ -29,12 +29,13 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
     if gauge_gis is not None:
         gdf = gpd.read_file(gauge_gis).drop('geometry', axis=1)
         pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
-            os.path.join(workdir, 'tables', 'gauge_table.parquet.gzip'), compression='gzip')
+            os.path.join(workdir, 'tables', 'gauge_table.parquet'))
     if drain_gis is not None:
-        gdf = gpd.read_file(drain_gis).drop('geometry', axis=1)
-        gdf[['centroid_x', 'centroid_y']] = gdf.geometry.apply(lambda x: [x.x, x.y])
-        pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(
-            os.path.join(workdir, 'tables', 'drain_table.parquet.gzip'), compression='gzip')
+        gdf = gpd.read_file(drain_gis)
+        gdf['centroid_x'] = gdf.geometry.centroid.x
+        gdf['centroid_y'] = gdf.geometry.centroid.y
+        gdf = gdf.drop('geometry', axis=1)
+        pd.DataFrame(gdf).to_parquet(os.path.join(workdir, 'tables', 'drain_table.parquet'))
     return
 
 
@@ -64,8 +65,7 @@ def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
     ids = ids[ids_selector].astype(str).values.flatten()
 
     # save the model ids to table for reference
-    pd.DataFrame(ids, columns=['model_id', ]).to_parquet(
-        os.path.join(workdir, 'tables', 'model_ids.parquet.gzip'), compression='gzip')
+    pd.DataFrame(ids, columns=['model_id', ]).to_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet'))
 
     # save the hindcast series to parquet
     df = pd.DataFrame(
@@ -75,20 +75,20 @@ def hindcast(workdir: str, hind_nc_path: str = None, ) -> None:
     )
     df = df[df.index.year >= 1980]
     df.index.name = 'datetime'
-    df.to_parquet(get_table_path(workdir, 'hindcast_series'), compression='gzip')
+    df.to_parquet(get_table_path(workdir, 'hindcast_series'))
 
     # calculate the FDC and save to parquet
     exceed_prob = np.linspace(0, 100, 201)[::-1]
     df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
     df.index = exceed_prob
     df.index.name = 'exceed_prob'
-    df.to_parquet(get_table_path(workdir, 'hindcast_fdc'), compression='gzip')
+    df.to_parquet(get_table_path(workdir, 'hindcast_fdc'))
 
     # transform and prepare for clustering
-    df = pd.DataFrame(TimeSeriesScalerMeanVariance().fit_transform(np.transpose(df.values)))
+    df = pd.DataFrame(np.squeeze(TimeSeriesScalerMeanVariance().fit_transform(np.squeeze(np.transpose(df.values)))))
     df.index = ids
-    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet.gzip'), compression='gzip')
-
+    df.columns = df.columns.astype(str)
+    df.to_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet'))
     return
 
 

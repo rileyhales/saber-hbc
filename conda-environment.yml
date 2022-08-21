@@ -18,3 +18,4 @@ dependencies:
   - geoglows
   - requests
   - scipy
+  - natsort

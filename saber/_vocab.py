@@ -22,10 +22,10 @@ kmeans_out = 'kmeans_outputs'
 # name of some files produced by the algorithm
 cluster_count_file = 'best-fit-cluster-count.json'
 cal_nc_name = 'calibrated_simulated_flow.nc'
-hindcast_table = 'hindcast_series_table.parquet.gzip'
-hindcast_fdc_table = 'hindcast_fdc_table.parquet.gzip'
-drain_table = 'drain_table.parquet.gzip'
-gauge_table = 'gauge_table.parquet.gzip'
+hindcast_table = 'hindcast_series_table.parquet'
+hindcast_fdc_table = 'hindcast_fdc_table.parquet'
+drain_table = 'drain_table.parquet'
+gauge_table = 'gauge_table.parquet'
 
 # metrics computed on validation sets
 metric_list = ['ME', 'MAE', 'RMSE', 'MAPE', 'NSE', 'KGE (2012)']

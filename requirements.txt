@@ -12,3 +12,4 @@ tslearn
 matplotlib
 requests
 scipy
+natsort
