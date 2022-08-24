@@ -104,7 +104,7 @@ Your table should look like this:
 | unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |  
 | ...                 | ...             | ...               | ...          | ... | ... |
 
-2. Prepare a csv of the attribute table of the gauge locations shapefile.
+1. Prepare a csv of the attribute table of the gauge locations shapefile.
    - You need the columns:
      - model_id
      - gauge_id
@@ -157,7 +157,7 @@ looks like this:
 ```python
 import saber as saber
 workdir = '/path/to/project/directory/'
-saber.prep.gen_assignments_table(workdir)
+saber.table.gen(workdir)
 ```
 
 Your project's working directory now looks like
@@ -227,10 +227,6 @@ import saber as saber
 workdir = '/path/to/working/directory'
 
 saber.prep.hindcast(
-    workdir,
-    '/path/to/historical/simulation/netcdf.nc'  # optional - if nc not stored in data_inputs folder
-)
-saber.prep.hist_sim_table(
     workdir,
     '/path/to/historical/simulation/netcdf.nc'  # optional - if nc not stored in data_inputs folder
 )
