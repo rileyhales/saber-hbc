@@ -12,7 +12,6 @@ from natsort import natsorted
 
 from ._vocab import cluster_count_file
 from ._vocab import mid_col
-from ._vocab import gid_col
 
 
 def generate(workdir: str) -> None:
@@ -121,26 +120,11 @@ def summarize(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) 
         with open(os.path.join(workdir, 'kmeans_outputs', cluster_count_file), 'r') as f:
             n_clusters = int(json.loads(f.read())['historical'])
 
-    pd.DataFrame({
+    # create a dataframe with the optimal model's labels and the model_id's
+    df = pd.DataFrame({
         'cluster': Cluster.from_pickle(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle')).labels_.flatten(),
-        'model_id': pd.read_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet')).values.flatten()
-    })
-    for dataset, cluster_count in clusters.items():
-        # read the list of simulated id's, pair them with their cluster label, save to df
-        merge_col = mid_col if "sim" in dataset else gid_col
-        csv_path = os.path.join(workdir, f'data_processed', f'{dataset}.csv')
-        ids = pd.read_csv(csv_path, index_col=0).columns
+        mid_col: pd.read_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet')).values.flatten()
+    }, dtype=str)
 
-        # open the optimal model pickle file
-        optimal_model = os.path.join(workdir, 'kmeans_models', f'{dataset}-{cluster_count}-clusters-model.pickle')
-        sim_labels = Cluster.from_pickle(optimal_model).labels_.tolist()
-
-        # create a dataframe of the ids and their labels (assigned groups)
-        df = pd.DataFrame(np.transpose([sim_labels, ids]), columns=[f'{dataset}-cluster', merge_col])
-        df.to_csv(os.path.join(workdir, 'kmeans_models', f'optimal-assigns-{dataset}.csv'), index=False)
-
-        # merge the dataframes
-        df[merge_col] = df[merge_col].astype(int)
-        assign_table = assign_table.merge(df, how='outer', on=merge_col)
-
-    return assign_table
+    # merge the dataframes
+    return assign_table.merge(df, how='outer', on=mid_col)

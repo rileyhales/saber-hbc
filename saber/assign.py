@@ -24,9 +24,10 @@ def gauged(df: pd.DataFrame) -> pd.DataFrame:
         Copy of df with assignments made
     """
     _df = df.copy()
-    _df.loc[~_df[gid_col].isna(), asgn_mid_col] = _df[mid_col]
-    _df.loc[~_df[gid_col].isna(), asgn_gid_col] = _df[gid_col]
-    _df.loc[~_df[gid_col].isna(), reason_col] = 'gauged'
+    selector = ~_df[gid_col].isna()
+    _df.loc[selector, asgn_mid_col] = _df[mid_col]
+    _df.loc[selector, asgn_gid_col] = _df[gid_col]
+    _df.loc[selector, reason_col] = 'gauged'
     return _df
 
 
@@ -54,26 +55,6 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
     return _df
 
 
-def clusters_by_monavg(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Assigns all possible ungauged basins a gauge that is
-        (1) of the same stream order
-        (2) in the same simulated fdc cluster
-        (3) in the same simulated monavg cluster (monthly averages)
-        (4) closest in total drainage area
-
-    This requires matching 2 clusters. Basins in both of the same groups have high likelihood of behaving similarly.
-
-    Args:
-        df: the assignments table dataframe
-
-    Returns:
-        Copy of df with assignments made
-    """
-    _df = df.copy()
-    return _df
-
-
 def clusters_by_dist(df: pd.DataFrame) -> pd.DataFrame:
     """
     Assigns all possible ungauged basins a gauge that is
@@ -87,7 +68,6 @@ def clusters_by_dist(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         Copy of df with assignments made
     """
-    # todo assign based on closest upstream drainage area??
     _df = df.copy()
     # first filter by cluster number
     for c_num in sorted(set(_df['sim-fdc-cluster'].values)):
