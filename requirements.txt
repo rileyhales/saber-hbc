@@ -5,10 +5,10 @@ numpy
 numba
 contextily
 netCDF4
-tslearn
 pyarrow
 kneed
 matplotlib
 requests
 scipy
 natsort
+scikit-learn

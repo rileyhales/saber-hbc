@@ -12,9 +12,8 @@ dependencies:
   - netCDF4
   - pyarrow
   - kneed
-  - tslearn
   - matplotlib
-  - geoglows
   - requests
   - scipy
   - natsort
+  - scikit-learn
