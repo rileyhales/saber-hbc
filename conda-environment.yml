@@ -10,7 +10,6 @@ dependencies:
   - numba
   - contextily
   - netCDF4
-  - tslearn
   - pyarrow
   - kneed
   - tslearn

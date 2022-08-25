@@ -8,7 +8,6 @@ netCDF4
 tslearn
 pyarrow
 kneed
-tslearn
 matplotlib
 requests
 scipy

@@ -6,8 +6,7 @@ import pandas as pd
 import netCDF4 as nc
 import numpy as np
 
-from .prep import scaffold_workdir
-from ._workflow import analyze_region
+from .prep import workdir
 from ._vocab import mid_col
 from ._vocab import gid_col
 from ._vocab import metric_nc_name_list
@@ -45,7 +44,7 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
 
         # create the new project working directory
         os.mkdir(subpath)
-        scaffold_workdir(subpath, include_validation=False)
+        workdir(subpath, include_validation=False)
 
         # overwrite the processed data directory so we don't need to redo this each time
         shutil.copytree(
@@ -67,26 +66,6 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
             a = a.filter(items=gt[gid_col].astype(str))
             a.to_csv(f)
 
-    return
-
-
-def run_series(workdir: str, drain_shape: str, obs_data_dir: str = None) -> None:
-    """
-    Runs saber.analyze_region on each project in the validation_runs directory
-
-    Args:
-        workdir: the project working directory
-        drain_shape: path to the drainage line gis file
-        obs_data_dir: path to the directory containing the observed data
-
-    Returns:
-        None
-    """
-    gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
-    val_workdirs = [i for i in glob.glob(os.path.join(workdir, 'validation_runs', '*')) if os.path.isdir(i)]
-    for val_workdir in val_workdirs:
-        print(f'\n\n\t\t\tworking on {val_workdir}\n\n')
-        analyze_region(val_workdir, drain_shape, gauge_table, obs_data_dir)
     return
 
 

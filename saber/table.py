@@ -35,8 +35,8 @@ def gen(workdir) -> pd.DataFrame:
         None
     """
     # read and merge the tables
-    drain_df = pd.read_parquet(os.path.join(workdir, 'tables', 'drain_table.parquet.gzip'))
-    gauge_df = pd.read_parquet(os.path.join(workdir, 'tables', 'gauge_table.parquet.gzip'))
+    drain_df = pd.read_parquet(os.path.join(workdir, 'tables', 'drain_table.parquet'))
+    gauge_df = pd.read_parquet(os.path.join(workdir, 'tables', 'gauge_table.parquet'))
     assign_table = pd.merge(drain_df, gauge_df, on=mid_col, how='outer')
 
     # create the new columns
@@ -75,6 +75,6 @@ def cache(workdir: str, assign_table: pd.DataFrame) -> None:
     Returns:
         None
     """
-    assign_table.to_parquet(get_path(workdir), compression='gzip')
+    assign_table.to_parquet(get_path(workdir))
     return
 

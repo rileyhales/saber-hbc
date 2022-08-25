@@ -38,18 +38,11 @@ Things to check when preparing your data
 ## Process
 ### 1 Create a Working Directory
 
-```python
-import saber
-
-workdir = '/my/file/path'
-saber.prep.scaffold_workdir(workdir)
-```
-
 Your working directory should exactly like this. 
 ```
 working_directory
-    data_inputs/
     tables/
+    data_inputs/
     kmeans_outputs/
     gis_outputs/
 ```

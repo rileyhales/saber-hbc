@@ -7,7 +7,8 @@ import kneed
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tslearn.clustering import TimeSeriesKMeans as Cluster
+from sklearn.cluster import KMeans as Clusterer
+import joblib
 from natsort import natsorted
 
 from ._vocab import cluster_count_file
@@ -24,27 +25,29 @@ def generate(workdir: str) -> None:
     Returns:
         None
     """
-    inertia = {'number': [], 'inertia': [], 'n_iter': []}
+    summary = {'number': [], 'inertia': [], 'n_iter': [], 'pseudo_aic': []}
 
     # read the prepared data (array x)
     x = pd.read_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet'))
     x = x.values
+    n_feat = x.shape[0]
 
     # build the kmeans model for a range of cluster numbers
-    for n_clusters in range(1, 17):
+    for n_clusters in range(1, 16):
         print(n_clusters)
-        ks = Cluster(n_clusters=n_clusters, max_iter=150)
-        ks.fit_predict(x)
-        ks.to_pickle(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle'))
-        inertia['number'].append(n_clusters)
-        inertia['inertia'].append(ks.inertia_)
-        inertia['n_iter'].append(ks.n_iter_)
+        kmeans = Clusterer(n_clusters=n_clusters)
+        kmeans.fit_predict(x)
+        joblib.dump(kmeans, os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle'))
+        summary['number'].append(n_clusters)
+        summary['inertia'].append(kmeans.inertia_)
+        summary['pseudo_aic'].append(np.log(kmeans.inertia_ / n_feat) + ((n_feat + 2 * n_clusters) / (n_feat)))
+        summary['n_iter'].append(kmeans.n_iter_)
 
     # save the inertia results as a csv
-    pd.DataFrame.from_dict(inertia).to_csv(os.path.join(workdir, 'kmeans_outputs', f'cluster-inertia.csv'))
+    pd.DataFrame.from_dict(summary).to_csv(os.path.join(workdir, 'kmeans_outputs', f'clustering-summary-stats.csv'))
 
     # find the knee/elbow
-    knee = kneed.KneeLocator(inertia['number'], inertia['inertia'], curve='convex', direction='decreasing').knee
+    knee = kneed.KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
 
     # save the best fitting cluster counts to a csv
     with open(os.path.join(workdir, 'kmeans_outputs', cluster_count_file), 'w') as f:
@@ -74,7 +77,7 @@ def plot(workdir: str) -> None:
     x_ticks = np.linspace(0, 100, 5).astype(int)
 
     for model_pickle in natsorted(glob.glob(os.path.join(workdir, 'kmeans_outputs', 'kmeans-*.pickle'))):
-        kmeans = Cluster.from_pickle(model_pickle)
+        kmeans = joblib.load(model_pickle)
         n_clusters = int(kmeans.n_clusters)
         n_cols = min(n_clusters, max_cols)
         n_rows = math.ceil(n_clusters / n_cols)
@@ -122,7 +125,8 @@ def summarize(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) 
 
     # create a dataframe with the optimal model's labels and the model_id's
     df = pd.DataFrame({
-        'cluster': Cluster.from_pickle(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle')).labels_.flatten(),
+        'cluster': Clusterer.from_pickle(
+            os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle')).labels_.flatten(),
         mid_col: pd.read_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet')).values.flatten()
     }, dtype=str)
 
