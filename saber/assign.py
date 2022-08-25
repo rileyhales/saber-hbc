@@ -1,16 +1,15 @@
 import numpy as np
 import pandas as pd
 
+from ._propagation import propagate_in_table
 from ._propagation import walk_downstream
 from ._propagation import walk_upstream
-from ._propagation import propagate_in_table
-
-from ._vocab import mid_col
-from ._vocab import gid_col
-from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
-from ._vocab import reason_col
+from ._vocab import asgn_mid_col
+from ._vocab import gid_col
+from ._vocab import mid_col
 from ._vocab import order_col
+from ._vocab import reason_col
 
 
 def gauged(df: pd.DataFrame) -> pd.DataFrame:

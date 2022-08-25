@@ -16,10 +16,10 @@ You need the following data to follow this procedure. Geopackage format GIS data
 equivalent formats that can be read by `geopandas`.
 1. Geopackage drainage Lines (usually delineated center lines) and catchments/subbasins (polygons) in the watershed. The 
    attribute tables for both should contain (at least) the following entries for each feature:
-    - An identifier column (alphanumeric) labeled `model_id`.
-    - The ID of the next downstream reach/subbasin
-    - The stream order of each reach/subbasin
-    - Cumulative upstream drainage area
+    - An identifier column (alphanumeric) labeled `model_id`
+    - The ID of the next downstream reach/subbasin labeled `downstream_model_id`
+    - The stream order of each reach/subbasin labeled `order`
+    - Cumulative upstream drainage area labeled 
     - The x coordinate of the centroid of each feature (precalculated for faster results later)
     - The y coordinate of the centroid of each feature (precalculated for faster results later)
 2. Geopackage points representing the location of each of the river gauging stations available. The attribute table 
@@ -48,7 +48,7 @@ working_directory
 ```
 
 ### 2 Prepare Spatial Data (scripts not provided)
-This step instructs you to collect 3 gis files and use them to generate 2 csv tables. All 5 files (3 gis files and 2
+This step instructs you to collect 3 gis files and use them to generate 2 tables. All 5 files (3 gis files and 2
 tables) should go in the `gis_inputs` directory 
 
 1. Clip model drainage lines and catchments shapefile to extents of the region of interest. 
@@ -90,12 +90,12 @@ gdf.to_file('/file/path/to/save', driver='GeoJSON')
 
 Your table should look like this:
 
-| downstream_model_id | model_id        | drainage_area_mod | stream_order | x   | y   |  
-|---------------------|-----------------|-------------------|--------------|-----|-----|
-| unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |
-| unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |  
-| unique_stream_#     | unique_stream_# | area in km^2      | stream_order | ##  | ##  |  
-| ...                 | ...             | ...               | ...          | ... | ... |
+| downstream_model_id | model_id        | model_drain_area | stream_order | x   | y   |  
+|---------------------|-----------------|------------------|--------------|-----|-----|
+| unique_stream_#     | unique_stream_# | area in km^2     | stream_order | ##  | ##  |
+| unique_stream_#     | unique_stream_# | area in km^2     | stream_order | ##  | ##  |  
+| unique_stream_#     | unique_stream_# | area in km^2     | stream_order | ##  | ##  |  
+| ...                 | ...             | ...              | ...          | ... | ... |
 
 1. Prepare a csv of the attribute table of the gauge locations shapefile.
    - You need the columns:
@@ -105,12 +105,12 @@ Your table should look like this:
 
 Your table should look like this (column order is irrelevant):
 
-| model_id          | drainage_area_obs | gauge_id         |
-|-------------------|-------------------|------------------|
-| unique_stream_num | area in km^2      | unique_gauge_num |
-| unique_stream_num | area in km^2      | unique_gauge_num |
-| unique_stream_num | area in km^2      | unique_gauge_num |
-| ...               | ...               | ...              |
+| model_id          | gauge_drain_area | gauge_id         |
+|-------------------|------------------|------------------|
+| unique_stream_num | area in km^2     | unique_gauge_num |
+| unique_stream_num | area in km^2     | unique_gauge_num |
+| unique_stream_num | area in km^2     | unique_gauge_num |
+| ...               | ...              | ...              |
 
 Your project's working directory now looks like
 ```

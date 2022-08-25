@@ -1,24 +1,23 @@
 import os
 import warnings
 
+import contextily as cx
 import geopandas as gpd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ._vocab import mid_col
 from ._vocab import gid_col
-from ._vocab import reason_col
 from ._vocab import metric_nc_name_list
-
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import contextily as cx
+from ._vocab import mid_col
+from ._vocab import reason_col
 
 __all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
            'validation_maps']
 
 
-def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+def generate_all(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Runs all the clip functions which create subsets of the drainage lines GIS dataset based on how they were assigned
     for bias correction.
@@ -26,33 +25,33 @@ def generate_all(workdir: str, assign_table: pd.DataFrame, drain_shape: str, pre
     Args:
         workdir: the path to the working directory for the project
         assign_table: the assign_table dataframe
-        drain_shape: path to a drainage line shapefile which can be clipped
+        drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated in separate instances
 
     Returns:
         None
     """
-    clip_by_assignment(workdir, assign_table, drain_shape, prefix)
-    clip_by_cluster(workdir, assign_table, drain_shape, prefix)
-    clip_by_unassigned(workdir, assign_table, drain_shape, prefix)
+    clip_by_assignment(workdir, assign_table, drain_gis, prefix)
+    clip_by_cluster(workdir, assign_table, drain_gis, prefix)
+    clip_by_unassigned(workdir, assign_table, drain_gis, prefix)
     return
 
 
-def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs for each unique value in the assignment column
 
     Args:
         workdir: the path to the working directory for the project
         assign_table: the assign_table dataframe
-        drain_shape: path to a drainage line shapefile which can be clipped
+        drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
 
     Returns:
         None
     """
     # read the drainage line shapefile
-    dl = gpd.read_file(drain_shape)
+    dl = gpd.read_file(drain_gis)
     save_dir = os.path.join(workdir, 'gis_outputs')
 
     # get the unique list of assignment reasons
@@ -67,20 +66,20 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_shape: st
     return
 
 
-def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the drainage lines based on the fdc cluster they were assigned to
 
     Args:
         workdir: the path to the working directory for the project
         assign_table: the assign_table dataframe
-        drain_shape: path to a drainage line shapefile which can be clipped
+        drain_gis: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
 
     Returns:
         None
     """
-    dl_gdf = gpd.read_file(drain_shape)
+    dl_gdf = gpd.read_file(drain_gis)
     for num in sorted(set(assign_table[mid_col].dropna().values)):
         gdf = dl_gdf[dl_gdf[mid_col].isin(assign_table[assign_table[mid_col] == num][mid_col])]
         if gdf.empty:
@@ -89,20 +88,20 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_shape: str, 
     return
 
 
-def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: str, prefix: str = '') -> None:
+def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the drainage lines which haven't been assigned a gauge yet
 
     Args:
         workdir: the path to the working directory for the project
         assign_table: the assign_table dataframe
-        drain_shape: path to a drainage line shapefile which can be clipped
+        drain_gis: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
 
     Returns:
         None
     """
-    dl_gdf = gpd.read_file(drain_shape)
+    dl_gdf = gpd.read_file(drain_gis)
     ids = assign_table[assign_table[reason_col].isna()][mid_col].values
     subset = dl_gdf[dl_gdf[mid_col].isin(ids)]
     if subset.empty:
@@ -113,29 +112,28 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_shape: st
     return
 
 
-def clip_by_ids(workdir: str, ids: list, drain_shape: str, prefix: str = '',
-                id_column: str = mid_col) -> None:
+def clip_by_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_column: str = mid_col) -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the subset of 'drain_shape' with an ID in the specified list
 
     Args:
         workdir: path to the project directory
         ids: any iterable containing a series of model_ids
-        drain_shape: path to the drainage shapefile to be clipped
+        drain_gis: path to the drainage shapefile to be clipped
         prefix: optional, a prefix to prepend to each created file's name
         id_column: name of the id column in the attributes of the shape table
 
     Returns:
         None
     """
-    dl = gpd.read_file(drain_shape)
+    dl = gpd.read_file(drain_gis)
     save_dir = os.path.join(workdir, 'gis_outputs')
     name = f'{prefix}{"_" if prefix else ""}id_subset.gpkg'
     dl[dl[id_column].isin(ids)].to_file(os.path.join(save_dir, name))
     return
 
 
-def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = None, prefix: str = '') -> None:
+def validation_maps(workdir: str, gauge_gis: str, val_table: pd.DataFrame = None, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of subsets of the gauge_shape.
     1 is the fill gauge shape with added attribute columns for all the computed stats. There are 2 for each of the 5
@@ -145,7 +143,7 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
     Args:
         workdir: path to the project directory
         val_table: the validation table produced by saber.validate
-        gauge_shape: path to the gauge locations shapefile
+        gauge_gis: path to the gauge locations shapefile
         prefix: optional, a prefix to prepend to each created file's name
 
     Returns:
@@ -156,7 +154,7 @@ def validation_maps(workdir: str, gauge_shape: str, val_table: pd.DataFrame = No
     save_dir = os.path.join(workdir, 'gis_outputs')
 
     # merge gauge table with the validation table
-    gdf = gpd.read_file(gauge_shape)
+    gdf = gpd.read_file(gauge_gis)
     gdf = gdf.merge(val_table, on=gid_col, how='inner')
     gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.gpkg'))
 
@@ -230,8 +228,7 @@ def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> No
     axm.set_xlabel('Longitude')
     axm.set_xticks([])
     axm.set_yticks([])
-    gdf[core_columns + [metric, ]].to_crs(epsg=3857).plot(
-        metric, ax=axm, cmap=cmap, norm=norm, legend=True, markersize=10)
+    gdf[core_columns + [metric, ]].to_crs(epsg=3857).plot(metric)
     cx.add_basemap(ax=axm, zoom=9, source=cx.providers.Esri.WorldTopoMap, attribution='')
 
     fig.savefig(os.path.join(workdir, 'gis_outputs', f'{metric}_{prct}.png'))

@@ -2,9 +2,10 @@ import os
 import glob
 import pandas as pd
 
+# todo enforce using this module for retrieving names??
+
 # assign table and gis_input file required column names
-# mid_col = 'model_id'
-mid_col = 'COMID'
+mid_col = 'model_id'
 gid_col = 'gauge_id'
 asgn_mid_col = 'assigned_model_id'
 asgn_gid_col = 'assigned_gauge_id'

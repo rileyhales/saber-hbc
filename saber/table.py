@@ -3,9 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 
-from ._vocab import mid_col
-from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
+from ._vocab import asgn_mid_col
+from ._vocab import mid_col
 from ._vocab import reason_col
 
 __all__ = ['get_path', 'read', 'cache', 'gen']

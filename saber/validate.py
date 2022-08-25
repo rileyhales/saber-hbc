@@ -2,15 +2,14 @@ import glob
 import os
 import shutil
 
-import pandas as pd
 import netCDF4 as nc
 import numpy as np
+import pandas as pd
 
-from .prep import workdir
-from ._vocab import mid_col
+from ._vocab import cal_nc_name
 from ._vocab import gid_col
 from ._vocab import metric_nc_name_list
-from ._vocab import cal_nc_name
+from ._vocab import mid_col
 
 
 def sample_gauges(workdir: str, overwrite: bool = False) -> None:

@@ -1,15 +1,15 @@
 import os
 
-import pandas as pd
 import geopandas as gpd
 import netCDF4 as nc
 import numpy as np
+import pandas as pd
 from sklearn.preprocessing import StandardScaler as Scalar
 
+from ._vocab import get_table_path
+from ._vocab import guess_hindcast_path
 from ._vocab import mid_col
 from ._vocab import read_drain_table
-from ._vocab import guess_hindcast_path
-from ._vocab import get_table_path
 
 __all__ = ['gis_tables', 'hindcast', 'workdir']
 
@@ -27,10 +27,16 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
         None
     """
     if gauge_gis is not None:
-        pd.DataFrame(gpd.read_file(gauge_gis).drop('geometry', axis=1)).to_parquet(
-            os.path.join(workdir, 'tables', 'gauge_table.parquet'))
+        if drain_gis.endswith('.parquet'):
+            gdf = gpd.read_parquet(gauge_gis)
+        else:
+            gdf = gpd.read_file(gauge_gis)
+        pd.DataFrame(gdf.drop('geometry', axis=1)).to_parquet(os.path.join(workdir, 'tables', 'gauge_table.parquet'))
     if drain_gis is not None:
-        gdf = gpd.read_file(drain_gis)
+        if drain_gis.endswith('.parquet'):
+            gdf = gpd.read_parquet(drain_gis)
+        else:
+            gdf = gpd.read_file(drain_gis)
         gdf['centroid_x'] = gdf.geometry.centroid.x
         gdf['centroid_y'] = gdf.geometry.centroid.y
         gdf = gdf.drop('geometry', axis=1)
