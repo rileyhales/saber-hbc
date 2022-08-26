@@ -65,6 +65,7 @@ def summarize(workdir: str) -> None:
     for model_file in natsorted(glob.glob(os.path.join(workdir, 'kmeans_outputs', 'kmeans-*.pickle'))):
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
+        print(n_clusters)
 
         # save the cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
         pd.DataFrame(
@@ -161,7 +162,7 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
             for j in x[kmeans.labels_ == i]:
                 ax.plot(j.ravel(), "k-")
             ax.plot(kmeans.cluster_centers_[i].flatten(), "r-")
-        # turn off plotting axes which are blank - made for the square grid but > n_clusters
+        # turn off plotting axes which are blank (when ax number > n_clusters)
         for ax in fig.axes[n_clusters:]:
             ax.axis('off')
 
@@ -187,8 +188,7 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
     silhouette_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-silhouette_scores.parquet'))
 
     for tot_clusters in silhouette_df.columns:
-        centers_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{tot_clusters}-centers.parquet'))
-        # Create a subplot with 1 row and 2 columns
+        centers_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-centers-{tot_clusters}.parquet'))
         fig, (ax1, ax2) = plt.subplots(
             nrows=1,
             ncols=2,
@@ -197,12 +197,14 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
             tight_layout=True,
         )
 
+        # Plot 1 titles and labels
         ax1.set_title("Silhouette Plot")
         ax1.set_xlabel("Silhouette Score")
         ax1.set_ylabel("Cluster Label")
         ax1.set_yticks([])  # Clear the yaxis labels / ticks
-        # ax1.set_xticks([-0.1, 0, 0.2, 0.4, 0.6, 0.8, 1])
+        ax1.set_xticks([-0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
 
+        # Plot 2 titles and labels
         ax2.set_title("Cluster Centers")
         ax2.set_xlabel("Exceedance Probability (%)")
         ax2.set_ylabel("Discharge Z-Score")
@@ -240,33 +242,3 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
         fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'kmeans-silhouettes-{tot_clusters}.png'))
         plt.close(fig)
     return
-
-
-def merge_assign_table(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) -> pd.DataFrame:
-    """
-    Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
-    to assign_table.csv
-
-    Args:
-        workdir: path to the project directory
-        assign_table: the assignment table DataFrame
-        n_clusters: number of clusters to use when applying the labels to the assign_table
-
-    Returns:
-        None
-    """
-    # todo move to assign module
-    if n_clusters is None:
-        # read the cluster results csv
-        with open(os.path.join(workdir, 'kmeans_outputs', cluster_count_file), 'r') as f:
-            n_clusters = int(json.loads(f.read())['historical'])
-
-    # create a dataframe with the optimal model's labels and the model_id's
-    df = pd.DataFrame({
-        'cluster': joblib.load(
-            os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle')).labels_.flatten(),
-        mid_col: pd.read_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet')).values.flatten()
-    }, dtype=str)
-
-    # merge the dataframes
-    return assign_table.merge(df, how='outer', on=mid_col)
