@@ -7,10 +7,11 @@ from collections.abc import Iterable
 import joblib
 import kneed
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
 import pandas as pd
 from natsort import natsorted
-from sklearn.cluster import KMeans as Clusterer
+from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples
 
 from ._vocab import cluster_count_file
@@ -37,7 +38,7 @@ def generate(workdir: str, max_clusters: int = 12) -> None:
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
         print(n_clusters)
-        kmeans = Clusterer(n_clusters=n_clusters)
+        kmeans = KMeans(n_clusters=n_clusters)
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle'))
     return
@@ -69,7 +70,7 @@ def summarize(workdir: str) -> None:
         pd.DataFrame(
             np.transpose(kmeans.cluster_centers_),
             columns=np.array(range(n_clusters)).astype(str)
-        ).to_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}-centers.parquet'))
+        ).to_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-centers-{n_clusters}.parquet'))
 
         # save the silhouette score for each cluster
         silhouette_scores.append(silhouette_samples(x, kmeans.labels_).flatten())
@@ -153,7 +154,7 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
         fig.supylabel('Discharge Z-Score')
 
         for i, ax in enumerate(fig.axes[:n_clusters]):
-            ax.set_title(f'Cluster {i + 1}')
+            ax.set_title(f'Cluster {i + 1} (n = {np.sum(kmeans.labels_ == i)})')
             ax.set_xlim(0, size)
             ax.set_xticks(x_values, x_ticks)
             ax.set_ylim(-2, 4)
@@ -164,52 +165,81 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
         for ax in fig.axes[n_clusters:]:
             ax.axis('off')
 
-        fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.png'))
+        fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'kmeans-clusters-{n_clusters}.png'))
         plt.close(fig)
     return
 
 
-def plot_silhouette(workdir: str, clusters: int or Iterable = 'all',
-                    plt_width: int = 3, plt_height: int = 3) -> None:
+def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> None:
     """
     Plot the silhouette scores for each cluster.
     Based on https://scikit-learn.org/stable/auto_examples/cluster/plot_kmeans_silhouette_analysis.html
 
     Args:
         workdir: path to the project directory
-        clusters: number of clusters to create figures for
         plt_width: width of each subplot in inches
         plt_height: height of each subplot in inches
 
     Returns:
         None
     """
-    kmeans_dir = os.path.join(workdir, 'kmeans_outputs')
-    if clusters == 'all':
-        sscore_files = natsorted(glob.glob(os.path.join(kmeans_dir, 'kmeans-*-silscores.parquet')))
-    elif isinstance(clusters, int):
-        sscore_files = glob.glob(os.path.join(kmeans_dir, f'kmeans-{clusters}-silscores.parquet'))
-    elif isinstance(clusters, Iterable):
-        sscore_files = natsorted([os.path.join(kmeans_dir, f'kmeans-{i}-silscores.parquet') for i in clusters])
-    else:
-        raise TypeError('n_clusters should be of type int or an iterable')
+    labels_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-labels.parquet'))
+    silhouette_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-silhouette_scores.parquet'))
 
-    for sscore_file in sscore_files:
-        # todo plot the silhouette scores
-        n_clusters = int(os.path.basename(sscore_file).split('-')[1])
-        centers_df = pd.read_parquet(os.path.join(kmeans_dir, f'kmeans-{n_clusters}-centers.parquet'))
-        silscores_df = pd.read_parquet(sscore_file)
+    for tot_clusters in silhouette_df.columns:
+        centers_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{tot_clusters}-centers.parquet'))
+        # Create a subplot with 1 row and 2 columns
+        fig, (ax1, ax2) = plt.subplots(
+            nrows=1,
+            ncols=2,
+            figsize=(plt_width * 2 + 1, plt_height + 1),
+            dpi=500,
+            tight_layout=True,
+        )
 
-        for cluster_num in centers_df.columns:
-            # Create a subplot with 1 row and 2 columns
-            fig, (ax1, ax2) = plt.subplots(
-                1,
-                2,
-                figsize=(plt_width * 2 + 1, plt_height + 1),
-                dpi=500,
-                squeeze=False,
-                tight_layout=True,
+        ax1.set_title("Silhouette Plot")
+        ax1.set_xlabel("Silhouette Score")
+        ax1.set_ylabel("Cluster Label")
+        ax1.set_yticks([])  # Clear the yaxis labels / ticks
+        # ax1.set_xticks([-0.1, 0, 0.2, 0.4, 0.6, 0.8, 1])
+
+        ax2.set_title("Cluster Centers")
+        ax2.set_xlabel("Exceedance Probability (%)")
+        ax2.set_ylabel("Discharge Z-Score")
+
+        # The vertical line for average silhouette score of all the values
+        ax1.axvline(x=silhouette_df[tot_clusters].mean(), color="red", linestyle="--")
+
+        y_lower = 10
+        for sub_cluster in range(int(tot_clusters)):
+            # select the rows applicable to the current sub cluster
+            cluster_silhouettes = silhouette_df[labels_df[tot_clusters] == sub_cluster][tot_clusters].values.flatten()
+            cluster_silhouettes.sort()
+
+            n = cluster_silhouettes.shape[0]
+            y_upper = y_lower + n
+
+            color = cm.nipy_spectral(sub_cluster / int(tot_clusters))
+            ax1.fill_betweenx(
+                np.arange(y_lower, y_upper),
+                0,
+                cluster_silhouettes,
+                facecolor=color,
+                edgecolor=color,
+                alpha=0.7,
             )
+            # Label the silhouette plots with their cluster numbers at the middle
+            ax1.text(-0.05, y_lower + 0.5 * n, str(sub_cluster + 1))
+
+            # plot the cluster center
+            ax2.plot(centers_df[f'{sub_cluster}'].values, alpha=0.7, c=color, label=f'Cluster {sub_cluster + 1}')
+
+            # add some buffer before the next cluster
+            y_lower = y_upper + 10
+
+        fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'kmeans-silhouettes-{tot_clusters}.png'))
+        plt.close(fig)
+    return
 
 
 def merge_assign_table(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) -> pd.DataFrame:
