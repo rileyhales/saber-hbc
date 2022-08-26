@@ -12,3 +12,4 @@ requests
 scipy
 natsort
 scikit-learn
+joblib

@@ -6,8 +6,8 @@ from collections.abc import Iterable
 
 import joblib
 import kneed
-import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from natsort import natsorted
@@ -15,9 +15,8 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples
 
 from ._vocab import cluster_count_file
-from ._vocab import mid_col
 
-__all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette', 'merge_assign_table']
+__all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
 
 
 def generate(workdir: str, max_clusters: int = 12) -> None:
