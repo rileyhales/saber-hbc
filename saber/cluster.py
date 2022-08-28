@@ -15,6 +15,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples
 
 from ._vocab import cluster_count_file
+from ._vocab import read_table
 
 __all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
 
@@ -31,15 +32,14 @@ def generate(workdir: str, max_clusters: int = 12) -> None:
         None
     """
     # read the prepared data (array x)
-    x = pd.read_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet'))
+    x = read_table(workdir, 'hindcast_fdc_trans')
     x = x.values
 
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
-        print(n_clusters)
         kmeans = KMeans(n_clusters=n_clusters)
         kmeans.fit_predict(x)
-        joblib.dump(kmeans, os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle'))
+        joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     return
 
 
@@ -58,10 +58,10 @@ def summarize(workdir: str) -> None:
     labels = []
 
     # read the prepared data (array x)
-    x = pd.read_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet'))
+    x = read_table(workdir, 'hindcast_fdc_trans')
     x = x.values
 
-    for model_file in natsorted(glob.glob(os.path.join(workdir, 'kmeans_outputs', 'kmeans-*.pickle'))):
+    for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
         print(n_clusters)
@@ -70,7 +70,7 @@ def summarize(workdir: str) -> None:
         pd.DataFrame(
             np.transpose(kmeans.cluster_centers_),
             columns=np.array(range(n_clusters)).astype(str)
-        ).to_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-centers-{n_clusters}.parquet'))
+        ).to_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{n_clusters}.parquet'))
 
         # save the silhouette score for each cluster
         silhouette_scores.append(silhouette_samples(x, kmeans.labels_).flatten())
@@ -84,21 +84,21 @@ def summarize(workdir: str) -> None:
 
     # save the summary results as a csv
     pd.DataFrame.from_dict(summary) \
-        .to_csv(os.path.join(workdir, 'kmeans_outputs', f'clustering-summary-stats.csv'))
+        .to_csv(os.path.join(workdir, 'clusters', f'clustering-summary-stats.csv'))
     # save the silhouette scores as a parquet
     silhouette_scores = np.transpose(np.array(silhouette_scores))
     pd.DataFrame(silhouette_scores, columns=np.array(range(2, silhouette_scores.shape[1] + 2)).astype(str)) \
-        .to_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-silhouette_scores.parquet'))
+        .to_parquet(os.path.join(workdir, 'clusters', 'kmeans-silhouette_scores.parquet'))
     # save the labels as a parquet
     labels = np.transpose(np.array(labels))
     pd.DataFrame(labels, columns=np.array(range(2, labels.shape[1] + 2)).astype(str)) \
-        .to_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-labels.parquet'))
+        .to_parquet(os.path.join(workdir, 'clusters', 'kmeans-labels.parquet'))
 
     # find the knee/elbow
     knee = kneed.KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
 
     # save the best fitting cluster counts to a csv
-    with open(os.path.join(workdir, 'kmeans_outputs', cluster_count_file), 'w') as f:
+    with open(os.path.join(workdir, 'clusters', cluster_count_file), 'w') as f:
         f.write(json.dumps({'historical': int(knee)}))
     return
 
@@ -118,12 +118,12 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
     Returns:
         None
     """
-    x = pd.read_parquet(os.path.join(workdir, 'tables', 'hindcast_fdc_transformed.parquet')).values
+    x = read_table(workdir, 'hindcast_fdc_trans').values
     size = x.shape[1]
     x_values = np.linspace(0, size, 5)
     x_ticks = np.linspace(0, 100, 5).astype(int)
 
-    kmeans_dir = os.path.join(workdir, 'kmeans_outputs')
+    kmeans_dir = os.path.join(workdir, 'clusters')
     if clusters == 'all':
         model_files = natsorted(glob.glob(os.path.join(kmeans_dir, 'kmeans-*.pickle')))
     elif isinstance(clusters, int):
@@ -134,7 +134,6 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
         raise TypeError('n_clusters should be of type int or an iterable')
 
     for model_file in model_files:
-        # todo read the cluster centers from the parquet file instead of the model pickle
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
         n_cols = min(n_clusters, max_cols)
@@ -165,7 +164,7 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
         for ax in fig.axes[n_clusters:]:
             ax.axis('off')
 
-        fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'kmeans-clusters-{n_clusters}.png'))
+        fig.savefig(os.path.join(workdir, 'clusters', f'kmeans-clusters-{n_clusters}.png'))
         plt.close(fig)
     return
 
@@ -183,11 +182,11 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
     Returns:
         None
     """
-    labels_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-labels.parquet'))
-    silhouette_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', 'kmeans-silhouette_scores.parquet'))
+    labels_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-labels.parquet'))
+    silhouette_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-silhouette_scores.parquet'))
 
     for tot_clusters in silhouette_df.columns:
-        centers_df = pd.read_parquet(os.path.join(workdir, 'kmeans_outputs', f'kmeans-centers-{tot_clusters}.parquet'))
+        centers_df = pd.read_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{tot_clusters}.parquet'))
         fig, (ax1, ax2) = plt.subplots(
             nrows=1,
             ncols=2,
@@ -238,6 +237,6 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
             # add some buffer before the next cluster
             y_lower = y_upper + 10
 
-        fig.savefig(os.path.join(workdir, 'kmeans_outputs', f'kmeans-silhouettes-{tot_clusters}.png'))
+        fig.savefig(os.path.join(workdir, 'clusters', f'kmeans-silhouettes-{tot_clusters}.png'))
         plt.close(fig)
     return

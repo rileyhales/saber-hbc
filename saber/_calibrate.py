@@ -15,7 +15,7 @@ from ._vocab import asgn_mid_col
 from ._vocab import asgn_gid_col
 from ._vocab import metric_list
 from ._vocab import metric_nc_name_list
-from ._vocab import hindcast_table
+from ._vocab import table_hindcast
 from ._vocab import cal_nc_name
 
 
@@ -171,13 +171,14 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     Returns:
         None
     """
+    # todo create a parquet instead of a netcdf
     if gauge_table is None:
         gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
     if obs_data_dir is None:
         obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 
     bcs_nc_path = os.path.join(workdir, cal_nc_name)
-    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', hindcast_table))
+    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', table_hindcast))
 
     # create the new netcdf
     bcs_nc = nc.Dataset(bcs_nc_path, 'w')

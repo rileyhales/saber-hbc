@@ -52,7 +52,7 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_gis: str,
     """
     # read the drainage line shapefile
     dl = gpd.read_file(drain_gis)
-    save_dir = os.path.join(workdir, 'gis_outputs')
+    save_dir = os.path.join(workdir, 'gis')
 
     # get the unique list of assignment reasons
     for reason in set(assign_table[reason_col].dropna().values):
@@ -84,7 +84,7 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, pr
         gdf = dl_gdf[dl_gdf[mid_col].isin(assign_table[assign_table[mid_col] == num][mid_col])]
         if gdf.empty:
             continue
-        gdf.to_file(os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}-{int(num)}.gpkg'))
+        gdf.to_file(os.path.join(workdir, 'gis', f'{prefix}{"_" if prefix else ""}-{int(num)}.gpkg'))
     return
 
 
@@ -107,7 +107,7 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str,
     if subset.empty:
         warnings.warn('Empty filter: No streams are unassigned')
         return
-    savepath = os.path.join(workdir, 'gis_outputs', f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
+    savepath = os.path.join(workdir, 'gis', f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
     subset.to_file(savepath)
     return
 
@@ -127,7 +127,7 @@ def clip_by_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_co
         None
     """
     dl = gpd.read_file(drain_gis)
-    save_dir = os.path.join(workdir, 'gis_outputs')
+    save_dir = os.path.join(workdir, 'gis')
     name = f'{prefix}{"_" if prefix else ""}id_subset.gpkg'
     dl[dl[id_column].isin(ids)].to_file(os.path.join(save_dir, name))
     return
@@ -151,7 +151,7 @@ def validation_maps(workdir: str, gauge_gis: str, val_table: pd.DataFrame = None
     """
     if val_table is None:
         val_table = pd.read_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'))
-    save_dir = os.path.join(workdir, 'gis_outputs')
+    save_dir = os.path.join(workdir, 'gis')
 
     # merge gauge table with the validation table
     gdf = gpd.read_file(gauge_gis)
@@ -231,5 +231,5 @@ def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> No
     gdf[core_columns + [metric, ]].to_crs(epsg=3857).plot(metric)
     cx.add_basemap(ax=axm, zoom=9, source=cx.providers.Esri.WorldTopoMap, attribution='')
 
-    fig.savefig(os.path.join(workdir, 'gis_outputs', f'{metric}_{prct}.png'))
+    fig.savefig(os.path.join(workdir, 'gis', f'{metric}_{prct}.png'))
     return

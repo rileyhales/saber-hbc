@@ -72,8 +72,8 @@ def read(workdir: str) -> pd.DataFrame:
 
 def cache(workdir: str, assign_table: pd.DataFrame) -> None:
     """
-    Saves the pandas dataframe to a parquet in the proper place in the project directory
-    A shortcut for pd.DataFrame.to_parquet so you don't have to code the paths every where
+    Saves the assignment table dataframe to parquet in the proper place in the project directory so that
+    you don't have to code the path every time
 
     Args:
         workdir: the project directory path
@@ -101,7 +101,7 @@ def merge_clusters(workdir: str, assign_table: pd.DataFrame, n_clusters: int = N
     """
     # create a dataframe with the optimal model's labels and the model_id's
     df = pd.DataFrame({
-        'cluster': joblib.load(os.path.join(workdir, 'kmeans_outputs', f'kmeans-{n_clusters}.pickle')).labels_,
+        'cluster': joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle')).labels_,
         mid_col: pd.read_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet')).values.flatten()
     }, dtype=str)
 
