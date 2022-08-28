@@ -14,8 +14,8 @@ from natsort import natsorted
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples
 
-from ._vocab import cluster_count_file
-from ._vocab import read_table
+from .io import cluster_count_file
+from .io import read_table
 
 __all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
 
@@ -64,7 +64,6 @@ def summarize(workdir: str) -> None:
     for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
-        print(n_clusters)
 
         # save the cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
         pd.DataFrame(

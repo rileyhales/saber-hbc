@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ._vocab import gid_col
-from ._vocab import metric_nc_name_list
-from ._vocab import mid_col
-from ._vocab import reason_col
+from .io import gid_col
+from .io import metric_nc_name_list
+from .io import mid_col
+from .io import reason_col
 
 __all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
            'validation_maps']

@@ -7,83 +7,46 @@ import pandas as pd
 from ._propagation import propagate_in_table
 from ._propagation import walk_downstream
 from ._propagation import walk_upstream
-from ._vocab import asgn_gid_col
-from ._vocab import asgn_mid_col
-from ._vocab import gid_col
-from ._vocab import mid_col
-from ._vocab import order_col
-from ._vocab import reason_col
+from .io import asgn_gid_col
+from .io import asgn_mid_col
+from .io import gid_col
+from .io import mid_col
+from .io import order_col
+from .io import read_table
+from .io import reason_col
+from .io import write_table
 
-__all__ = ['get_path', 'gen', 'read', 'cache', 'merge_clusters', 'assign_gauged', 'assign_propagation',
-           'assign_by_distance', ]
-
-
-def get_path(workdir: str) -> str:
-    """
-    Creates the path to the assign table based on the working directory provided
-
-    Args:
-        workdir: path to the working directory
-
-    Returns:
-        absolute path of the assign_table
-    """
-    return os.path.join(workdir, 'assign_table.parquet.gzip')
+__all__ = ['gen', 'merge_clusters', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
 
 
-def gen(workdir) -> pd.DataFrame:
+def gen(workdir: str, cache: bool = True) -> pd.DataFrame:
     """
     Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
 
     Args:
         workdir: path to the working directory
+        cache: whether to cache the assign table immediately
 
     Returns:
         None
     """
     # read and merge the tables
-    drain_df = pd.read_parquet(os.path.join(workdir, 'tables', 'drain_table.parquet'))
-    gauge_df = pd.read_parquet(os.path.join(workdir, 'tables', 'gauge_table.parquet'))
-    assign_table = pd.merge(drain_df, gauge_df, on=mid_col, how='outer')
+    assign_table = pd.merge(
+        read_table(workdir, 'drain_table'),
+        read_table(workdir, 'gauge_table'),
+        on=mid_col,
+        how='outer'
+    )
 
     # create the new columns
     assign_table[asgn_mid_col] = np.nan
     assign_table[asgn_gid_col] = np.nan
     assign_table[reason_col] = np.nan
 
-    # cache the table
-    cache(workdir, assign_table)
+    if cache:
+        write_table(assign_table, workdir, 'assign_table')
 
     return assign_table
-
-
-def read(workdir: str) -> pd.DataFrame:
-    """
-    Reads the assign_table located in the provided directory
-
-    Args:
-        workdir: path to the working directory
-
-    Returns:
-        assign_table pandas.DataFrame
-    """
-    return pd.read_parquet(get_path(workdir))
-
-
-def cache(workdir: str, assign_table: pd.DataFrame) -> None:
-    """
-    Saves the assignment table dataframe to parquet in the proper place in the project directory so that
-    you don't have to code the path every time
-
-    Args:
-        workdir: the project directory path
-        assign_table: the assign_table dataframe
-
-    Returns:
-        None
-    """
-    assign_table.to_parquet(get_path(workdir))
-    return
 
 
 def merge_clusters(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) -> pd.DataFrame:
@@ -102,7 +65,7 @@ def merge_clusters(workdir: str, assign_table: pd.DataFrame, n_clusters: int = N
     # create a dataframe with the optimal model's labels and the model_id's
     df = pd.DataFrame({
         'cluster': joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle')).labels_,
-        mid_col: pd.read_parquet(os.path.join(workdir, 'tables', 'model_ids.parquet')).values.flatten()
+        mid_col: read_table(workdir, 'model_ids').values.flatten()
     }, dtype=str)
 
     # merge the dataframes

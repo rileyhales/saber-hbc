@@ -6,10 +6,10 @@ import netCDF4 as nc
 import numpy as np
 import pandas as pd
 
-from ._vocab import cal_nc_name
-from ._vocab import gid_col
-from ._vocab import metric_nc_name_list
-from ._vocab import mid_col
+from .io import cal_nc_name
+from .io import gid_col
+from .io import metric_nc_name_list
+from .io import mid_col
 
 
 def sample_gauges(workdir: str, overwrite: bool = False) -> None:

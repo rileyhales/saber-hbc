@@ -1,16 +1,14 @@
-import os
-
 import geopandas as gpd
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler as Scalar
 
-from ._vocab import mid_col
-from ._vocab import read_table
-from ._vocab import write_table
+from .io import mid_col
+from .io import read_table
+from .io import write_table
 
-__all__ = ['gis_tables', 'hindcast', 'scaffold']
+__all__ = ['gis_tables', 'hindcast']
 
 
 def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> None:
@@ -75,9 +73,9 @@ def hindcast(workdir: str, hind_nc_path: str) -> None:
         columns=ids,
         index=pd.to_datetime(hnc.variables['time'][:], unit='s')
     )
-    df = df[df.index.year >= 1980]
+    df = df[df.index.dt.year >= 1980]
     df.index.name = 'datetime'
-    write_table(df, workdir, 'hindcast_series')
+    write_table(df, workdir, 'hindcast')
 
     # calculate the FDC and save to parquet
     exceed_prob = np.linspace(0, 100, 101)[::-1]
@@ -91,25 +89,4 @@ def hindcast(workdir: str, hind_nc_path: str) -> None:
     df.index = ids
     df.columns = df.columns.astype(str)
     write_table(df, workdir, 'hindcast_fdc_trans')
-    return
-
-
-def scaffold(path: str, include_validation: bool = True) -> None:
-    """
-    Creates the correct directories for a Saber project within the specified directory
-
-    Args:
-        path: the path to a directory where you want to create workdir subdirectories
-        include_validation: boolean, indicates whether to create the validation folder
-
-    Returns:
-        None
-    """
-    dir_list = ['tables', 'gis', 'clusters']
-    if include_validation:
-        dir_list.append('validation')
-    for d in dir_list:
-        p = os.path.join(path, d)
-        if not os.path.exists(p):
-            os.mkdir(p)
     return
