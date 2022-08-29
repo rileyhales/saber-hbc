@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the following academic journal article"
+authors:
+  - family-names: "Hales"
+    given-names: "Riley C."
+    orcid: "https://orcid.org/0000-0001-8517-5755"
+  - family-names: "Sowby"
+    given-names: "Robert B."
+  - family-names: "Williams"
+    given-names: "Gustavious P."
+  - family-names: "Nelson"
+    given-names: "E. James"
+  - family-names: "Ames"
+    given-names: "Daniel P."
+  - family-names: "Dundas"
+    given-names: "Jonah B."
+  - family-names: "Ogden"
+    given-names: "Josh"
+title: "SABER: A Model-Agnostic Postprocessor for Bias Correcting Discharge from Large Hydrologic Models"
+doi: 10.5281/zenodo.1234
+date-released: 2022-06-22
+url: "https://doi.org/10.3390/hydrology9070113"
