@@ -2,16 +2,16 @@ import glob
 import os
 import shutil
 
-import pandas as pd
 import netCDF4 as nc
 import numpy as np
+import pandas as pd
 
-from .prep import scaffold_workdir
-from ._workflow import analyze_region
-from ._vocab import mid_col
-from ._vocab import gid_col
-from ._vocab import metric_nc_name_list
-from ._vocab import cal_nc_name
+from .io import cal_nc_name
+from .io import gid_col
+from .io import metric_nc_name_list
+from .io import mid_col
+from .io import read_table
+from .io import scaffold_workdir
 
 
 def sample_gauges(workdir: str, overwrite: bool = False) -> None:
@@ -27,14 +27,15 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
     Returns:
         None
     """
-    vr_path = os.path.join(workdir, 'validation_runs')
+    vr_path = os.path.join(workdir, 'validation')
     if overwrite:
         if os.path.exists(vr_path):
             shutil.rmtree(vr_path)
         os.mkdir(vr_path)
 
-    gt = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
+    gt = read_table(workdir, 'gauge_table')
     initial_row_count = gt.shape[0]
+
     rows_to_drop = round(gt.shape[0] / 10)
 
     for i in range(5):
@@ -44,7 +45,6 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
         subpath = os.path.join(vr_path, f'{pct_remain}')
 
         # create the new project working directory
-        os.mkdir(subpath)
         scaffold_workdir(subpath, include_validation=False)
 
         # overwrite the processed data directory so we don't need to redo this each time
@@ -56,9 +56,9 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
 
         # sample the gauge table
         gt = gt.sample(n=n)
-        gt.to_csv(os.path.join(subpath, 'gis_inputs', 'gauge_table.csv'), index=False)
-        shutil.copyfile(os.path.join(workdir, 'gis_inputs', 'drain_table.csv'),
-                        os.path.join(subpath, 'gis_inputs', 'drain_table.csv'))
+        gt.to_csv(os.path.join(subpath, 'gis', 'gauge_table.csv'), index=False)
+        shutil.copyfile(os.path.join(workdir, 'gis', 'drain_table.csv'),
+                        os.path.join(subpath, 'gis', 'drain_table.csv'))
 
         # filter the copied processed data to only contain the gauges included in this filtered step
         processed_sim_data = glob.glob(os.path.join(subpath, 'data_processed', 'obs-*.csv'))
@@ -67,26 +67,6 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
             a = a.filter(items=gt[gid_col].astype(str))
             a.to_csv(f)
 
-    return
-
-
-def run_series(workdir: str, drain_shape: str, obs_data_dir: str = None) -> None:
-    """
-    Runs saber.analyze_region on each project in the validation_runs directory
-
-    Args:
-        workdir: the project working directory
-        drain_shape: path to the drainage line gis file
-        obs_data_dir: path to the directory containing the observed data
-
-    Returns:
-        None
-    """
-    gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
-    val_workdirs = [i for i in glob.glob(os.path.join(workdir, 'validation_runs', '*')) if os.path.isdir(i)]
-    for val_workdir in val_workdirs:
-        print(f'\n\n\t\t\tworking on {val_workdir}\n\n')
-        analyze_region(val_workdir, drain_shape, gauge_table, obs_data_dir)
     return
 
 
@@ -101,7 +81,7 @@ def gen_val_table(workdir: str) -> pd.DataFrame:
     Returns:
         pandas.DataFrame
     """
-    df = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
+    df = pd.read_csv(os.path.join(workdir, 'gis', 'gauge_table.csv'))
     df['100'] = 1
 
     stats_df = {}
@@ -114,11 +94,11 @@ def gen_val_table(workdir: str) -> pd.DataFrame:
     a.close()
 
     for d in sorted(
-            [a for a in glob.glob(os.path.join(workdir, 'validation_runs', '*')) if os.path.isdir(a)],
+            [a for a in glob.glob(os.path.join(workdir, 'validation', '*')) if os.path.isdir(a)],
             reverse=True
     ):
         val_percent = os.path.basename(d)
-        valset_gids = pd.read_csv(os.path.join(d, 'gis_inputs', 'gauge_table.csv'))[gid_col].values.tolist()
+        valset_gids = pd.read_csv(os.path.join(d, 'gis', 'gauge_table.csv'))[gid_col].values.tolist()
 
         # mark a column indicating the gauges included in the validation set
         df[val_percent] = 0
@@ -132,6 +112,6 @@ def gen_val_table(workdir: str) -> pd.DataFrame:
 
     # merge gauge_table with the stats, save and return
     df = df.merge(pd.DataFrame(stats_df), on=mid_col, how='inner')
-    df.to_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'), index=False)
+    df.to_csv(os.path.join(workdir, 'validation', 'val_table.csv'), index=False)
 
     return df

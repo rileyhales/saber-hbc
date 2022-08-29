@@ -1,19 +1,78 @@
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
 
+from ._propagation import propagate_in_table
 from ._propagation import walk_downstream
 from ._propagation import walk_upstream
-from ._propagation import propagate_in_table
+from .io import asgn_gid_col
+from .io import asgn_mid_col
+from .io import gid_col
+from .io import mid_col
+from .io import order_col
+from .io import read_table
+from .io import reason_col
+from .io import write_table
 
-from ._vocab import mid_col
-from ._vocab import gid_col
-from ._vocab import asgn_mid_col
-from ._vocab import asgn_gid_col
-from ._vocab import reason_col
-from ._vocab import order_col
+__all__ = ['gen', 'merge_clusters', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
 
 
-def gauged(df: pd.DataFrame) -> pd.DataFrame:
+def gen(workdir: str, cache: bool = True) -> pd.DataFrame:
+    """
+    Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
+
+    Args:
+        workdir: path to the working directory
+        cache: whether to cache the assign table immediately
+
+    Returns:
+        None
+    """
+    # read and merge the tables
+    assign_table = pd.merge(
+        read_table(workdir, 'drain_table'),
+        read_table(workdir, 'gauge_table'),
+        on=mid_col,
+        how='outer'
+    )
+
+    # create the new columns
+    assign_table[asgn_mid_col] = np.nan
+    assign_table[asgn_gid_col] = np.nan
+    assign_table[reason_col] = np.nan
+
+    if cache:
+        write_table(assign_table, workdir, 'assign_table')
+
+    return assign_table
+
+
+def merge_clusters(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) -> pd.DataFrame:
+    """
+    Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
+    to assign_table.csv
+
+    Args:
+        workdir: path to the project directory
+        assign_table: the assignment table DataFrame
+        n_clusters: number of clusters to use when applying the labels to the assign_table
+
+    Returns:
+        None
+    """
+    # create a dataframe with the optimal model's labels and the model_id's
+    df = pd.DataFrame({
+        'cluster': joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle')).labels_,
+        mid_col: read_table(workdir, 'model_ids').values.flatten()
+    }, dtype=str)
+
+    # merge the dataframes
+    return assign_table.merge(df, how='outer', on=mid_col)
+
+
+def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
     """
     Assigns basins a gauge for correction which contain a gauge
 
@@ -24,13 +83,14 @@ def gauged(df: pd.DataFrame) -> pd.DataFrame:
         Copy of df with assignments made
     """
     _df = df.copy()
-    _df.loc[~_df[gid_col].isna(), asgn_mid_col] = _df[mid_col]
-    _df.loc[~_df[gid_col].isna(), asgn_gid_col] = _df[gid_col]
-    _df.loc[~_df[gid_col].isna(), reason_col] = 'gauged'
+    selector = ~_df[gid_col].isna()
+    _df.loc[selector, asgn_mid_col] = _df[mid_col]
+    _df.loc[selector, asgn_gid_col] = _df[gid_col]
+    _df.loc[selector, reason_col] = 'gauged'
     return _df
 
 
-def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
+def assign_propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
     """
 
     Args:
@@ -54,27 +114,7 @@ def propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
     return _df
 
 
-def clusters_by_monavg(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Assigns all possible ungauged basins a gauge that is
-        (1) of the same stream order
-        (2) in the same simulated fdc cluster
-        (3) in the same simulated monavg cluster (monthly averages)
-        (4) closest in total drainage area
-
-    This requires matching 2 clusters. Basins in both of the same groups have high likelihood of behaving similarly.
-
-    Args:
-        df: the assignments table dataframe
-
-    Returns:
-        Copy of df with assignments made
-    """
-    _df = df.copy()
-    return _df
-
-
-def clusters_by_dist(df: pd.DataFrame) -> pd.DataFrame:
+def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
     """
     Assigns all possible ungauged basins a gauge that is
         (1) is closer than any other gauge
@@ -87,7 +127,6 @@ def clusters_by_dist(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         Copy of df with assignments made
     """
-    # todo assign based on closest upstream drainage area??
     _df = df.copy()
     # first filter by cluster number
     for c_num in sorted(set(_df['sim-fdc-cluster'].values)):

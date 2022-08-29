@@ -1,11 +1,11 @@
 import pandas as pd
 
-from ._vocab import mid_col
-from ._vocab import down_mid_col
-from ._vocab import order_col
-from ._vocab import asgn_mid_col
-from ._vocab import asgn_gid_col
-from ._vocab import reason_col
+from .io import asgn_gid_col
+from .io import asgn_mid_col
+from .io import down_mid_col
+from .io import mid_col
+from .io import order_col
+from .io import reason_col
 
 
 def walk_downstream(df: pd.DataFrame, start_id: int, same_order: bool = True, outlet_next_id: str or int = -1) -> tuple:
@@ -71,7 +71,8 @@ def walk_upstream(df: pd.DataFrame, start_id: int, same_order: bool = True) -> t
     return tuple(set(upstream_ids))
 
 
-def propagate_in_table(df: pd.DataFrame, start_mid: int, start_gid: int, connected: tuple, max_prop: int, direction: str):
+def propagate_in_table(df: pd.DataFrame, start_mid: int, start_gid: int, connected: tuple, max_prop: int,
+                       direction: str):
     """
 
     Args:

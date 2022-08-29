@@ -9,140 +9,279 @@ import numpy as np
 import pandas as pd
 from scipy import interpolate, stats
 
-from .utils import solve_gumbel1, compute_fdc, compute_scalar_fdc
-from ._vocab import mid_col
-from ._vocab import asgn_mid_col
-from ._vocab import asgn_gid_col
-from ._vocab import metric_list
-from ._vocab import metric_nc_name_list
-from ._vocab import sim_ts_pickle
-from ._vocab import cal_nc_name
+from .io import asgn_gid_col
+from .io import asgn_mid_col
+from .io import cal_nc_name
+from .io import metric_list
+from .io import metric_nc_name_list
+from .io import mid_col
+from .io import table_hindcast
 
 
-def calibrate_stream(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame,
-                     fix_seasonally: bool = True,
-                     drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
-                     filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
-                     extrapolate_method: str = 'nearest', fill_value: int or float = None,
-                     fit_gumbel: bool = False, gumbel_range: tuple = (25, 75), ) -> pd.DataFrame:
+def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame = None,
+              fix_seasonally: bool = True, empty_months: str = 'skip',
+              drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
+              filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
+              extrapolate: str = 'nearest', fill_value: int or float = None,
+              fit_gumbel: bool = False, fit_range: tuple = (10, 90), ) -> pd.DataFrame:
     """
-    Given the simulated and observed stream flow at location a, attempts to the remove the bias from simulated
-    stream flow at point b. This
+    Removes the bias from simulated discharge using the SABER method.
+
+    Given simulated and observed discharge at location A, removes bias from simulated data at point A.
+    Given simulated and observed discharge at location A, removes bias from simulated data at point B, if given B.
 
     Args:
-        sim_flow_a (pd.DataFrame): simulated hydrograph at point A
-        obs_flow_a (pd.DataFrame): observed hydrograph at point A
-        sim_flow_b (pd.DataFrame): simulated hydrograph at point B
+        sim_flow_a (pd.DataFrame): simulated hydrograph at point A. should contain a datetime index with daily values
+            and a single column of discharge values.
+        obs_flow_a (pd.DataFrame): observed hydrograph at point A. should contain a datetime index with daily values
+            and a single column of discharge values.
+        sim_flow_b (pd.DataFrame): (optional) simulated hydrograph at point B to correct using scalar flow duration
+            curve mapping and the bias relationship at point A. should contain a datetime index with daily values
+            and a single column of discharge values.
+
         fix_seasonally (bool): fix on a monthly (True) or annual (False) basis
+        empty_months (str): how to handle months in the simulated data where no observed data are available. Options:
+            "skip": ignore simulated data for months without
+
         drop_outliers (bool): flag to exclude outliers
         outlier_threshold (int or float): number of std deviations from mean to exclude from flow duration curve
-        filter_scalar_fdc (bool):
-        filter_range (tuple):
-        extrapolate_method (bool):
-        fill_value (int or float):
-        fit_gumbel (bool):
-        gumbel_range (tuple):
+
+        filter_scalar_fdc (bool): flag to filter the scalar flow duration curve
+        filter_range (tuple): lower and upper bounds of the filter range
+
+        extrapolate (str): method to use for extrapolation. Options: nearest, const, linear, average, max, min
+        fill_value (int or float): value to use for extrapolation when extrapolate_method='const'
+
+        fit_gumbel (bool): flag to replace extremely low/high corrected flows with values from Gumbel type 1
+        fit_range (tuple): lower and upper bounds of exceedance probabilities to replace with Gumbel values
 
     Returns:
-        pd.DataFrame of the
+        pd.DataFrame with a DateTime index and columns with corrected flow, uncorrected flow, the scalar adjustment
+        factor applied to correct the discharge, and the percentile of the uncorrected flow (in the seasonal grouping,
+        if applicable).
     """
+    if sim_flow_b is None:
+        sim_flow_b = sim_flow_a.copy()
     if fix_seasonally:
         # list of the unique months in the historical simulation. should always be 1->12 but just in case...
         monthly_results = []
         for month in sorted(set(sim_flow_a.index.strftime('%m'))):
-            # filter data to only be current iteration's month
-            mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
+            # filter data to current iteration's month
             mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
+
+            if mon_obs_data.empty:
+                if empty_months == 'skip':
+                    continue
+                else:
+                    raise ValueError(f'Invalid value for argument "empty_months". Given: {empty_months}.')
+
+            mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
             mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
-            monthly_results.append(calibrate_stream(
+            monthly_results.append(calibrate(
                 mon_sim_data, mon_obs_data, mon_cor_data,
-                fix_seasonally=False,
+                fix_seasonally=False, empty_months=empty_months,
                 drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
                 filter_scalar_fdc=filter_scalar_fdc, filter_range=filter_range,
-                extrapolate_method=extrapolate_method, fill_value=fill_value,
-                fit_gumbel=fit_gumbel, gumbel_range=gumbel_range, )
+                extrapolate=extrapolate, fill_value=fill_value,
+                fit_gumbel=fit_gumbel, fit_range=fit_range, )
             )
         # combine the results from each monthly into a single dataframe (sorted chronologically) and return it
         return pd.concat(monthly_results).sort_index()
 
-    # compute the fdc for paired sim/obs data and compute scalar fdc, either with or without outliers
+    # compute the flow duration curves
     if drop_outliers:
-        # drop outlier data
-        # https://stackoverflow.com/questions/23199796/detect-and-exclude-outliers-in-pandas-data-frame
-        sim_fdc = compute_fdc(
-            sim_flow_a[(np.abs(stats.zscore(sim_flow_a)) < outlier_threshold).all(axis=1)])
-        obs_fdc = compute_fdc(
-            obs_flow_a[(np.abs(stats.zscore(obs_flow_a)) < outlier_threshold).all(axis=1)])
+        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name='Q_sim')
+        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name='Q_sim')
+        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name='Q_obs')
     else:
-        sim_fdc = compute_fdc(sim_flow_a)
-        obs_fdc = compute_fdc(obs_flow_a)
+        sim_fdc_a = calc_fdc(sim_flow_a, col_name='Q_sim')
+        sim_fdc_b = calc_fdc(sim_flow_b, col_name='Q_sim')
+        obs_fdc = calc_fdc(obs_flow_a, col_name='Q_obs')
 
-    scalar_fdc = compute_scalar_fdc(obs_fdc['flow'].values.flatten(), sim_fdc['flow'].values.flatten())
-
+    # calculate the scalar flow duration curve (at point A with simulated and observed data)
+    scalar_fdc = calc_sfdc(sim_fdc_a['flow'].values.flatten(), obs_fdc['flow'].values.flatten())
     if filter_scalar_fdc:
-        scalar_fdc = scalar_fdc[scalar_fdc['Exceedance Probability'] >= filter_range[0]]
-        scalar_fdc = scalar_fdc[scalar_fdc['Exceedance Probability'] <= filter_range[1]]
+        scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
 
-    # Convert the percentiles
-    if extrapolate_method == 'nearest':
-        to_scalar = interpolate.interp1d(scalar_fdc.values[:, 0], scalar_fdc.values[:, 1],
-                                         fill_value='extrapolate', kind='nearest')
-    elif extrapolate_method == 'value':
-        to_scalar = interpolate.interp1d(scalar_fdc.values[:, 0], scalar_fdc.values[:, 1],
-                                         fill_value=fill_value, bounds_error=False)
-    elif extrapolate_method == 'linear':
-        to_scalar = interpolate.interp1d(scalar_fdc.values[:, 0], scalar_fdc.values[:, 1],
-                                         fill_value='extrapolate')
-    elif extrapolate_method == 'average':
-        to_scalar = interpolate.interp1d(scalar_fdc.values[:, 0], scalar_fdc.values[:, 1],
-                                         fill_value=np.mean(scalar_fdc.values[:, 1]), bounds_error=False)
-    elif extrapolate_method == 'max' or extrapolate_method == 'maximum':
-        to_scalar = interpolate.interp1d(scalar_fdc.values[:, 0], scalar_fdc.values[:, 1],
-                                         fill_value=np.max(scalar_fdc.values[:, 1]), bounds_error=False)
-    elif extrapolate_method == 'min' or extrapolate_method == 'minimum':
-        to_scalar = interpolate.interp1d(scalar_fdc.values[:, 0], scalar_fdc.values[:, 1],
-                                         fill_value=np.min(scalar_fdc.values[:, 1]), bounds_error=False)
+    # make interpolators: Q_b -> p_exceed, p_exceed -> scalars_a
+    # flow at B converted to exceedance probabilities, then matched with the scalar computed at point A
+    flow_to_percent = _make_interpolator(sim_fdc_b.values,
+                                         sim_fdc_b.index,
+                                         extrap=extrapolate,
+                                         fill_value=fill_value)
+
+    percent_to_scalar = _make_interpolator(scalar_fdc.index,
+                                           scalar_fdc.values,
+                                           extrap=extrapolate,
+                                           fill_value=fill_value)
+
+    # apply interpolators to correct flows at B with data from A
+    qb_original = sim_flow_b.values.flatten()
+    p_exceed = flow_to_percent(qb_original)
+    scalars = percent_to_scalar(p_exceed)
+    qb_adjusted = qb_original / scalars
+
+    if fit_gumbel:
+        qb_adjusted = _fit_extreme_values_to_gumbel(qb_adjusted, p_exceed, fit_range)
+
+    return pd.DataFrame(data=np.transpose([qb_adjusted, qb_original, scalars, p_exceed]),
+                        index=sim_flow_b.index.to_list(),
+                        columns=('Q_adjusted', 'Q_original', 'scalars', 'p_exceed'))
+
+
+def calc_fdc(flows: np.array, steps: int = 201, col_name: str = 'Q') -> pd.DataFrame:
+    """
+    Compute flow duration curve (exceedance probabilities) from a list of flows
+
+    Args:
+        flows: array of flows
+        steps: number of steps (exceedance probabilities) to use in the FDC
+        col_name: name of the column in the returned dataframe
+
+    Returns:
+        pd.DataFrame with index 'p_exceed' and columns 'Q' (or col_name)
+    """
+    # calculate the FDC and save to parquet
+    exceed_prob = np.linspace(100, 0, steps)
+    fdc_flows = np.nanpercentile(flows, exceed_prob)
+    df = pd.DataFrame(fdc_flows, columns=[col_name, ], index=exceed_prob)
+    df.index.name = 'p_exceed'
+    return df
+
+
+def calc_sfdc(sim_fdc: pd.DataFrame, obs_fdc: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute the scalar flow duration curve (exceedance probabilities) from two flow duration curves
+
+    Args:
+        sim_fdc: simulated flow duration curve
+        obs_fdc: observed flow duration curve
+
+    Returns:
+        pd.DataFrame with index 'p_exceed' and columns 'Q'
+    """
+    scalars_df = pd.DataFrame(np.divide(sim_fdc.values, obs_fdc.values), columns=['scalars'], index=sim_fdc.index)
+    scalars_df.replace(np.inf, np.nan, inplace=True)
+    scalars_df.dropna(inplace=True)
+    return scalars_df
+
+
+def _drop_outliers_by_zscore(df: pd.DataFrame, threshold: float = 3) -> pd.DataFrame:
+    """
+    Drop outliers from a dataframe by their z-score and a threshold
+    Based on https://stackoverflow.com/questions/23199796/detect-and-exclude-outliers-in-pandas-data-frame
+    Args:
+        df: dataframe to drop outliers from
+        threshold: z-score threshold
+
+    Returns:
+        pd.DataFrame with outliers removed
+    """
+    return df[(np.abs(stats.zscore(df)) < threshold).all(axis=1)]
+
+
+def _filter_sfdc(sfdc: pd.DataFrame, filter_range: list) -> pd.DataFrame:
+    """
+    Filter the scalar flow duration curve by the specified range
+
+    Args:
+        sfdc: scalar flow duration curve DataFrame
+        filter_range: list of [lower_bound: int or float, upper_bound: int or float]
+
+    Returns:
+        pd.DataFrame: filtered scalar flow duration curve
+    """
+    return sfdc[np.logical_and(sfdc.index > filter_range[0], sfdc.index < filter_range[1])]
+
+
+def _make_interpolator(x: np.array, y: np.array, extrap: str = 'nearest',
+                       fill_value: int or float = None) -> interpolate.interp1d:
+    """
+    Make an interpolator from two arrays
+
+    Args:
+        x: x values
+        y: y values
+        extrap: method for extrapolation: nearest, const, linear, average, max, min
+        fill_value: value to use when extrap='const'
+
+    Returns:
+        interpolate.interp1d
+    """
+    # make interpolator which converts the percentiles to scalars
+    if extrap == 'nearest':
+        return interpolate.interp1d(x, y, fill_value='extrapolate', kind='nearest')
+    elif extrap == 'const':
+        if fill_value is None:
+            raise ValueError('Must provide the const kwarg when extrap_method="const"')
+        return interpolate.interp1d(x, y, fill_value=fill_value, bounds_error=False)
+    elif extrap == 'linear':
+        return interpolate.interp1d(x, y, fill_value='extrapolate')
+    elif extrap == 'average':
+        return interpolate.interp1d(x, y, fill_value=np.mean(y), bounds_error=False)
+    elif extrap == 'max' or extrap == 'maximum':
+        return interpolate.interp1d(x, y, fill_value=np.max(y), bounds_error=False)
+    elif extrap == 'min' or extrap == 'minimum':
+        return interpolate.interp1d(x, y, fill_value=np.min(y), bounds_error=False)
     else:
         raise ValueError('Invalid extrapolation method provided')
 
-    # determine the percentile of each uncorrected flow using the monthly fdc
-    values = sim_flow_b.values.flatten()
-    percentiles = [stats.percentileofscore(values, a) for a in values]
-    scalars = to_scalar(percentiles)
-    values = values * scalars
 
-    if fit_gumbel:
-        tmp = pd.DataFrame(np.transpose([values, percentiles]), columns=('q', 'p'))
+def _solve_gumbel1(std, xbar, rp):
+    """
+    Solves the Gumbel Type I pdf = exp(-exp(-b))
 
-        # compute the average and standard deviation except for scaled data outside the percentile range specified
-        mid = tmp[tmp['p'] > gumbel_range[0]]
-        mid = mid[mid['p'] < gumbel_range[1]]
-        xbar = statistics.mean(mid['q'].tolist())
-        std = statistics.stdev(mid['q'].tolist(), xbar)
+    Args:
+        std: standard deviation of the dataset
+        xbar: mean of the dataset
+        rp: return period to calculate in years
 
-        q = []
-        for p in tmp[tmp['p'] <= gumbel_range[0]]['p'].tolist():
-            q.append(solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
-        tmp.loc[tmp['p'] <= gumbel_range[0], 'q'] = q
+    Returns:
+        float: discharge value
+    """
+    return -np.log(-np.log(1 - (1 / rp))) * std * .7797 + xbar - (.45 * std)
 
-        q = []
-        for p in tmp[tmp['p'] >= gumbel_range[1]]['p'].tolist():
-            if p >= 100:
-                p = 99.999
-            q.append(solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
-        tmp.loc[tmp['p'] >= gumbel_range[1], 'q'] = q
 
-        values = tmp['q'].values
+def _fit_extreme_values_to_gumbel(q_adjust: np.array, p_exceed: np.array, fit_range: tuple = None) -> np.array:
+    """
+    Replace the extreme values from the corrected data with values based on the gumbel distribution
 
-    return pd.DataFrame(data=np.transpose([values, scalars, percentiles]),
-                        index=sim_flow_b.index.to_list(),
-                        columns=('flow', 'scalars', 'percentile'))
+    Args:
+        q_adjust: adjusted flows to be refined
+        p_exceed: exceedance probabilities of the adjusted flows
+        fit_range: range of exceedance probabilities to fit to the Gumbel distribution
+
+    Returns:
+        np.array of the flows with the extreme values replaced
+    """
+    all_values = pd.DataFrame(np.transpose([q_adjust, p_exceed]), columns=('q', 'p'))
+    # compute the average and standard deviation for the values within the user specified fit_range
+    mid_vals = all_values.copy()
+    mid_vals = mid_vals[np.logical_and(mid_vals['p'] > fit_range[0], mid_vals['p'] < fit_range[1])]
+    xbar = statistics.mean(mid_vals['q'].values)
+    std = statistics.stdev(mid_vals['q'].values, xbar)
+
+    # todo check that this is correct
+    q = []
+    for p in mid_vals[mid_vals['p'] <= fit_range[0]]['p'].tolist():
+        q.append(_solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
+    mid_vals.loc[mid_vals['p'] <= fit_range[0], 'q'] = q
+
+    q = []
+    for p in mid_vals[mid_vals['p'] >= fit_range[1]]['p'].tolist():
+        if p >= 100:
+            p = 99.999
+        q.append(_solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
+    mid_vals.loc[mid_vals['p'] >= fit_range[1], 'q'] = q
+
+    qb_adjusted = mid_vals['q'].values
+    return qb_adjusted
 
 
 def calibrate_region(workdir: str, assign_table: pd.DataFrame,
                      gauge_table: pd.DataFrame = None, obs_data_dir: str = None) -> None:
     """
-    Creates a netCDF with the
+    Creates a netCDF of all corrected flows in a region.
 
     Args:
         workdir: path to project working directory
@@ -153,13 +292,14 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     Returns:
         None
     """
+    # todo create a parquet instead of a netcdf
     if gauge_table is None:
         gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
     if obs_data_dir is None:
         obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
 
     bcs_nc_path = os.path.join(workdir, cal_nc_name)
-    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', sim_ts_pickle))
+    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', table_hindcast))
 
     # create the new netcdf
     bcs_nc = nc.Dataset(bcs_nc_path, 'w')
@@ -238,7 +378,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
             continue
 
         try:
-            calibrated_df = calibrate_stream(ts[[asgn_mid]], obs_df, ts[[model_id]], )
+            calibrated_df = calibrate(ts[[asgn_mid]], obs_df, ts[[model_id]], )
             c_array[:, idx] = calibrated_df['flow'].values
             p_array[:, idx] = calibrated_df['percentile'].values
             s_array[:, idx] = calibrated_df['scalars'].values
