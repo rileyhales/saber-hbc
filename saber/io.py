@@ -10,16 +10,17 @@ asgn_gid_col = 'assigned_gauge_id'
 down_mid_col = 'downstream_model_id'
 reason_col = 'reason'
 area_col = 'drain_area'
-order_col = 'stream_order'
-
-# scaffolded folders
-tables = 'tables'
-gis_out = 'gis'
-kmeans_out = 'clusters'
+order_col = 'strahler_order'
 
 # name of some files produced by the algorithm
 cluster_count_file = 'best-fit-cluster-count.json'
 cal_nc_name = 'calibrated_simulated_flow.nc'
+
+# scaffolded folders
+dir_tables = 'tables'
+dir_gis = 'gis'
+dir_clusters = 'clusters'
+dir_valid = 'validation'
 
 # name of the required input tables and the outputs
 table_hindcast = 'hindcast.parquet'
@@ -46,9 +47,11 @@ def scaffold_workdir(path: str, include_validation: bool = True) -> None:
     Returns:
         None
     """
-    dir_list = ['tables', 'gis', 'clusters']
+    dir_list = [dir_tables, dir_gis, dir_clusters]
+    if not os.path.exists(path):
+        os.mkdir(path)
     if include_validation:
-        dir_list.append('validation')
+        dir_list.append(dir_valid)
     for d in dir_list:
         p = os.path.join(path, d)
         if not os.path.exists(p):
@@ -58,19 +61,19 @@ def scaffold_workdir(path: str, include_validation: bool = True) -> None:
 
 def get_table_path(workdir: str, table_name: str) -> str:
     if table_name == 'hindcast':
-        return os.path.join(workdir, tables, table_hindcast)
+        return os.path.join(workdir, dir_tables, table_hindcast)
     elif table_name == 'hindcast_fdc':
-        return os.path.join(workdir, tables, table_hindcast_fdc)
+        return os.path.join(workdir, dir_tables, table_hindcast_fdc)
     elif table_name == 'hindcast_fdc_trans':
-        return os.path.join(workdir, tables, table_hindcast_fdc)
+        return os.path.join(workdir, dir_tables, table_hindcast_fdc)
     elif table_name == 'model_ids':
-        return os.path.join(workdir, tables, table_mids)
+        return os.path.join(workdir, dir_tables, table_mids)
     elif table_name == 'drain_table':
-        return os.path.join(workdir, tables, table_drain)
+        return os.path.join(workdir, dir_tables, table_drain)
     elif table_name == 'gauge_table':
-        return os.path.join(workdir, tables, table_gauge)
+        return os.path.join(workdir, dir_tables, table_gauge)
     elif table_name == 'assign_table':
-        return os.path.join(workdir, tables, table_assign)
+        return os.path.join(workdir, dir_tables, table_assign)
     else:
         raise ValueError(f'Unknown table name: {table_name}')
 
@@ -92,10 +95,10 @@ def write_table(table: pd.DataFrame, workdir: str, table_name: str) -> None:
     table_path = get_table_path(workdir, table_name)
     table_format = os.path.splitext(table_path)[-1]
     if table_format == '.parquet':
-        table.to_parquet(table_path)
+        return table.to_parquet(table_path)
     elif table_format == '.feather':
-        table.to_feather(table_path)
+        return table.to_feather(table_path)
     elif table_format == '.csv':
-        table.to_csv(table_path)
+        return table.to_csv(table_path)
     else:
         raise ValueError(f'Unknown table format: {table_format}')

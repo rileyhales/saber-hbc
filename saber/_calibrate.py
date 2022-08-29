@@ -61,9 +61,9 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
     if fix_seasonally:
         # list of the unique months in the historical simulation. should always be 1->12 but just in case...
         monthly_results = []
-        for month in sorted(set(sim_flow_a.index.dt.strftime('%m'))):
+        for month in sorted(set(sim_flow_a.index.strftime('%m'))):
             # filter data to current iteration's month
-            mon_obs_data = obs_flow_a[obs_flow_a.index.dt.month == int(month)].dropna()
+            mon_obs_data = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
 
             if mon_obs_data.empty:
                 if empty_months == 'skip':
@@ -71,8 +71,8 @@ def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd
                 else:
                     raise ValueError(f'Invalid value for argument "empty_months". Given: {empty_months}.')
 
-            mon_sim_data = sim_flow_a[sim_flow_a.index.dt.month == int(month)].dropna()
-            mon_cor_data = sim_flow_b[sim_flow_b.index.dt.month == int(month)].dropna()
+            mon_sim_data = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
+            mon_cor_data = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
             monthly_results.append(calibrate(
                 mon_sim_data, mon_obs_data, mon_cor_data,
                 fix_seasonally=False, empty_months=empty_months,
@@ -139,22 +139,21 @@ def _make_interpolator(x_input: np.array, y_output: np.array, extrap_method: str
                        const: int or float = None) -> interpolate.interp1d:
     # make interpolator which converts the percentiles to scalars
     if extrap_method == 'nearest':
-        interpolator = interpolate.interp1d(x_input, y_output, fill_value='extrapolate', kind='nearest')
+        return interpolate.interp1d(x_input, y_output, fill_value='extrapolate', kind='nearest')
     elif extrap_method == 'const':
         if const is None:
             raise ValueError('Must provide the const kwarg when extrap_method="const"')
-        interpolator = interpolate.interp1d(x_input, y_output, fill_value=const, bounds_error=False)
+        return interpolate.interp1d(x_input, y_output, fill_value=const, bounds_error=False)
     elif extrap_method == 'linear':
-        interpolator = interpolate.interp1d(x_input, y_output, fill_value='extrapolate')
+        return interpolate.interp1d(x_input, y_output, fill_value='extrapolate')
     elif extrap_method == 'average':
-        interpolator = interpolate.interp1d(x_input, y_output, fill_value=np.mean(y_output), bounds_error=False)
+        return interpolate.interp1d(x_input, y_output, fill_value=np.mean(y_output), bounds_error=False)
     elif extrap_method == 'max' or extrap_method == 'maximum':
-        interpolator = interpolate.interp1d(x_input, y_output, fill_value=np.max(y_output), bounds_error=False)
+        return interpolate.interp1d(x_input, y_output, fill_value=np.max(y_output), bounds_error=False)
     elif extrap_method == 'min' or extrap_method == 'minimum':
-        interpolator = interpolate.interp1d(x_input, y_output, fill_value=np.min(y_output), bounds_error=False)
+        return interpolate.interp1d(x_input, y_output, fill_value=np.min(y_output), bounds_error=False)
     else:
         raise ValueError('Invalid extrapolation method provided')
-    return interpolator
 
 
 def calibrate_region(workdir: str, assign_table: pd.DataFrame,

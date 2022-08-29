@@ -10,6 +10,8 @@ from .io import cal_nc_name
 from .io import gid_col
 from .io import metric_nc_name_list
 from .io import mid_col
+from .io import read_table
+from .io import scaffold_workdir
 
 
 def sample_gauges(workdir: str, overwrite: bool = False) -> None:
@@ -31,8 +33,9 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
             shutil.rmtree(vr_path)
         os.mkdir(vr_path)
 
-    gt = pd.read_csv(os.path.join(workdir, 'gis', 'gauge_table.csv'))
+    gt = read_table(workdir, 'gauge_table')
     initial_row_count = gt.shape[0]
+
     rows_to_drop = round(gt.shape[0] / 10)
 
     for i in range(5):
@@ -42,8 +45,7 @@ def sample_gauges(workdir: str, overwrite: bool = False) -> None:
         subpath = os.path.join(vr_path, f'{pct_remain}')
 
         # create the new project working directory
-        os.mkdir(subpath)
-        workdir(subpath, include_validation=False)
+        scaffold_workdir(subpath, include_validation=False)
 
         # overwrite the processed data directory so we don't need to redo this each time
         shutil.copytree(

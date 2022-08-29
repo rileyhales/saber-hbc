@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler as Scalar
 
 from .io import mid_col
+from .io import order_col
 from .io import read_table
 from .io import write_table
 
@@ -42,21 +43,24 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
     return
 
 
-def hindcast(workdir: str, hind_nc_path: str) -> None:
+def hindcast(workdir: str, hind_nc_path: str, drop_order_1: bool = False) -> None:
     """
-    Creates hindcast_series_table.parquet.gzip and hindcast_fdc_table.parquet.gzip in the workdir/tables directory
+    Creates hindcast_series_table.parquet and hindcast_fdc_table.parquet in the workdir/tables directory
     for the GEOGloWS hindcast data
 
     Args:
         workdir: path to the working directory for the project
-        hind_nc_path: path to the hindcast or historical simulation netcdf if not located at workdir/data_simulated/*.nc
+        hind_nc_path: path to the hindcast or historical simulation netcdf
+        drop_order_1: whether to drop the order 1 streams from the hindcast
 
     Returns:
         None
     """
     # read the assignments table
-    drain_table = read_table(workdir, 'drain_table')
-    model_ids = list(set(sorted(drain_table[mid_col].tolist())))
+    model_ids = read_table(workdir, 'drain_table')
+    if drop_order_1:
+        model_ids = model_ids[model_ids[order_col] > 1]
+    model_ids = list(set(sorted(model_ids[mid_col].tolist())))
 
     # read the hindcast netcdf, convert to dataframe, store as parquet
     hnc = nc.Dataset(hind_nc_path)
@@ -65,7 +69,7 @@ def hindcast(workdir: str, hind_nc_path: str) -> None:
     ids = ids[ids_selector].astype(str).values.flatten()
 
     # save the model ids to table for reference
-    write_table(pd.DataFrame(ids, columns=['model_id', ]), workdir, 'model_ids')
+    write_table(pd.DataFrame(ids, columns=[mid_col, ]), workdir, 'model_ids')
 
     # save the hindcast series to parquet
     df = pd.DataFrame(
@@ -73,7 +77,7 @@ def hindcast(workdir: str, hind_nc_path: str) -> None:
         columns=ids,
         index=pd.to_datetime(hnc.variables['time'][:], unit='s')
     )
-    df = df[df.index.dt.year >= 1980]
+    df = df[df.index.year >= 1980]
     df.index.name = 'datetime'
     write_table(df, workdir, 'hindcast')
 
