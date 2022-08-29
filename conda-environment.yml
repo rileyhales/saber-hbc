@@ -4,17 +4,17 @@ channels:
   - defaults
 dependencies:
   - python=3
-  - geopandas
-  - pandas
-  - numpy
-  - numba
   - contextily
-  - netCDF4
-  - pyarrow
+  - geopandas
+  - hydrostats
+  - joblib
   - kneed
   - matplotlib
+  - natsort
+  - netCDF4
+  - numba
+  - numpy
+  - pandas
+  - pyarrow
   - requests
   - scipy
-  - natsort
-  - scikit-learn
-  - joblib
