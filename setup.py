@@ -30,6 +30,6 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
     ],
-    python_requires=">=3",
+    python_requires=">=3.10",
     install_requires=install_requires
 )
