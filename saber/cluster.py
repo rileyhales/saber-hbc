@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from natsort import natsorted
-from sklearn.cluster import KMeans
+from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
 from .io import cluster_count_file
@@ -32,12 +32,13 @@ def generate(workdir: str, max_clusters: int = 12) -> None:
         None
     """
     # read the prepared data (array x)
-    x = read_table(workdir, 'hindcast_fdc_trans')
-    x = x.values
+    x = read_table(workdir, 'hindcast_fdc_trans').values
 
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
-        kmeans = KMeans(n_clusters=n_clusters)
+        # logging.info(f'Clustering n={n_clusters}')
+        print(f'Clustering n={n_clusters}')
+        kmeans = MiniBatchKMeans(n_clusters=n_clusters)
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     return
@@ -62,6 +63,7 @@ def summarize(workdir: str) -> None:
     x = x.values
 
     for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
+        print(model_file)
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
 

@@ -1,8 +1,8 @@
 import os
 
 import numpy as np
-import saber
 
+import saber
 
 np.seterr(all="ignore")
 

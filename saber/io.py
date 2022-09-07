@@ -82,7 +82,7 @@ def read_table(workdir: str, table_name: str) -> pd.DataFrame:
     table_path = get_table_path(workdir, table_name)
     table_format = os.path.splitext(table_path)[-1]
     if table_format == '.parquet':
-        return pd.read_parquet(table_path)
+        return pd.read_parquet(table_path, engine='fastparquet')
     elif table_format == '.feather':
         return pd.read_feather(table_path)
     elif table_format == '.csv':
