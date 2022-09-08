@@ -38,7 +38,7 @@ def generate(workdir: str, max_clusters: int = 12) -> None:
     for n_clusters in range(2, max_clusters + 1):
         # logging.info(f'Clustering n={n_clusters}')
         print(f'Clustering n={n_clusters}')
-        kmeans = MiniBatchKMeans(n_clusters=n_clusters)
+        kmeans = MiniBatchKMeans(n_clusters=n_clusters, n_init=6)
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     return
