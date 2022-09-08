@@ -20,10 +20,10 @@ def workflow(workdir, hist_sim_nc, obs_data_dir, drain_gis, gauge_gis):
     saber.cluster.generate(workdir)
     print('Summarize clusters')
     saber.cluster.summarize(workdir)
-    print('Plot clusters')
-    saber.cluster.plot_clusters(workdir)
     print('Plot silhouettes')
     saber.cluster.plot_silhouette(workdir)
+    print('Plot clusters')
+    saber.cluster.plot_clusters(workdir)
 
     # ALL COMPLETED ABOVE
 
@@ -95,7 +95,7 @@ print('Generate clusters')
 saber.cluster.generate(workdir)
 print('Summarize clusters')
 saber.cluster.summarize(workdir)
-print('Plot clusters')
-saber.cluster.plot_clusters(workdir)
 print('Plot silhouettes')
 saber.cluster.plot_silhouette(workdir)
+print('Plot clusters')
+saber.cluster.plot_clusters(workdir)

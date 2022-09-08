@@ -105,7 +105,7 @@ def summarize(workdir: str) -> None:
 
 
 def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
-                  max_cols: int = 3, plt_width: int = 3, plt_height: int = 3) -> None:
+                  max_cols: int = 3, plt_width: int = 3, plt_height: int = 3, n_lines: int = 500) -> None:
     """
     Generate figures of the clustered FDC's
 
@@ -115,6 +115,7 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
         max_cols: maximum number of columns (subplots) in the figure
         plt_width: width of each subplot in inches
         plt_height: height of each subplot in inches
+        n_lines: max number of lines to plot in each subplot
 
     Returns:
         None
@@ -158,7 +159,7 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
             ax.set_xlim(0, size)
             ax.set_xticks(x_values, x_ticks)
             ax.set_ylim(-2, 4)
-            for j in x[kmeans.labels_ == i]:
+            for j in np.random.shuffle(x[kmeans.labels_ == i])[:n_lines]:
                 ax.plot(j.ravel(), "k-")
             ax.plot(kmeans.cluster_centers_[i].flatten(), "r-")
         # turn off plotting axes which are blank (when ax number > n_clusters)
