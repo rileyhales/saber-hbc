@@ -1,3 +1,4 @@
+import logging
 import datetime
 import os
 import statistics
@@ -16,6 +17,8 @@ from .io import metric_list
 from .io import metric_nc_name_list
 from .io import mid_col
 from .io import table_hindcast
+
+logger = logging.getLogger(__name__)
 
 
 def calibrate(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame = None,
@@ -356,7 +359,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
         try:
             if idx % 25 == 0:
-                print(f'\n\t\t{idx + 1}/{m_size}')
+                logger.info(f'\n\t\t{idx + 1}/{m_size}')
 
             model_id, asgn_mid, asgn_gid = triple
             if np.isnan(asgn_gid) or np.isnan(asgn_mid):
@@ -372,8 +375,8 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
             obs_df = pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0, parse_dates=True)
             obs_df = obs_df.dropna()
         except Exception as e:
-            print('failed to read the observed data')
-            print(e)
+            logger.info('failed to read the observed data')
+            logger.info(e)
             errors['g2'] += 1
             continue
 
@@ -383,8 +386,8 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
             p_array[:, idx] = calibrated_df['percentile'].values
             s_array[:, idx] = calibrated_df['scalars'].values
         except Exception as e:
-            print('failed during the calibration step')
-            print(e)
+            logger.info('failed during the calibration step')
+            logger.info(e)
             errors['g3'] += 1
             continue
 
@@ -399,8 +402,8 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
                         float(sim_obs_stats[metric].values[0]), float(bcs_obs_stats[metric].values[0])
 
         except Exception as e:
-            print('failed during collecting stats')
-            print(e)
+            logger.info('failed during collecting stats')
+            logger.info(e)
             errors['g4'] += 1
             continue
 
@@ -413,7 +416,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     bcs_nc.sync()
     bcs_nc.close()
 
-    print(errors)
+    logger.info(errors)
     with open(os.path.join(workdir, 'calibration_errors.json'), 'w') as f:
         f.write(str(errors))
 

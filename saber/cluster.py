@@ -1,5 +1,6 @@
 import glob
 import json
+import logging
 import math
 import os
 from collections.abc import Iterable
@@ -19,6 +20,8 @@ from .io import read_table
 
 __all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
 
+logger = logging.getLogger(__name__)
+
 
 def generate(workdir: str, max_clusters: int = 12) -> None:
     """
@@ -32,12 +35,12 @@ def generate(workdir: str, max_clusters: int = 12) -> None:
         None
     """
     # read the prepared data (array x)
+    logger.info('Reading FDC table')
     x = read_table(workdir, 'hindcast_fdc_trans').values
 
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
-        # logging.info(f'Clustering n={n_clusters}')
-        print(f'Clustering n={n_clusters}')
+        logger.info(f'Clustering n={n_clusters}')
         kmeans = MiniBatchKMeans(n_clusters=n_clusters, n_init=6)
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
@@ -63,7 +66,7 @@ def summarize(workdir: str) -> None:
     x = x.values
 
     for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
-        print(model_file)
+        logger.info(model_file)
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
 
