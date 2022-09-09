@@ -1,5 +1,6 @@
 contextily
 geopandas
+fastparquet
 hydrostats
 joblib
 kneed
@@ -11,4 +12,5 @@ numpy
 pandas
 pyarrow
 requests
+scikit-learn
 scipy

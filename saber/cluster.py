@@ -23,22 +23,19 @@ __all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
 logger = logging.getLogger(__name__)
 
 
-def generate(workdir: str, df: pd.DataFrame = None, max_clusters: int = 12) -> None:
+def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 12) -> None:
     """
     Trains kmeans clustering models, saves the model as pickle, generates images and supplementary files
 
     Args:
         workdir: path to the project directory
-        df: dataframe of the prepared FDC data
+        x: a numpy array of the prepared FDC data
         max_clusters: maximum number of clusters to train
 
     Returns:
         None
     """
-    # read the prepared data (array x)
-    if df is not None:
-        x = df.values
-    else:
+    if x is None:
         x = read_table(workdir, 'hindcast_fdc_trans').values
 
     # build the kmeans model for a range of cluster numbers
@@ -50,21 +47,18 @@ def generate(workdir: str, df: pd.DataFrame = None, max_clusters: int = 12) -> N
     return
 
 
-def summarize(workdir: str, df: pd.DataFrame = None) -> None:
+def summarize(workdir: str, x: np.ndarray = None) -> None:
     """
     Generate a summary of the clustering results, calculate the silhouette score, save the centers and labels to parquet
 
     Args:
         workdir: path to the project directory
-        df: dataframe of the prepared FDC data
+        x: a numpy array of the prepared FDC data
 
     Returns:
         None
     """
-    # read the prepared data (array x)
-    if df is not None:
-        x = df.values
-    else:
+    if x is None:
         x = read_table(workdir, 'hindcast_fdc_trans').values
 
     summary = {'number': [], 'inertia': [], 'n_iter': [], 'silhouette': []}
@@ -77,12 +71,12 @@ def summarize(workdir: str, df: pd.DataFrame = None) -> None:
         n_clusters = int(kmeans.n_clusters)
 
         # save the cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
-        pd.DataFrame(
-            np.transpose(kmeans.cluster_centers_),
-            columns=np.array(range(n_clusters)).astype(str)
-        ).to_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{n_clusters}.parquet'))
+        logger.info(f'Writing cluster centers')
+        pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str))\
+            .to_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{n_clusters}.parquet'))
 
         # save the silhouette score for each cluster
+        logger.info('Calculating silhouette scores')
         silhouette_scores.append(silhouette_samples(x, kmeans.labels_).flatten())
         labels.append(kmeans.labels_.flatten())
 
@@ -93,8 +87,7 @@ def summarize(workdir: str, df: pd.DataFrame = None) -> None:
         summary['silhouette'].append(np.mean(silhouette_scores[-1]))
 
     # save the summary results as a csv
-    pd.DataFrame.from_dict(summary) \
-        .to_csv(os.path.join(workdir, 'clusters', f'clustering-summary-stats.csv'))
+    pd.DataFrame.from_dict(summary).to_csv(os.path.join(workdir, 'clusters', f'cluster-metrics.csv'))
     # save the silhouette scores as a parquet
     silhouette_scores = np.transpose(np.array(silhouette_scores))
     pd.DataFrame(silhouette_scores, columns=np.array(range(2, silhouette_scores.shape[1] + 2)).astype(str)) \
@@ -113,14 +106,14 @@ def summarize(workdir: str, df: pd.DataFrame = None) -> None:
     return
 
 
-def plot_clusters(workdir: str, df: pd.DataFrame = None, clusters: int or Iterable = 'all',
+def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable = 'all',
                   max_cols: int = 3, plt_width: int = 3, plt_height: int = 3, n_lines: int = 500) -> None:
     """
     Generate figures of the clustered FDC's
 
     Args:
         workdir: path to the project directory
-        df: dataframe of the prepared FDC data
+        x: a numpy array of the prepared FDC data
         clusters: number of clusters to create figures for
         max_cols: maximum number of columns (subplots) in the figure
         plt_width: width of each subplot in inches
@@ -130,10 +123,7 @@ def plot_clusters(workdir: str, df: pd.DataFrame = None, clusters: int or Iterab
     Returns:
         None
     """
-    # read the prepared data (array x)
-    if df is not None:
-        x = df.values
-    else:
+    if x is None:
         x = read_table(workdir, 'hindcast_fdc_trans').values
 
     size = x.shape[1]
