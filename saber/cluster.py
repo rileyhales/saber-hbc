@@ -90,7 +90,8 @@ def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> Non
             ss_df = pd.concat([ss_df, tmp])
 
         # calculate their silhouette scores
-        silhouette_scores.append(silhouette_samples(ss_df.drop(columns='label').values, ss_df['label'].values).flatten())
+        silhouette_scores.append(
+            silhouette_samples(ss_df.drop(columns='label').values, ss_df['label'].values, n_jobs=-1).flatten())
         labels.append(kmeans.labels_.flatten())
 
         # save the summary stats from this model
