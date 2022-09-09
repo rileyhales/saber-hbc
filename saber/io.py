@@ -65,7 +65,7 @@ def get_table_path(workdir: str, table_name: str) -> str:
     elif table_name == 'hindcast_fdc':
         return os.path.join(workdir, dir_tables, table_hindcast_fdc)
     elif table_name == 'hindcast_fdc_trans':
-        return os.path.join(workdir, dir_tables, table_hindcast_fdc)
+        return os.path.join(workdir, dir_tables, table_hindcast_fdc_trans)
     elif table_name == 'model_ids':
         return os.path.join(workdir, dir_tables, table_mids)
     elif table_name == 'drain_table':
