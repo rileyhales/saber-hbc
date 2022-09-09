@@ -95,14 +95,15 @@ def workflow(workdir, hist_sim_nc, obs_data_dir, drain_gis, gauge_gis):
 workdir = '/home/water/global_saber/workdir'
 logging.basicConfig(filename='geoglows_saber.log', filemode='w', datefmt='%Y-%m-%d %X',
                     format='%(name)s - %(asctime)s: %(message)s')
-logging.info('Reading prepared data')
+logger = logging.getLogger(__name__)
+logger.info('Reading prepared data')
 fdc_trans_table = saber.io.read_table(workdir, 'hindcast_fdc_trans')
 # Generate clusters
-logging.info('Generate Clusters')
+logger.info('Generate Clusters')
 saber.cluster.generate(workdir)
-logging.info('Summarize Clusters')
+logger.info('Summarize Clusters')
 saber.cluster.summarize(workdir)
-logging.info('Plot Silhouette')
+logger.info('Plot Silhouette')
 saber.cluster.plot_silhouette(workdir)
-logging.ingo('Plot Clusters')
+logger.ingo('Plot Clusters')
 saber.cluster.plot_clusters(workdir)
