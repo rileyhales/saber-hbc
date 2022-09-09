@@ -47,19 +47,21 @@ def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 12) -> None
     return
 
 
-def summarize(workdir: str, x: np.ndarray = None) -> None:
+def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> None:
     """
     Generate a summary of the clustering results, calculate the silhouette score, save the centers and labels to parquet
 
     Args:
         workdir: path to the project directory
         x: a numpy array of the prepared FDC data
+        samples: max number of randomly chosen samples to use when calculating the silhouette score
 
     Returns:
         None
     """
     if x is None:
         x = read_table(workdir, 'hindcast_fdc_trans').values
+    fdc_df = pd.DataFrame(x)
 
     summary = {'number': [], 'inertia': [], 'n_iter': [], 'silhouette': []}
     silhouette_scores = []
@@ -75,9 +77,20 @@ def summarize(workdir: str, x: np.ndarray = None) -> None:
         pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str))\
             .to_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{n_clusters}.parquet'))
 
-        # save the silhouette score for each cluster
+        # randomly sample fdcs from each cluster
         logger.info('Calculating silhouette scores')
-        silhouette_scores.append(silhouette_samples(x, kmeans.labels_).flatten())
+        fdc_df['label'] = kmeans.labels_
+        ss_df = pd.DataFrame(columns=fdc_df.columns.to_list())
+        for i in range(n_clusters):
+            values = fdc_df[fdc_df['label'] == i].drop(columns='label').values
+            np.random.shuffle(values)
+            values = values[:samples]
+            tmp = pd.DataFrame(values)
+            tmp['label'] = i
+            ss_df = pd.concat([ss_df, tmp])
+
+        # calculate their silhouette scores
+        silhouette_scores.append(silhouette_samples(ss_df.drop(columns='label').values, ss_df['label'].values).flatten())
         labels.append(kmeans.labels_.flatten())
 
         # save the summary stats from this model
