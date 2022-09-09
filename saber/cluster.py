@@ -23,20 +23,23 @@ __all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
 logger = logging.getLogger(__name__)
 
 
-def generate(workdir: str, max_clusters: int = 12) -> None:
+def generate(workdir: str, df: pd.DataFrame = None, max_clusters: int = 12) -> None:
     """
     Trains kmeans clustering models, saves the model as pickle, generates images and supplementary files
 
     Args:
         workdir: path to the project directory
+        df: dataframe of the prepared FDC data
         max_clusters: maximum number of clusters to train
 
     Returns:
         None
     """
     # read the prepared data (array x)
-    logger.info('Reading FDC table')
-    x = read_table(workdir, 'hindcast_fdc_trans').values
+    if df is not None:
+        x = df.values
+    else:
+        x = read_table(workdir, 'hindcast_fdc_trans').values
 
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
@@ -55,15 +58,11 @@ def summarize(workdir: str) -> None:
         workdir: path to the project directory
 
     Returns:
-
+        None
     """
     summary = {'number': [], 'inertia': [], 'n_iter': [], 'silhouette': []}
     silhouette_scores = []
     labels = []
-
-    # read the prepared data (array x)
-    x = read_table(workdir, 'hindcast_fdc_trans')
-    x = x.values
 
     for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
         logger.info(model_file)
@@ -107,13 +106,14 @@ def summarize(workdir: str) -> None:
     return
 
 
-def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
+def plot_clusters(workdir: str, df: pd.DataFrame = None, clusters: int or Iterable = 'all',
                   max_cols: int = 3, plt_width: int = 3, plt_height: int = 3, n_lines: int = 500) -> None:
     """
     Generate figures of the clustered FDC's
 
     Args:
         workdir: path to the project directory
+        df: dataframe of the prepared FDC data
         clusters: number of clusters to create figures for
         max_cols: maximum number of columns (subplots) in the figure
         plt_width: width of each subplot in inches
@@ -123,7 +123,12 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
     Returns:
         None
     """
-    x = read_table(workdir, 'hindcast_fdc_trans').values
+    # read the prepared data (array x)
+    if df is not None:
+        x = df.values
+    else:
+        x = read_table(workdir, 'hindcast_fdc_trans').values
+
     size = x.shape[1]
     x_values = np.linspace(0, size, 5)
     x_ticks = np.linspace(0, 100, 5).astype(int)
@@ -162,7 +167,10 @@ def plot_clusters(workdir: str, clusters: int or Iterable = 'all',
             ax.set_xlim(0, size)
             ax.set_xticks(x_values, x_ticks)
             ax.set_ylim(-2, 4)
-            for j in np.random.shuffle(x[kmeans.labels_ == i])[:n_lines]:
+            fdc_to_plot = x[kmeans.labels_ == i]
+            np.random.shuffle(fdc_to_plot)
+            fdc_to_plot = fdc_to_plot[:n_lines]
+            for j in fdc_to_plot:
                 ax.plot(j.ravel(), "k-")
             ax.plot(kmeans.cluster_centers_[i].flatten(), "r-")
         # turn off plotting axes which are blank (when ax number > n_clusters)
