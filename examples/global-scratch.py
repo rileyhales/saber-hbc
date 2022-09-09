@@ -92,7 +92,7 @@ def workflow(workdir, hist_sim_nc, obs_data_dir, drain_gis, gauge_gis):
 #     workflow(wdir, hist_sim_nc, grdc_dir, drain_gis, grdc_gis)
 
 
-workdir = '/home/water/global_saber/workdir'
+workdir = '/Users/rchales/Desktop/tmp'
 logging.basicConfig(filename='geoglows_saber.log', filemode='w', datefmt='%Y-%m-%d %X',
                     format='%(name)s - %(asctime)s: %(message)s')
 logger = logging.getLogger(__name__)

@@ -50,16 +50,23 @@ def generate(workdir: str, df: pd.DataFrame = None, max_clusters: int = 12) -> N
     return
 
 
-def summarize(workdir: str) -> None:
+def summarize(workdir: str, df: pd.DataFrame = None) -> None:
     """
     Generate a summary of the clustering results, calculate the silhouette score, save the centers and labels to parquet
 
     Args:
         workdir: path to the project directory
+        df: dataframe of the prepared FDC data
 
     Returns:
         None
     """
+    # read the prepared data (array x)
+    if df is not None:
+        x = df.values
+    else:
+        x = read_table(workdir, 'hindcast_fdc_trans').values
+
     summary = {'number': [], 'inertia': [], 'n_iter': [], 'silhouette': []}
     silhouette_scores = []
     labels = []
