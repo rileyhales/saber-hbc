@@ -1,31 +1,31 @@
 import glob
-import json
 import logging
 import math
 import os
 from collections.abc import Iterable
 
 import joblib
-import kneed
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from kneed import KneeLocator
 from natsort import natsorted
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
-from .io import cluster_count_file
+from .io import _find_model_files
 from .io import read_table
+from .io import write_table
 
-__all__ = ['generate', 'summarize', 'plot_clusters', 'plot_silhouette']
+__all__ = ['generate', 'summarize_fit', 'plot_clusters', 'calc_silhouette', 'plot_silhouette']
 
 logger = logging.getLogger(__name__)
 
 
 def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 12) -> None:
     """
-    Trains kmeans clustering models, saves the model as pickle, generates images and supplementary files
+    Trains scikit-learn MiniBatchKMeans models and saves as pickle
 
     Args:
         workdir: path to the project directory
@@ -41,20 +41,65 @@ def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 12) -> None
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
         logger.info(f'Clustering n={n_clusters}')
-        kmeans = MiniBatchKMeans(n_clusters=n_clusters, n_init=6)
+        kmeans = MiniBatchKMeans(n_clusters=n_clusters, n_init=15)
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     return
 
 
-def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> None:
+def summarize_fit(workdir: str) -> None:
     """
-    Generate a summary of the clustering results, calculate the silhouette score, save the centers and labels to parquet
+    Generate a summary of the clustering results save the centers and labels to parquet
+
+    Args:
+        workdir: path to the project directory
+
+    Returns:
+        None
+    """
+    summary = {'number': [], 'inertia': [], 'n_iter': []}
+    labels = []
+
+    for model_file in _find_model_files(workdir, n_clusters='all'):
+        logger.info(f'Summarizing {os.path.basename(model_file)}')
+        kmeans = joblib.load(model_file)
+        n_clusters = int(kmeans.n_clusters)
+        labels.append(kmeans.labels_.flatten())
+
+        # save cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
+        write_table(
+            pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str)),
+            workdir,
+            f'cluster_centers_{n_clusters}'
+        )
+
+        # save the summary stats from this model
+        summary['number'].append(n_clusters)
+        summary['inertia'].append(kmeans.inertia_)
+        summary['n_iter'].append(kmeans.n_iter_)
+
+    # save the summary results as a csv
+    sum_df = pd.DataFrame(summary)
+    sum_df['knee'] = KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
+    write_table(sum_df, workdir, 'cluster_metrics')
+
+    # save the labels as a parquet
+    labels = np.transpose(np.array(labels))
+    write_table(pd.DataFrame(labels, columns=np.array(range(2, labels.shape[1] + 2)).astype(str)),
+                workdir, 'cluster_labels')
+    return
+
+
+def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = 'all',
+                    samples: int = 5e5) -> None:
+    """
+    Calculate the silhouette score for the given number of clusters
 
     Args:
         workdir: path to the project directory
         x: a numpy array of the prepared FDC data
-        samples: max number of randomly chosen samples to use when calculating the silhouette score
+        n_clusters: the number of clusters to calculate the silhouette score for
+        samples: the number of samples to use for the silhouette score calculation
 
     Returns:
         None
@@ -63,68 +108,41 @@ def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> Non
         x = read_table(workdir, 'hindcast_fdc_trans').values
     fdc_df = pd.DataFrame(x)
 
-    summary = {'number': [], 'inertia': [], 'n_iter': [], 'silhouette': []}
-    silhouette_scores = []
-    labels = []
+    summary = {'number': [], 'silhouette': []}
 
     random_shuffler = np.random.default_rng()
 
-    for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
-        logger.info(model_file)
+    for model_file in _find_model_files(workdir, n_clusters):
+        logger.info(f'Calculating silhouette for {os.path.basename(model_file)}')
         kmeans = joblib.load(model_file)
-        n_clusters = int(kmeans.n_clusters)
-
-        # save cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
-        logger.info(f'Writing cluster centers')
-        pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str)) \
-            .to_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{n_clusters}.parquet'))
 
         # randomly sample fdcs from each cluster
-        logger.info('Calculating silhouette scores')
         fdc_df['label'] = kmeans.labels_
         ss_df = pd.DataFrame(columns=fdc_df.columns.to_list())
-        for i in range(n_clusters):
+        for i in range(int(kmeans.n_clusters)):
             values = fdc_df[fdc_df['label'] == i].drop(columns='label').values
             random_shuffler.shuffle(values)
-            values = values[:samples]
+            values = values[:int(samples)]
             tmp = pd.DataFrame(values)
             tmp['label'] = i
             ss_df = pd.concat([ss_df, tmp])
 
         # calculate their silhouette scores
-        silhouette_scores.append(
-            silhouette_samples(ss_df.drop(columns='label').values, ss_df['label'].values, n_jobs=-1).flatten())
-        labels.append(kmeans.labels_.flatten())
+        ss_df['silhouette'] = silhouette_samples(ss_df.drop(columns='label').values, ss_df['label'].values, n_jobs=-1)
+        ss_df['silhouette'] = ss_df['silhouette'].round(3)
+        ss_df.columns = ss_df.columns.astype(str)
+        write_table(ss_df, workdir, f'cluster_sscores_{kmeans.n_clusters}')
 
         # save the summary stats from this model
         summary['number'].append(n_clusters)
-        summary['inertia'].append(kmeans.inertia_)
-        summary['n_iter'].append(kmeans.n_iter_)
-        summary['silhouette'].append(np.mean(silhouette_scores[-1]))
+        summary['silhouette'].append(ss_df['silhouette'].mean())
 
-    logger.info('Writing cluster summary files')
-
-    # save the summary results as a csv
-    pd.DataFrame.from_dict(summary).to_csv(os.path.join(workdir, 'clusters', f'cluster-metrics.csv'))
-    # save the silhouette scores as a parquet
-    silhouette_scores = np.transpose(np.array(silhouette_scores))
-    pd.DataFrame(silhouette_scores, columns=np.array(range(2, silhouette_scores.shape[1] + 2)).astype(str)) \
-        .to_parquet(os.path.join(workdir, 'clusters', 'kmeans-silhouette_scores.parquet'))
-    # save the labels as a parquet
-    labels = np.transpose(np.array(labels))
-    pd.DataFrame(labels, columns=np.array(range(2, labels.shape[1] + 2)).astype(str)) \
-        .to_parquet(os.path.join(workdir, 'clusters', 'kmeans-labels.parquet'))
-
-    # find the knee/elbow
-    knee = kneed.KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
-
-    # save the best fitting cluster counts to a csv
-    with open(os.path.join(workdir, 'clusters', cluster_count_file), 'w') as f:
-        f.write(json.dumps({'historical': int(knee)}))
+    # save the summary stats
+    write_table(pd.DataFrame(summary), workdir, 'cluster_sscores')
     return
 
 
-def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable = 'all',
+def plot_clusters(workdir: str, x: np.ndarray = None, n_clusters: int or Iterable = 'all',
                   max_cols: int = 3, plt_width: int = 3, plt_height: int = 3, n_lines: int = 500) -> None:
     """
     Generate figures of the clustered FDC's
@@ -132,7 +150,7 @@ def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable 
     Args:
         workdir: path to the project directory
         x: a numpy array of the prepared FDC data
-        clusters: number of clusters to create figures for
+        n_clusters: number of clusters to create figures for
         max_cols: maximum number of columns (subplots) in the figure
         plt_width: width of each subplot in inches
         plt_height: height of each subplot in inches
@@ -148,19 +166,9 @@ def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable 
     x_values = np.linspace(0, size, 5)
     x_ticks = np.linspace(0, 100, 5).astype(int)
 
-    kmeans_dir = os.path.join(workdir, 'clusters')
-    if clusters == 'all':
-        model_files = natsorted(glob.glob(os.path.join(kmeans_dir, 'kmeans-*.pickle')))
-    elif isinstance(clusters, int):
-        model_files = glob.glob(os.path.join(kmeans_dir, f'kmeans-{clusters}.pickle'))
-    elif isinstance(clusters, Iterable):
-        model_files = natsorted([os.path.join(kmeans_dir, f'kmeans-{i}.pickle') for i in clusters])
-    else:
-        raise TypeError('n_clusters should be of type int or an iterable')
-
     random_shuffler = np.random.default_rng()
 
-    for model_file in model_files:
+    for model_file in _find_model_files(workdir, n_clusters):
         logger.info(f'Plotting {model_file}')
 
         # load the model and calculate
@@ -198,9 +206,7 @@ def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable 
         for ax in fig.axes[n_clusters:]:
             ax.axis('off')
 
-        logger.info(f'Saving figure to {kmeans_dir}')
-
-        fig.savefig(os.path.join(kmeans_dir, f'kmeans-clusters-{n_clusters}.png'))
+        fig.savefig(os.path.join(workdir, 'clusters', f'kmeans-clusters-{n_clusters}.png'))
         plt.close(fig)
     return
 
@@ -220,13 +226,14 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
     """
     logger.info('Plotting silhouette scores')
 
-    labels_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-labels.parquet'))
-    sscore_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-silhouette_scores.parquet'))
+    clusters_dir = os.path.join(workdir, 'clusters')
 
-    for tot_clusters in sscore_df.columns:
-        logger.info(f'Plotting for {tot_clusters} total clusters')
-
-        centers_df = pd.read_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{tot_clusters}.parquet'))
+    for sscore_table in natsorted(glob.glob(os.path.join(clusters_dir, 'cluster_sscores_*.parquet'))):
+        logger.info(f'Plotting {sscore_table}')
+        n_clusters = int(sscore_table.split('_')[-1].split('.')[0])
+        sscore_df = pd.read_parquet(sscore_table, engine='fastparquet')
+        centers_df = read_table(workdir, f'cluster_centers_{n_clusters}')
+        mean_ss = sscore_df['silhouette'].mean()
 
         # initialize the figure
         fig, (ax1, ax2) = plt.subplots(
@@ -238,7 +245,7 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
         )
 
         # Plot 1 titles and labels
-        ax1.set_title("Silhouette Plot")
+        ax1.set_title(f"Silhouette Plot (mean={mean_ss:.3f})")
         ax1.set_xlabel("Silhouette Score")
         ax1.set_ylabel("Cluster Label")
         ax1.set_yticks([])  # Clear the yaxis labels / ticks
@@ -250,22 +257,22 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
         ax2.set_ylabel("Discharge Z-Score")
 
         # The vertical line for average silhouette score of all the values
-        ax1.axvline(x=sscore_df[tot_clusters].mean(), color="red", linestyle="--")
+        ax1.axvline(x=mean_ss, color="red", linestyle="--")
 
         y_lower = 10
-        for sub_cluster in range(int(tot_clusters)):
+        for sub_cluster in range(int(n_clusters)):
             # select the rows applicable to the current sub cluster
-            cluster_silhouettes = sscore_df[labels_df[tot_clusters] == sub_cluster][tot_clusters].values.flatten()
-            cluster_silhouettes.sort()
+            cluster_sscores = sscore_df[sscore_df['label'] == sub_cluster]['silhouette'].values.flatten()
+            cluster_sscores.sort()
 
-            n = cluster_silhouettes.shape[0]
+            n = cluster_sscores.shape[0]
             y_upper = y_lower + n
 
-            color = cm.nipy_spectral(sub_cluster / int(tot_clusters))
+            color = cm.nipy_spectral(sub_cluster / int(n_clusters))
             ax1.fill_betweenx(
                 np.arange(y_lower, y_upper),
                 0,
-                cluster_silhouettes,
+                cluster_sscores,
                 facecolor=color,
                 edgecolor=color,
                 alpha=0.7,
@@ -279,6 +286,6 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
             # add some buffer before the next cluster
             y_lower = y_upper + 10
 
-        fig.savefig(os.path.join(workdir, 'clusters', f'kmeans-silhouettes-{tot_clusters}.png'))
+        fig.savefig(os.path.join(clusters_dir, f'silhouette-diagram-{n_clusters}.png'))
         plt.close(fig)
     return
