@@ -30,7 +30,8 @@ def walk_downstream(df: pd.DataFrame, start_id: int, same_order: bool = True, ou
 
     df_ = df.copy()
     if same_order:
-        df_ = df_[df_[order_col] == df_[df_[mid_col] == start_id][order_col].values[0]]
+        start_id_order = df_[df_[mid_col] == start_id][order_col].values[0]
+        df_ = df_[df_[order_col] == start_id_order]
 
     stream_row = df_[df_[mid_col] == start_id]
     while len(stream_row[down_mid_col].values) > 0 and stream_row[down_mid_col].values[0] != outlet_next_id:

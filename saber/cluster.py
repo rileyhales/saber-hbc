@@ -67,14 +67,16 @@ def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> Non
     silhouette_scores = []
     labels = []
 
+    random_shuffler = np.random.default_rng()
+
     for model_file in natsorted(glob.glob(os.path.join(workdir, 'clusters', 'kmeans-*.pickle'))):
         logger.info(model_file)
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
 
-        # save the cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
+        # save cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
         logger.info(f'Writing cluster centers')
-        pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str))\
+        pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str)) \
             .to_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{n_clusters}.parquet'))
 
         # randomly sample fdcs from each cluster
@@ -83,7 +85,7 @@ def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> Non
         ss_df = pd.DataFrame(columns=fdc_df.columns.to_list())
         for i in range(n_clusters):
             values = fdc_df[fdc_df['label'] == i].drop(columns='label').values
-            np.random.shuffle(values)
+            random_shuffler.shuffle(values)
             values = values[:samples]
             tmp = pd.DataFrame(values)
             tmp['label'] = i
@@ -99,6 +101,8 @@ def summarize(workdir: str, x: np.ndarray = None, samples: int = 100_000) -> Non
         summary['inertia'].append(kmeans.inertia_)
         summary['n_iter'].append(kmeans.n_iter_)
         summary['silhouette'].append(np.mean(silhouette_scores[-1]))
+
+    logger.info('Writing cluster summary files')
 
     # save the summary results as a csv
     pd.DataFrame.from_dict(summary).to_csv(os.path.join(workdir, 'clusters', f'cluster-metrics.csv'))
@@ -154,12 +158,18 @@ def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable 
     else:
         raise TypeError('n_clusters should be of type int or an iterable')
 
+    random_shuffler = np.random.default_rng()
+
     for model_file in model_files:
+        logger.info(f'Plotting {model_file}')
+
+        # load the model and calculate
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
         n_cols = min(n_clusters, max_cols)
         n_rows = math.ceil(n_clusters / n_cols)
 
+        # initialize the figure and labels
         fig, axs = plt.subplots(
             n_rows,
             n_cols,
@@ -167,7 +177,7 @@ def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable 
             dpi=500,
             squeeze=False,
             tight_layout=True,
-            sharey=True
+            sharey='row'
         )
         fig.suptitle("KMeans FDC Clustering")
         fig.supxlabel('Exceedance Probability (%)')
@@ -178,17 +188,19 @@ def plot_clusters(workdir: str, x: np.ndarray = None, clusters: int or Iterable 
             ax.set_xlim(0, size)
             ax.set_xticks(x_values, x_ticks)
             ax.set_ylim(-2, 4)
-            fdc_to_plot = x[kmeans.labels_ == i]
-            np.random.shuffle(fdc_to_plot)
-            fdc_to_plot = fdc_to_plot[:n_lines]
-            for j in fdc_to_plot:
+            fdc_sample = x[kmeans.labels_ == i]
+            random_shuffler.shuffle(fdc_sample)
+            fdc_sample = fdc_sample[:n_lines]
+            for j in fdc_sample:
                 ax.plot(j.ravel(), "k-")
             ax.plot(kmeans.cluster_centers_[i].flatten(), "r-")
         # turn off plotting axes which are blank (when ax number > n_clusters)
         for ax in fig.axes[n_clusters:]:
             ax.axis('off')
 
-        fig.savefig(os.path.join(workdir, 'clusters', f'kmeans-clusters-{n_clusters}.png'))
+        logger.info(f'Saving figure to {kmeans_dir}')
+
+        fig.savefig(os.path.join(kmeans_dir, f'kmeans-clusters-{n_clusters}.png'))
         plt.close(fig)
     return
 
@@ -206,11 +218,17 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
     Returns:
         None
     """
-    labels_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-labels.parquet'))
-    silhouette_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-silhouette_scores.parquet'))
+    logger.info('Plotting silhouette scores')
 
-    for tot_clusters in silhouette_df.columns:
+    labels_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-labels.parquet'))
+    sscore_df = pd.read_parquet(os.path.join(workdir, 'clusters', 'kmeans-silhouette_scores.parquet'))
+
+    for tot_clusters in sscore_df.columns:
+        logger.info(f'Plotting for {tot_clusters} total clusters')
+
         centers_df = pd.read_parquet(os.path.join(workdir, 'clusters', f'kmeans-centers-{tot_clusters}.parquet'))
+
+        # initialize the figure
         fig, (ax1, ax2) = plt.subplots(
             nrows=1,
             ncols=2,
@@ -232,12 +250,12 @@ def plot_silhouette(workdir: str, plt_width: int = 3, plt_height: int = 3) -> No
         ax2.set_ylabel("Discharge Z-Score")
 
         # The vertical line for average silhouette score of all the values
-        ax1.axvline(x=silhouette_df[tot_clusters].mean(), color="red", linestyle="--")
+        ax1.axvline(x=sscore_df[tot_clusters].mean(), color="red", linestyle="--")
 
         y_lower = 10
         for sub_cluster in range(int(tot_clusters)):
             # select the rows applicable to the current sub cluster
-            cluster_silhouettes = silhouette_df[labels_df[tot_clusters] == sub_cluster][tot_clusters].values.flatten()
+            cluster_silhouettes = sscore_df[labels_df[tot_clusters] == sub_cluster][tot_clusters].values.flatten()
             cluster_silhouettes.sort()
 
             n = cluster_silhouettes.shape[0]

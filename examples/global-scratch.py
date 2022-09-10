@@ -91,9 +91,15 @@ def workflow(workdir, hist_sim_nc, obs_data_dir, drain_gis, gauge_gis):
 #     workflow(wdir, hist_sim_nc, grdc_dir, drain_gis, grdc_gis)
 
 
-workdir = '/Users/rchales/Desktop/tmp'
-logging.basicConfig(level=logging.INFO, filename='geoglows_saber.log', filemode='w', datefmt='%Y-%m-%d %X',
-                    format='%(name)s - %(asctime)s: %(message)s')
+# workdir = '/Users/rchales/Desktop/tmp'
+workdir = '/Volumes/T7/geoglows_saber'
+logging.basicConfig(
+    level=logging.INFO,
+    filename='geoglows_saber.log',
+    filemode='w',
+    datefmt='%Y-%m-%d %X',
+    format='%(asctime)s: %(name)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 logger.info('Reading prepared data')
 x_fdc = saber.io.read_table(workdir, 'hindcast_fdc_trans').values
