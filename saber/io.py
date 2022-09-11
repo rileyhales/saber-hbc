@@ -69,6 +69,19 @@ def scaffold_workdir(path: str, include_validation: bool = True) -> None:
 
 
 def get_table_path(workdir: str, table_name: str) -> str:
+    """
+    Get the path to a table in the project directory by name
+
+    Args:
+        workdir:
+        table_name:
+
+    Returns:
+        Path (str) to the table
+
+    Raises:
+        ValueError: if the table name is not recognized
+    """
     if table_name == 'hindcast':
         return os.path.join(workdir, dir_tables, table_hindcast)
     elif table_name == 'hindcast_fdc':
@@ -100,7 +113,24 @@ def get_table_path(workdir: str, table_name: str) -> str:
 
 
 def read_table(workdir: str, table_name: str) -> pd.DataFrame:
+    """
+    Read a table from the project directory by name.
+
+    Args:
+        workdir: path to the project directory
+        table_name: name of the table to read
+
+    Returns:
+        pd.DataFrame
+
+    Raises:
+        FileNotFoundError: if the table does not exist in the correct directory with the correct name
+        ValueError: if the table format is not recognized
+    """
     table_path = get_table_path(workdir, table_name)
+    if not os.path.exists(table_path):
+        raise FileNotFoundError(f'Table does not exist: {table_path}')
+
     table_format = os.path.splitext(table_path)[-1]
     if table_format == '.parquet':
         return pd.read_parquet(table_path, engine='fastparquet')
@@ -113,6 +143,20 @@ def read_table(workdir: str, table_name: str) -> pd.DataFrame:
 
 
 def write_table(table: pd.DataFrame, workdir: str, table_name: str) -> None:
+    """
+    Write a table to the correct location in the project directory
+
+    Args:
+        table: the pandas DataFrame to write
+        workdir: the path to the project directory
+        table_name: the name of the table to write
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: if the table format is not recognized
+    """
     table_path = get_table_path(workdir, table_name)
     table_format = os.path.splitext(table_path)[-1]
     if table_format == '.parquet':
@@ -134,8 +178,11 @@ def _find_model_files(workdir: str, n_clusters: int or Iterable = 'all') -> List
 
     Returns:
         List of paths to the kmeans model files
+
+    Raises:
+        TypeError: if n_clusters is not an int, iterable of int, or 'all'
     """
-    kmeans_dir = os.path.join(workdir, 'clusters')
+    kmeans_dir = os.path.join(workdir, dir_clusters)
     if n_clusters == 'all':
         return natsorted(glob.glob(os.path.join(kmeans_dir, 'kmeans-*.pickle')))
     elif isinstance(n_clusters, int):

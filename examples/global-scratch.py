@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import pandas as pd
 
 import saber
 
@@ -9,23 +10,25 @@ np.seterr(all="ignore")
 
 def workflow(workdir, hist_sim_nc, obs_data_dir, drain_gis, gauge_gis):
     # scaffold the project working directory
-    print("Scaffold the project working directory")
-    saber.io.scaffold_workdir(workdir)
+    logger.info('Scaffold project working directory')
+    # saber.io.scaffold_workdir(workdir)
 
     # Prepare input data
-    print('Prepare inputs')
-    saber.prep.gis_tables(workdir, drain_gis=drain_gis, gauge_gis=gauge_gis)
-    saber.prep.hindcast(workdir, hist_sim_nc, drop_order_1=True)
+    logger.info('Prepare input data')
+    # saber.prep.gis_tables(workdir, drain_gis=drain_gis, gauge_gis=gauge_gis)
+    # saber.prep.hindcast(workdir, hist_sim_nc, drop_order_1=True)
 
     # Generate clusters
-    print('Generate clusters')
-    saber.cluster.generate(workdir)
-    print('Summarize clusters')
+    logger.info('Generate Clusters')
+    saber.cluster.generate(workdir, x=x_fdc)
+    logger.info('Cluster Post-Processing and Metrics')
     saber.cluster.summarize_fit(workdir)
-    print('Plot silhouettes')
-    saber.cluster.plot_silhouette(workdir)
-    print('Plot clusters')
-    saber.cluster.plot_clusters(workdir)
+    saber.cluster.calc_silhouette(workdir, x=x_fdc, n_clusters=range(2, 8))
+    logger.info('Create Plots')
+    saber.cluster.plot_clusters(workdir, x=x_fdc)
+    saber.cluster.plot_silhouettes(workdir)
+    saber.cluster.plot_centers(workdir)
+    saber.cluster.plot_fit_metrics(workdir)
 
     # ALL COMPLETED ABOVE
 
@@ -55,6 +58,7 @@ def workflow(workdir, hist_sim_nc, obs_data_dir, drain_gis, gauge_gis):
     # vtab = saber.validate.gen_val_table(workdir)
     # saber.gis.validation_maps(workdir, gauge_shape, vtab)
 
+    logger.info('SABER Completed')
     return
 
 
@@ -102,15 +106,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.info('Reading prepared data')
-x_fdc = saber.io.read_table(workdir, 'hindcast_fdc_trans').values
+# x_fdc = saber.io.read_table(workdir, 'hindcast_fdc_trans').values
+x_fdc = pd.read_parquet('/Volumes/T7/geoglows_saber/Backups/hindcast_fdc_transformed_noord1.parquet').values
+
+# logger.info('Scaffold project working directory')
+# saber.io.scaffold_workdir(workdir)
+
+# logger.info('Prepare input data')
+# saber.prep.gis_tables(workdir, drain_gis=drain_gis, gauge_gis=gauge_gis)
+# saber.prep.hindcast(workdir, hist_sim_nc, drop_order_1=True)
+
 # Generate clusters
 logger.info('Generate Clusters')
 saber.cluster.generate(workdir, x=x_fdc)
-logger.info('Summarize Fit')
+
+logger.info('Cluster Post-Processing and Metrics')
 saber.cluster.summarize_fit(workdir)
-logger.info('Plot Clusters')
-saber.cluster.plot_clusters(workdir, x=x_fdc, n_clusters=range(2, 7))
-logger.info('Calculate Silhouettes')
-saber.cluster.calc_silhouette(workdir, x=x_fdc, n_clusters=(2, 7))
-logger.info('Plot Silhouette')
-saber.cluster.plot_silhouette(workdir)
+saber.cluster.calc_silhouette(workdir, x=x_fdc, n_clusters=range(2, 10))
+
+logger.info('Create Plots')
+saber.cluster.plot_clusters(workdir, x=x_fdc)
+saber.cluster.plot_silhouettes(workdir)
+saber.cluster.plot_centers(workdir)
+saber.cluster.plot_fit_metrics(workdir)
+
+logger.info('SABER Completed')
