@@ -3,22 +3,38 @@ from setuptools import setup
 with open("README.md", "r") as readme:
     long_description = readme.read()
 
-with open('requirements.txt', 'r') as req:
-    install_requires = req.read().splitlines()
-
-description = 'tools for bias correction on large hydrological models'
-version = '0.5.0'
+AUTHOR = 'Riley C. Hales'
+DESCRIPTION = 'The SABER tool for bias correcting large hydrologic models'
+VERSION = '0.5.0'
+PYTHON_REQUIRES = '>=3.10'
+INSTALL_REQUIRES = [
+    'contextily',
+    'geopandas',
+    'fastparquet',
+    'hydrostats',
+    'joblib',
+    'kneed',
+    'matplotlib',
+    'natsort',
+    'netCDF4',
+    'numba',
+    'numpy',
+    'pandas',
+    'pyarrow',
+    'requests',
+    'scikit-learn',
+    'scipy'
+]
 
 setup(
-    name='hydrosaber',
+    name='saber-hbc',
     packages=['saber', ],
-    version=version,
-    description=description,
+    version=VERSION,
+    description=DESCRIPTION,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author='Riley Hales',
+    author=AUTHOR,
     license='BSD 3-Clause',
-    license_family='BSD',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Programming Language :: Python :: 3',
@@ -30,6 +46,6 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
     ],
-    python_requires=">=3.10",
-    install_requires=install_requires
+    python_requires=PYTHON_REQUIRES,
+    install_requires=INSTALL_REQUIRES
 )

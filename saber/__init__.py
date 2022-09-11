@@ -13,6 +13,6 @@ __all__ = [
     'io', 'prep', 'cluster', 'assign', 'gis', 'validate',
 ]
 
-__author__ = 'Riley Hales'
+__author__ = 'Riley C. Hales'
 __version__ = '0.5.0'
 __license__ = 'BSD 3 Clause Clear'
