@@ -1,3 +1,5 @@
+import logging
+
 import pandas as pd
 
 from .io import asgn_gid_col
@@ -6,6 +8,8 @@ from .io import down_mid_col
 from .io import mid_col
 from .io import order_col
 from .io import reason_col
+
+logger = logging.getLogger(__name__)
 
 
 def walk_downstream(df: pd.DataFrame, start_id: int, same_order: bool = True, outlet_next_id: str or int = -1) -> tuple:
@@ -26,7 +30,8 @@ def walk_downstream(df: pd.DataFrame, start_id: int, same_order: bool = True, ou
 
     df_ = df.copy()
     if same_order:
-        df_ = df_[df_[order_col] == df_[df_[mid_col] == start_id][order_col].values[0]]
+        start_id_order = df_[df_[mid_col] == start_id][order_col].values[0]
+        df_ = df_[df_[order_col] == start_id_order]
 
     stream_row = df_[df_[mid_col] == start_id]
     while len(stream_row[down_mid_col].values) > 0 and stream_row[down_mid_col].values[0] != outlet_next_id:
@@ -97,16 +102,16 @@ def propagate_in_table(df: pd.DataFrame, start_mid: int, start_gid: int, connect
         if downstream_row[asgn_mid_col].empty or pd.isna(downstream_row[asgn_mid_col]).any():
             _df.loc[_df[mid_col] == segment_id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
                 [start_mid, start_gid, f'propagation-{direction}-{distance}']
-            print(f'assigned gauged stream {start_mid} to ungauged {direction} {segment_id}')
+            logger.info(f'assigned gauged stream {start_mid} to ungauged {direction} {segment_id}')
             continue
 
         # if the stream segment does have an assigned value, check the value to determine what to do
         else:
             downstream_reason = downstream_row[reason_col].values[0]
             if downstream_reason == 'gauged':
-                print('already gauged')
+                logger.info('already gauged')
             if 'propagation' in downstream_reason and int(str(downstream_reason).split('-')[-1]) >= distance:
                 _df.loc[_df[mid_col] == segment_id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
                     [start_mid, start_gid, f'propagation-{direction}-{distance}']
-                print(f'assigned gauged stream {start_mid} to previously assigned {direction} {segment_id}')
+                logger.info(f'assigned gauged stream {start_mid} to previously assigned {direction} {segment_id}')
     return _df

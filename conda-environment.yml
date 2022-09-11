@@ -6,6 +6,7 @@ dependencies:
   - python=3
   - contextily
   - geopandas
+  - fastparquet
   - hydrostats
   - joblib
   - kneed
@@ -17,4 +18,5 @@ dependencies:
   - pandas
   - pyarrow
   - requests
+  - scikit-learn
   - scipy

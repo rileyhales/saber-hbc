@@ -82,7 +82,7 @@ def hindcast(workdir: str, hind_nc_path: str, drop_order_1: bool = False) -> Non
     write_table(df, workdir, 'hindcast')
 
     # calculate the FDC and save to parquet
-    exceed_prob = np.linspace(0, 100, 101)[::-1]
+    exceed_prob = np.linspace(100, 0, 41)
     df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
     df.index = exceed_prob
     df.index.name = 'exceed_prob'

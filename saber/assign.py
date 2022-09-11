@@ -1,3 +1,4 @@
+import logging
 import os
 
 import joblib
@@ -17,6 +18,8 @@ from .io import reason_col
 from .io import write_table
 
 __all__ = ['gen', 'merge_clusters', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
+
+logger = logging.getLogger(__name__)
 
 
 def gen(workdir: str, cache: bool = True) -> pd.DataFrame:
@@ -139,7 +142,7 @@ def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
             ids_to_assign = c_so_sub[c_so_sub[asgn_mid_col].isna()][mid_col].values
             avail_assigns = c_so_sub[c_so_sub[asgn_mid_col].notna()]
             if ids_to_assign.size == 0 or avail_assigns.empty:
-                print(f'unable to assign cluster {c_num} to stream order {so_num}')
+                logger.error(f'unable to assign cluster {c_num} to stream order {so_num}')
                 continue
             # now you find the closest gauge to each unassigned
             for id in ids_to_assign:

@@ -1,19 +1,28 @@
-# Stream Analysis for Bias Estimation and Reduction
+# SABER Stream Analysis for Bias Estimation and Reduction
 
-## Theory
-Large scale hydrological models are often biased despite the best calibration efforts. Bias correction is a pre- or 
-post-processing step applied to the model's inputs or outputs to empirically alter datasets and improve model performance. 
-SABER is a bias correction post processor for discharge predictions. SABER builds on frequency matching ideas used in several 
-other methods that match biased predictions with observed data with corresponding exceedance probabilities; that is, 
-using the flow duration curve. SABER expands this approach to ungauged stream reaches using spatial analysis, clustering 
-(machine learning), and statistical refinements and a new concept- the scalar flow duration curve. 
+## Installation
+It is recommended `saber` be installed in its own virtual environment. Saber requires `python>=3.10`.
 
-## Python environment
+```bash
+pip install hydrosaber
+```
+
+## Example
+The theory for the SABER method is presented in this open access journal article https://doi.org/10.3390/hydrology9070113. 
+Be sure to read and understand the theory before using this code. This package is a series of functions that perform the 
+steps outlined in the paper. An example script is provided in `examples/example.py`.
+
+This package is configured to use `logging` at the `INFO` level to give status updates for longer processing steps.
+
+```python
+import logging
+logging.basicConfig(level=logging.INFO, filename='path/to/info.log')
+```
+
+## Dependencies
 See requirements.txt
 
-## Required Data/Inputs 
-You need the following data to follow this procedure. Geopackage format GIS data may be substituted with Shapefile or 
-equivalent formats that can be read by `geopandas`.
+## Required Data/Inputs
 1. Geopackage drainage Lines (usually delineated center lines) and catchments/subbasins (polygons) in the watershed. The 
    attribute tables for both should contain (at least) the following entries for each feature:
     - An identifier column (alphanumeric) labeled `model_id`
@@ -35,6 +44,14 @@ Things to check when preparing your data
 3. The GIS datasets should only contain gauges and reaches/subbasins within the area of interest. Clip/delete anything
    else. You might find it helpful to keep a watershed boundary geopackage.
 
+- `tables/`
+  - `model_id_list.parquet`
+  - `drain_table.parquet`
+  - `gauge_table.parquet`
+  - `hindcast_series.parquet`
+  - `hindcast_fdc.parquet`
+  - `hindcast_fdc_transformed.parquet`
+
 ## Process
 ### 1 Create a Working Directory
 
@@ -42,9 +59,8 @@ Your working directory should exactly like this.
 ```
 working_directory
     tables/
-    data_inputs/
-    kmeans_outputs/
-    gis_outputs/
+    clusters/
+    gis/
 ```
 
 ### 2 Prepare Spatial Data (scripts not provided)

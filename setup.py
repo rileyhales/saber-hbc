@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as req:
     install_requires = req.read().splitlines()
 
 description = 'tools for bias correction on large hydrological models'
-version = '0.4.0'
+version = '0.5.0'
 
 setup(
     name='hydrosaber',
@@ -30,6 +30,6 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
     ],
-    python_requires=">=3",
+    python_requires=">=3.10",
     install_requires=install_requires
 )
