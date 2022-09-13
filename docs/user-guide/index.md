@@ -1,6 +1,8 @@
 # User Guide
 
-We anticipate the primary usage of `saber-hbc` will be in scripts or workflows that process data in isolated environments, 
+While following this guide, you may also want to refer to the [API Documentation](../api).
+
+We anticipate the primary usage of `saber` will be in scripts or workflows that process data in isolated environments, 
 such as web servers or interactively in notebooks, rather than using the api in an app. The package's API is designed with 
 many modular, compartmentalized functions intending to create flexibility for running specific portions of the SABER process 
 or repeating certain parts if workflows fail or parameters need to be adjusted. 
@@ -20,3 +22,6 @@ logging.basicConfig(
     format='%(asctime)s: %(name)s - %(message)s'
 )
 ```
+
+## Example Script
+

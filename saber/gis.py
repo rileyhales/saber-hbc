@@ -182,15 +182,16 @@ def validation_maps(workdir: str, gauge_gis: str, val_table: pd.DataFrame = None
 
 def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> None:
     """
+    Creates a histogram of the KGE2012 values for the validation set
 
     Args:
-        gdf:
-        metric:
-        prct:
-        workdir:
+        gdf: a GeoDataFrame containing validation metrics
+        metric:name of th emetric to plot
+        prct: Percentile of the validation set used to generate the histogram
+        workdir: the project working directory
 
     Returns:
-
+        None
     """
     core_columns = [mid_col, gid_col, 'geometry']
     # world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))

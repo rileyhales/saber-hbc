@@ -7,7 +7,10 @@ repo_url: https://github.com/rileyhales/saber-hbc/
 theme: material
 nav:
   - Home: index.md
-  - Required Datasets: data/index.md
+  - Required Datasets:
+      - Summary: data/index.md
+      - GIS Datasets: data/gis-data.md
+      - Discharge Datasets: data/discharge-data.md
   - User Guide:
       - Using SABER: user-guide/index.md
       - Data Preparation: user-guide/data_preparation.md
@@ -17,5 +20,15 @@ nav:
       - Bias Correction: user-guide/bias_correction.md
       - Validation: user-guide/validation.md
   - Demonstration: demo/index.md
-  - API Docs: api/index.md
+  - API Docs:
+      - API Reference: api/index.md
+      - saber.prep: api/prep.md
+      - saber.cluster: api/cluster.md
+      - saber.assign: api/assign.md
+      - saber.gis: api/gis.md
+      - saber.validate: api/validate.md
   - Cite SABER: cite/index.md
+
+plugins:
+  - search
+  - mkdocstrings

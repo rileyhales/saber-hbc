@@ -1,0 +1,3 @@
+# `saber.validate`
+
+::: saber.validate
