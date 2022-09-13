@@ -9,6 +9,7 @@ from natsort import natsorted
 # assign table and gis_input file required column names
 mid_col = 'model_id'
 gid_col = 'gauge_id'
+clbl_col = 'cluster_label'
 asgn_mid_col = 'assigned_model_id'
 asgn_gid_col = 'assigned_gauge_id'
 down_mid_col = 'downstream_model_id'
