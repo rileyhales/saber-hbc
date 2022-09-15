@@ -102,16 +102,14 @@ def propagate_in_table(df: pd.DataFrame, start_mid: int, start_gid: int, connect
         if downstream_row[asgn_mid_col].empty or pd.isna(downstream_row[asgn_mid_col]).any():
             _df.loc[_df[mid_col] == segment_id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
                 [start_mid, start_gid, f'propagation-{direction}-{distance}']
-            logger.info(f'assigned gauged stream {start_mid} to ungauged {direction} {segment_id}')
             continue
 
         # if the stream segment does have an assigned value, check the value to determine what to do
         else:
             downstream_reason = downstream_row[reason_col].values[0]
             if downstream_reason == 'gauged':
-                logger.info('already gauged')
+                break
             if 'propagation' in downstream_reason and int(str(downstream_reason).split('-')[-1]) >= distance:
                 _df.loc[_df[mid_col] == segment_id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
                     [start_mid, start_gid, f'propagation-{direction}-{distance}']
-                logger.info(f'assigned gauged stream {start_mid} to previously assigned {direction} {segment_id}')
     return _df

@@ -27,6 +27,8 @@ dir_gis = 'gis'
 dir_clusters = 'clusters'
 dir_valid = 'validation'
 
+# assignment_reasons
+
 # name of the required input tables and the outputs
 table_hindcast = 'hindcast.parquet'
 table_hindcast_fdc = 'hindcast_fdc.parquet'

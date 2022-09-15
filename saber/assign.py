@@ -43,6 +43,10 @@ def generate(workdir: str, labels_df: pd.DataFrame = None, drain_table: pd.DataF
     if gauge_table is None:
         gauge_table = read_table(workdir, 'gauge_table')
 
+    labels_df[mid_col] = labels_df[mid_col].astype(str)
+    drain_table[mid_col] = drain_table[mid_col].astype(str)
+    gauge_table[mid_col] = gauge_table[mid_col].astype(str)
+
     # join the drain_table and gauge_table then join the labels_df
     assign_table = pd.merge(
         drain_table,
@@ -82,26 +86,32 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
 
 def assign_propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
     """
+    Assigns basins a gauge for correction by propagating upstream and downstream
 
     Args:
         df: the assignments table dataframe
         max_prop: the max number of stream segments to propagate downstream
 
     Returns:
-        Copy of df with assignments made
+        df with assignments made
     """
-    _df = df.copy()
-    for gauged_stream in _df.loc[~_df[gid_col].isna(), mid_col]:
-        subset = _df.loc[_df[mid_col] == gauged_stream, gid_col]
+    logger.info('Assigning basins by hydraulic connectivity')
+    for gauged_stream in df.loc[~df[gid_col].isna(), mid_col]:
+        logger.info(f'Propagating from {gauged_stream}')
+        subset = df.loc[df[mid_col] == gauged_stream, gid_col]
         if subset.empty:
             continue
         start_gid = subset.values[0]
         connected_segments = walk_upstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'upstream')
+        df = propagate_in_table(df, gauged_stream, start_gid, connected_segments, max_prop, 'upstream')
         connected_segments = walk_downstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'downstream')
+        df = propagate_in_table(df, gauged_stream, start_gid, connected_segments, max_prop, 'downstream')
 
-    return _df
+    n_assign_upstream = df[reason_col].apply(lambda x: x.startswith("propagation_up")).sum()
+    n_assign_downstream = df[reason_col].apply(lambda x: x.startswith("propagation_down")).sum()
+    logger.info(f'{n_assign_upstream} subbasins assigned by propagation upstream')
+    logger.info(f'{n_assign_downstream} subbasins assigned by propagation downstream')
+    return df
 
 
 def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
