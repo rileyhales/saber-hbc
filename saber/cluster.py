@@ -15,15 +15,18 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
 from .io import _find_model_files
+from .io import clbl_col
+from .io import mid_col
 from .io import read_table
 from .io import write_table
 
-__all__ = ['generate', 'summarize_fit', 'plot_clusters', 'calc_silhouette', 'plot_silhouettes']
+__all__ = ['cluster', 'predict_labels', 'summarize_fit', 'plot_clusters', 'calc_silhouette', 'plot_silhouettes',
+           'plot_fit_metrics', 'plot_centers', ]
 
 logger = logging.getLogger(__name__)
 
 
-def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
+def cluster(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
     """
     Trains scikit-learn MiniBatchKMeans models and saves as pickle
 
@@ -45,6 +48,27 @@ def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     return
+
+
+def predict_labels(workdir: str, n_clusters: int, x: pd.DataFrame) -> pd.DataFrame:
+    """
+    Predict the cluster labels for a set number of FDCs
+
+    Args:
+        workdir: path to the project directory
+        n_clusters: number of cluster model to use for prediction
+        x: A dataframe with 1 row per FDC (stream) and 1 column per FDC value. Index is the stream's ID.
+
+    Returns:
+        None
+    """
+    model = joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
+    labels_df = pd.DataFrame(
+        np.transpose([model.predict(x.values), x.index]),
+        columns=[clbl_col, mid_col]
+    )
+    write_table(labels_df, workdir, 'cluster_labels')
+    return labels_df
 
 
 def summarize_fit(workdir: str) -> None:
@@ -83,10 +107,6 @@ def summarize_fit(workdir: str) -> None:
     sum_df['knee'] = KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
     write_table(sum_df, workdir, 'cluster_metrics')
 
-    # save the labels as a parquet
-    labels = np.transpose(np.array(labels))
-    write_table(pd.DataFrame(labels, columns=np.array(range(2, labels.shape[1] + 2)).astype(str)),
-                workdir, 'cluster_labels')
     return
 
 

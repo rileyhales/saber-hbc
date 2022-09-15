@@ -1,7 +1,5 @@
 import logging
-import os
 
-import joblib
 import numpy as np
 import pandas as pd
 
@@ -17,29 +15,41 @@ from .io import read_table
 from .io import reason_col
 from .io import write_table
 
-__all__ = ['gen', 'merge_clusters', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
+__all__ = ['generate', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
 
 logger = logging.getLogger(__name__)
 
 
-def gen(workdir: str, cache: bool = True) -> pd.DataFrame:
+def generate(workdir: str, labels_df: pd.DataFrame = None, drain_table: pd.DataFrame = None,
+             gauge_table: pd.DataFrame = None, cache: bool = True) -> pd.DataFrame:
     """
     Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
 
     Args:
         workdir: path to the working directory
         cache: whether to cache the assign table immediately
+        labels_df: a dataframe with a column for the assigned cluster label and a column for the model_id
+        drain_table: the drain table dataframe
+        gauge_table: the gauge table dataframe
 
     Returns:
         None
     """
-    # read and merge the tables
+    # read the tables if they are not provided
+    if labels_df is None:
+        labels_df = read_table(workdir, 'cluster_labels')
+    if drain_table is None:
+        drain_table = read_table(workdir, 'drain_table')
+    if gauge_table is None:
+        gauge_table = read_table(workdir, 'gauge_table')
+
+    # join the drain_table and gauge_table then join the labels_df
     assign_table = pd.merge(
-        read_table(workdir, 'drain_table'),
-        read_table(workdir, 'gauge_table'),
+        drain_table,
+        gauge_table,
         on=mid_col,
         how='outer'
-    )
+    ).merge(labels_df, on=mid_col, how='outer')
 
     # create the new columns
     assign_table[asgn_mid_col] = np.nan
@@ -50,29 +60,6 @@ def gen(workdir: str, cache: bool = True) -> pd.DataFrame:
         write_table(assign_table, workdir, 'assign_table')
 
     return assign_table
-
-
-def merge_clusters(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) -> pd.DataFrame:
-    """
-    Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
-    to assign_table.csv
-
-    Args:
-        workdir: path to the project directory
-        assign_table: the assignment table DataFrame
-        n_clusters: number of clusters to use when applying the labels to the assign_table
-
-    Returns:
-        None
-    """
-    # create a dataframe with the optimal model's labels and the model_id's
-    df = pd.DataFrame({
-        'cluster': joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle')).labels_,
-        mid_col: read_table(workdir, 'model_ids').values.flatten()
-    }, dtype=str)
-
-    # merge the dataframes
-    return assign_table.merge(df, how='outer', on=mid_col)
 
 
 def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
