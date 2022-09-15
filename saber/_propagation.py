@@ -1,115 +1,78 @@
+import datetime
 import logging
+from multiprocessing import Pool
 
 import pandas as pd
 
-from .io import asgn_gid_col
-from .io import asgn_mid_col
-from .io import down_mid_col
-from .io import mid_col
-from .io import order_col
-from .io import reason_col
+from saber.io import mid_col, gid_col, reason_col, order_col, down_mid_col, asgn_mid_col, asgn_gid_col
 
 logger = logging.getLogger(__name__)
 
 
-def walk_downstream(df: pd.DataFrame, start_id: int, same_order: bool = True, outlet_next_id: str or int = -1) -> tuple:
-    """
-    Traverse a stream network table containing a column of unique ids, a column of the id for the stream/basin
-    downstream of that point, and, optionally, a column containing the stream order.
-
-    Args:
-        df (pd.DataFrame):
-        start_id (int):
-        same_order (bool):
-        outlet_next_id (str or int):
-
-    Returns:
-        Tuple of stream ids in the order they come from the starting point.
-    """
-    downstream_ids = []
-
-    df_ = df.copy()
-    if same_order:
-        start_id_order = df_[df_[mid_col] == start_id][order_col].values[0]
-        df_ = df_[df_[order_col] == start_id_order]
-
-    stream_row = df_[df_[mid_col] == start_id]
-    while len(stream_row[down_mid_col].values) > 0 and stream_row[down_mid_col].values[0] != outlet_next_id:
-        downstream_ids.append(stream_row[down_mid_col].values[0])
-        stream_row = df_[df_[mid_col] == stream_row[down_mid_col].values[0]]
-        if len(stream_row) == 0:
-            break
-    return tuple(downstream_ids)
+def map_assign_down(start_mid: int) -> pd.DataFrame:
+    return map_assign_propagation(start_mid, 'downstream')
 
 
-def walk_upstream(df: pd.DataFrame, start_id: int, same_order: bool = True) -> tuple:
-    """
-    Traverse a stream network table containing a column of unique ids, a column of the id for the stream/basin
-    downstream of that point, and, optionally, a column containing the stream order.
-
-    Args:
-        df (pd.DataFrame): the assign_table df
-        start_id (int): that id to start on
-        same_order (bool): select upstream segments only on the same order stream
-
-    Returns:
-        Tuple of stream ids in the order they come from the starting point. If you chose same_order = False, the
-        streams will appear in order on each upstream branch but the various branches will appear mixed in the tuple in
-        the order they were encountered by the iterations.
-    """
-    df_ = df.copy()
-    if same_order:
-        df_ = df_[df_[order_col] == df_[df_[mid_col] == start_id][order_col].values[0]]
-
-    # start a list of the upstream ids
-    upstream_ids = [start_id, ]
-    upstream_rows = df_[df_[down_mid_col] == start_id]
-
-    while not upstream_rows.empty or len(upstream_rows) > 0:
-        if len(upstream_rows) == 1:
-            upstream_ids.append(upstream_rows[mid_col].values[0])
-            upstream_rows = df_[df_[down_mid_col] == upstream_rows[mid_col].values[0]]
-        elif len(upstream_rows) > 1:
-            for id in upstream_rows[mid_col].values.tolist():
-                upstream_ids += list(walk_upstream(df_, id, False))
-                upstream_rows = df_[df_[down_mid_col] == id]
-    return tuple(set(upstream_ids))
+def map_assign_up(start_mid: int) -> pd.DataFrame:
+    return map_assign_propagation(start_mid, 'upstream')
 
 
-def propagate_in_table(df: pd.DataFrame, start_mid: int, start_gid: int, connected: tuple, max_prop: int,
-                       direction: str):
-    """
+def map_assign_propagation(start_mid: int, direction: str) -> pd.DataFrame:
+    df = pd.read_parquet('assign_table_slim.parquet', engine='fastparquet')
+    start_id_order = df[df[mid_col] == start_mid][order_col].values[0]
+    df = df[df[order_col] == start_id_order]
 
-    Args:
-        df: the assign_table df
-        start_mid: the model_id of the stream to start at
-        connected: a list of stream segments, up- or downstream from the gauged_stream, in the order they come
-        max_prop: max number of stream segments to propagate up/downstream
-        direction: either "upstream" or "downstream"
+    stream_row = df[df[mid_col] == start_mid]
+    start_gid = stream_row[asgn_gid_col].values[0]
 
-    Returns:
-        df
-    """
-    _df = df.copy()
+    n_steps = 1
 
-    for index, segment_id in enumerate(connected):
-        distance = index + 1
-        if distance > max_prop:
-            continue
-        downstream_row = _df[_df[mid_col] == segment_id]
+    while len(stream_row):
 
-        # if the downstream segment doesn't have an assigned gauge, we're going to assign the current one
-        if downstream_row[asgn_mid_col].empty or pd.isna(downstream_row[asgn_mid_col]).any():
-            _df.loc[_df[mid_col] == segment_id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
-                [start_mid, start_gid, f'propagation-{direction}-{distance}']
-            continue
+        df.loc[df[mid_col] == stream_row[down_mid_col].values[0], [asgn_mid_col, asgn_gid_col, reason_col]] = \
+            [start_mid, start_gid, f'propagation-downstream-{n_steps}']
 
-        # if the stream segment does have an assigned value, check the value to determine what to do
+        if direction == 'downstream':
+            stream_row = df[df[mid_col] == stream_row[down_mid_col].values[0]]
+        elif direction == 'upstream':
+            stream_row = df[df[down_mid_col] == stream_row[mid_col].values[0]]
         else:
-            downstream_reason = downstream_row[reason_col].values[0]
-            if downstream_reason == 'gauged':
-                break
-            if 'propagation' in downstream_reason and int(str(downstream_reason).split('-')[-1]) >= distance:
-                _df.loc[_df[mid_col] == segment_id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
-                    [start_mid, start_gid, f'propagation-{direction}-{distance}']
-    return _df
+            raise ValueError(f'Direction should be "upstream" or "downstream", not {direction}')
+
+        n_steps += 1
+
+        # repeat while the next downstream is not -1 (outlet)
+        if len(stream_row) == 0 or stream_row[down_mid_col].values[0] == -1:
+            break
+    return df[df[asgn_mid_col] == start_mid]
+
+
+# if __name__ == '__main__':
+#     df = pd.read_parquet('assign_table_slim.parquet', engine='fastparquet')
+#     df = df.sort_values(by=mid_col)
+#
+#     # todo use starmap to pass pointer to df, only copies sections if needed to reduce memory and read times
+#     # todo test mapping speeds
+#     # todo test memory usage
+#     # todo documentation
+#
+#     gauged_mids = df.loc[df[gid_col].notna(), mid_col]
+#
+#     t1 = datetime.datetime.now()
+#     with Pool(18) as p:
+#         df_prop_down = pd.concat(p.map(map_assign_down, gauged_mids))
+#         df_prop_up = pd.concat(p.map(map_assign_up, gauged_mids))
+#     t2 = datetime.datetime.now()
+#     print(f'Parallel processing took {(t2 - t1).total_seconds() / 60} minutes')
+#
+#     df_prop_down = df_prop_down.sort_values(by=mid_col)
+#     df_prop_up = df_prop_up.sort_values(by=mid_col)
+#
+#     df_prop_down.to_parquet('assign_table_prop_down.parquet', engine='fastparquet')
+#     df_prop_up.to_parquet('assign_table_prop_up.parquet', engine='fastparquet')
+#
+#     df.loc[df[mid_col].isin(df_prop_up[mid_col]), [asgn_mid_col, asgn_gid_col, reason_col]] = \
+#         df_prop_up[[asgn_mid_col, asgn_gid_col, reason_col]]
+#
+#     df.loc[df[mid_col].isin(df_prop_down[mid_col]), [asgn_mid_col, asgn_gid_col, reason_col]] = \
+#         df_prop_down[[asgn_mid_col, asgn_gid_col, reason_col]]

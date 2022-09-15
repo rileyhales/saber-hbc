@@ -110,7 +110,7 @@ def summarize_fit(workdir: str) -> None:
     return
 
 
-def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = 'all', samples: int = 100_000) -> None:
+def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = 'all', samples: int = 75_000) -> None:
     """
     Calculate the silhouette score for the given number of clusters
 
