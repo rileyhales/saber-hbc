@@ -3,11 +3,9 @@ import logging
 import numpy as np
 import pandas as pd
 
-from ._propagation import propagate_in_table
-from ._propagation import walk_downstream
-from ._propagation import walk_upstream
 from .io import asgn_gid_col
 from .io import asgn_mid_col
+from .io import down_mid_col
 from .io import gid_col
 from .io import mid_col
 from .io import order_col
@@ -15,7 +13,7 @@ from .io import read_table
 from .io import reason_col
 from .io import write_table
 
-__all__ = ['generate', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
+__all__ = ['generate', 'assign_gauged', 'map_propagation', 'assign_by_distance', ]
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ def generate(workdir: str, labels_df: pd.DataFrame = None, drain_table: pd.DataF
         gauge_table: the gauge table dataframe
 
     Returns:
-        None
+        pd.DataFrame
     """
     # read the tables if they are not provided
     if labels_df is None:
@@ -74,43 +72,64 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
         df: the assignments table dataframe
 
     Returns:
-        Copy of df with assignments made
+        Copy of df1 with assignments made
     """
-    _df = df.copy()
-    selector = ~_df[gid_col].isna()
-    _df.loc[selector, asgn_mid_col] = _df[mid_col]
-    _df.loc[selector, asgn_gid_col] = _df[gid_col]
-    _df.loc[selector, reason_col] = 'gauged'
-    return _df
+    selector = df[gid_col].notna()
+    df.loc[selector, asgn_mid_col] = df[mid_col]
+    df.loc[selector, asgn_gid_col] = df[gid_col]
+    df.loc[selector, reason_col] = 'gauged'
+    return df
 
 
-def assign_propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
+def map_propagation(df: pd.DataFrame, start_mid: int, direction: str) -> pd.DataFrame:
+    logger.info(f'Propagating {direction} from {start_mid}')
+    start_id_order = df[df[mid_col] == start_mid][order_col].values[0]
+    df_cp = df[df[order_col] == start_id_order].copy()
+
+    stream_row = df_cp[df_cp[mid_col] == start_mid]
+    start_gid = stream_row[asgn_gid_col].values[0]
+
+    n_steps = 1
+
+    while len(stream_row):
+        df_cp.loc[df_cp[mid_col] == stream_row[down_mid_col].values[0], [asgn_mid_col, asgn_gid_col, reason_col]] = \
+            [start_mid, start_gid, f'propagation-downstream-{n_steps}']
+
+        if direction == 'down':
+            stream_row = df_cp[df_cp[mid_col] == stream_row[down_mid_col].values[0]]
+        elif direction == 'up':
+            stream_row = df_cp[df_cp[down_mid_col] == stream_row[mid_col].values[0]]
+        else:
+            raise ValueError(f'Direction should be "up" or "down", not {direction}')
+
+        n_steps += 1
+
+        # repeat while the next downstream is not -1 (outlet)
+        if len(stream_row) == 0 or stream_row[down_mid_col].values[0] == -1:
+            break
+    return df_cp[df_cp[asgn_mid_col] == start_mid]
+
+
+def resolve_propagation(df: pd.DataFrame, df_prop_down: pd.DataFrame, df_prop_up: pd.DataFrame) -> pd.DataFrame:
     """
-    Assigns basins a gauge for correction by propagating upstream and downstream
+    Resolves the propagation assignments by choosing the assignment with the fewest steps
 
     Args:
         df: the assignments table dataframe
-        max_prop: the max number of stream segments to propagate downstream
+        df_prop_down: the downstream propagation assignments dataframe
+        df_prop_up: the upstream propagation assignments dataframe
 
     Returns:
-        df with assignments made
+        pd.DataFrame
     """
-    logger.info('Assigning basins by hydraulic connectivity')
-    for gauged_stream in df.loc[~df[gid_col].isna(), mid_col]:
-        logger.info(f'Propagating from {gauged_stream}')
-        subset = df.loc[df[mid_col] == gauged_stream, gid_col]
-        if subset.empty:
-            continue
-        start_gid = subset.values[0]
-        connected_segments = walk_upstream(df, gauged_stream, same_order=True)
-        df = propagate_in_table(df, gauged_stream, start_gid, connected_segments, max_prop, 'upstream')
-        connected_segments = walk_downstream(df, gauged_stream, same_order=True)
-        df = propagate_in_table(df, gauged_stream, start_gid, connected_segments, max_prop, 'downstream')
+    df_prop_down = df_prop_down.sort_values(by=mid_col)
+    df_prop_up = df_prop_up.sort_values(by=mid_col)
 
-    n_assign_upstream = df[reason_col].apply(lambda x: x.startswith("propagation_up")).sum()
-    n_assign_downstream = df[reason_col].apply(lambda x: x.startswith("propagation_down")).sum()
-    logger.info(f'{n_assign_upstream} subbasins assigned by propagation upstream')
-    logger.info(f'{n_assign_downstream} subbasins assigned by propagation downstream')
+    df.loc[df[mid_col].isin(df_prop_up[mid_col]), [asgn_mid_col, asgn_gid_col, reason_col]] = \
+        df_prop_up[[asgn_mid_col, asgn_gid_col, reason_col]].values
+
+    df.loc[df[mid_col].isin(df_prop_down[mid_col]), [asgn_mid_col, asgn_gid_col, reason_col]] = \
+        df_prop_down[[asgn_mid_col, asgn_gid_col, reason_col]].values
     return df
 
 
@@ -125,12 +144,11 @@ def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
         df: the assignments table dataframe
 
     Returns:
-        Copy of df with assignments made
+        df with assignments made
     """
-    _df = df.copy()
     # first filter by cluster number
-    for c_num in sorted(set(_df['sim-fdc-cluster'].values)):
-        c_sub = _df[_df['sim-fdc-cluster'] == c_num]
+    for c_num in sorted(set(df['sim-fdc-cluster'].values)):
+        c_sub = df[df['sim-fdc-cluster'] == c_num]
         # next filter by stream order
         for so_num in sorted(set(c_sub[order_col])):
             c_so_sub = c_sub[c_sub[order_col] == so_num]
@@ -142,8 +160,8 @@ def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
                 logger.error(f'unable to assign cluster {c_num} to stream order {so_num}')
                 continue
             # now you find the closest gauge to each unassigned
-            for id in ids_to_assign:
-                subset = c_so_sub.loc[c_so_sub[mid_col] == id, ['x', 'y']]
+            for mid in ids_to_assign:
+                subset = c_so_sub.loc[c_so_sub[mid_col] == mid, ['x', 'y']]
 
                 dx = avail_assigns.x.values - subset.x.values
                 dy = avail_assigns.y.values - subset.y.values
@@ -153,7 +171,7 @@ def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
                 mid_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_model_id
                 gid_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_gauge_id
 
-                _df.loc[_df[mid_col] == id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
+                df.loc[df[mid_col] == mid, [asgn_mid_col, asgn_gid_col, reason_col]] = \
                     [mid_to_assign, gid_to_assign, f'cluster-{c_num}-dist']
 
-    return _df
+    return df
