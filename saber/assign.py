@@ -13,7 +13,7 @@ from .io import read_table
 from .io import reason_col
 from .io import write_table
 
-__all__ = ['generate', 'assign_gauged', 'map_propagation', 'assign_by_distance', ]
+__all__ = ['generate', 'assign_gauged', 'map_propagation', 'resolve_propagation', 'assign_by_distance', ]
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,18 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def map_propagation(df: pd.DataFrame, start_mid: int, direction: str) -> pd.DataFrame:
-    logger.info(f'Propagating {direction} from {start_mid}')
+    """
+    Meant to be mapped over a dataframe to propagate assignments downstream or upstream
+
+    Args:
+        df: the assignments table dataframe
+        start_mid: the model_id to start the propagation from
+        direction: either 'down' or 'up' to indicate the direction of propagation
+
+    Returns:
+        pd.DataFrame
+    """
+    # todo append rows to new df instead of copying and filtering
     start_id_order = df[df[mid_col] == start_mid][order_col].values[0]
     df_cp = df[df[order_col] == start_id_order].copy()
 
@@ -122,6 +133,8 @@ def resolve_propagation(df: pd.DataFrame, df_prop_down: pd.DataFrame, df_prop_up
     Returns:
         pd.DataFrame
     """
+    # todo correctly resolve
+    # todo log the number of resolved assignments
     df_prop_down = df_prop_down.sort_values(by=mid_col)
     df_prop_up = df_prop_up.sort_values(by=mid_col)
 
