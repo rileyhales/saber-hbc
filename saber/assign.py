@@ -93,32 +93,40 @@ def map_propagation(df: pd.DataFrame, start_mid: int, direction: str) -> pd.Data
     Returns:
         pd.DataFrame
     """
-    # todo append rows to new df instead of copying and filtering
+    assigned_rows = []
     start_id_order = df[df[mid_col] == start_mid][order_col].values[0]
-    df_cp = df[df[order_col] == start_id_order].copy()
 
-    stream_row = df_cp[df_cp[mid_col] == start_mid]
+    # select the starting row
+    stream_row = df[df[mid_col] == start_mid]
     start_gid = stream_row[asgn_gid_col].values[0]
+    same_order_streams_selector = df[order_col] == start_id_order
 
     n_steps = 1
 
     while len(stream_row):
-        df_cp.loc[df_cp[mid_col] == stream_row[down_mid_col].values[0], [asgn_mid_col, asgn_gid_col, reason_col]] = \
-            [start_mid, start_gid, f'propagation-downstream-{n_steps}']
-
         if direction == 'down':
-            stream_row = df_cp[df_cp[mid_col] == stream_row[down_mid_col].values[0]]
+            stream_row = df[np.logical_and(
+                df[mid_col] == stream_row[down_mid_col].values[0],
+                same_order_streams_selector
+            )]
         elif direction == 'up':
-            stream_row = df_cp[df_cp[down_mid_col] == stream_row[mid_col].values[0]]
+            stream_row = df[np.logical_and(
+                df[down_mid_col] == stream_row[mid_col].values[0],
+                same_order_streams_selector
+            )]
         else:
             raise ValueError(f'Direction should be "up" or "down", not {direction}')
+
+        new_row = stream_row.copy()
+        new_row[[asgn_mid_col, asgn_gid_col, reason_col]] = [start_mid, start_gid, f'prop-{direction}-{n_steps}']
+        assigned_rows.append(new_row)
 
         n_steps += 1
 
         # repeat while the next downstream is not -1 (outlet)
         if len(stream_row) == 0 or stream_row[down_mid_col].values[0] == -1:
             break
-    return df_cp[df_cp[asgn_mid_col] == start_mid]
+    return pd.concat(assigned_rows)
 
 
 def resolve_propagation(df: pd.DataFrame, df_prop_down: pd.DataFrame, df_prop_up: pd.DataFrame) -> pd.DataFrame:
