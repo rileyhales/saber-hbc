@@ -384,6 +384,8 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
 
     df = read_table(workdir, 'cluster_metrics')
     df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
+    df['number'] = df['number'].astype(int)
+    df.loc[df['silhouette'].isna(), 'silhouette'] = ''
 
     # initialize the figure and labels
     fig, ax1 = plt.subplots(
@@ -405,7 +407,7 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
     ax2.set_ylim(0, 1)
 
     # plot the inertia
-    knee = df['knee'].values[0]
+    knee = int(df['knee'].values[0])
     ax1.plot(df['number'], df['inertia'], marker='o', label='Inertia')
     ax1.plot(knee, df[df['number'] == knee]['inertia'], marker='o', c='red', label='Knee')
     ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')
