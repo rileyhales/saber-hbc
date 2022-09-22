@@ -162,7 +162,6 @@ def map_resolve_propagations(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame
     """
-    logger.info(f'Reduce props for {mid}')
     df_mid = df_props[df_props[mid_col] == mid].copy()
     # parse the reason statement into number of steps and prop up or downstream
     df_mid[['direction', 'n_steps']] = pd.DataFrame(

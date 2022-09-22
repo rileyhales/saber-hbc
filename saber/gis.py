@@ -1,5 +1,5 @@
 import os
-import warnings
+import logging
 
 import contextily as cx
 import geopandas as gpd
@@ -12,9 +12,13 @@ from .io import gid_col
 from .io import metric_nc_name_list
 from .io import mid_col
 from .io import reason_col
+from .io import dir_gis
+from .io import clbl_col
 
 __all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
            'validation_maps']
+
+logger = logging.getLogger(__name__)
 
 
 def generate_all(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
@@ -37,13 +41,13 @@ def generate_all(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefi
     return
 
 
-def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def clip_by_assignment(workdir: str, assign_df: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs for each unique value in the assignment column
 
     Args:
         workdir: the path to the working directory for the project
-        assign_table: the assign_table dataframe
+        assign_df: the assign_table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
 
@@ -51,18 +55,20 @@ def clip_by_assignment(workdir: str, assign_table: pd.DataFrame, drain_gis: str,
         None
     """
     # read the drainage line shapefile
-    dl = gpd.read_file(drain_gis)
-    save_dir = os.path.join(workdir, 'gis')
+    if isinstance(drain_gis, str):
+        drain_gis = gpd.read_file(drain_gis)
 
     # get the unique list of assignment reasons
-    for reason in set(assign_table[reason_col].dropna().values):
-        ids = assign_table[assign_table[reason_col] == reason][mid_col].values
-        subset = dl[dl[mid_col].isin(ids)]
-        name = f'{prefix}{"_" if prefix else ""}assignments_{reason}.gpkg'
+    for reason in assign_df[reason_col].unique():
+        logger.info(f'Creating GIS output for group: {reason}')
+        selector = drain_gis[mid_col].astype(str).isin(assign_df[assign_df[reason_col] == reason][mid_col])
+        subset = drain_gis[selector]
+        name = f'{f"{prefix}_" if prefix else ""}assignments_{reason}.gpkg'
         if subset.empty:
+            logger.debug(f'Empty filter: No streams are assigned for {reason}')
             continue
         else:
-            subset.to_file(os.path.join(save_dir, name))
+            subset.to_file(os.path.join(workdir, dir_gis, name))
     return
 
 
@@ -79,12 +85,15 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, pr
     Returns:
         None
     """
-    dl_gdf = gpd.read_file(drain_gis)
-    for num in sorted(set(assign_table[mid_col].dropna().values)):
-        gdf = dl_gdf[dl_gdf[mid_col].isin(assign_table[assign_table[mid_col] == num][mid_col])]
+    if isinstance(drain_gis, str):
+        drain_gis = gpd.read_file(drain_gis)
+    for num in assign_table[clbl_col].unique():
+        logger.info(f'Creating GIS output for cluster: {num}')
+        gdf = drain_gis[drain_gis[mid_col].astype(str).isin(assign_table[assign_table[clbl_col] == num][mid_col])]
         if gdf.empty:
+            logger.debug(f'Empty filter: No streams are assigned to cluster {num}')
             continue
-        gdf.to_file(os.path.join(workdir, 'gis', f'{prefix}{"_" if prefix else ""}-{int(num)}.gpkg'))
+        gdf.to_file(os.path.join(workdir, dir_gis, f'{prefix}{"_" if prefix else ""}cluster-{int(num)}.gpkg'))
     return
 
 
@@ -101,13 +110,15 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str,
     Returns:
         None
     """
-    dl_gdf = gpd.read_file(drain_gis)
-    ids = assign_table[assign_table[reason_col].isna()][mid_col].values
-    subset = dl_gdf[dl_gdf[mid_col].isin(ids)]
+    logger.info('Creating GIS output for unassigned basins')
+    if isinstance(drain_gis, str):
+        drain_gis = gpd.read_file(drain_gis)
+    ids = assign_table[assign_table[reason_col] == 'unassigned'][mid_col].values
+    subset = drain_gis[drain_gis[mid_col].astype(str).isin(ids)]
     if subset.empty:
-        warnings.warn('Empty filter: No streams are unassigned')
+        logger.debug('Empty filter: No streams are unassigned')
         return
-    savepath = os.path.join(workdir, 'gis', f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
+    savepath = os.path.join(workdir, dir_gis, f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
     subset.to_file(savepath)
     return
 
@@ -126,10 +137,10 @@ def clip_by_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_co
     Returns:
         None
     """
-    dl = gpd.read_file(drain_gis)
-    save_dir = os.path.join(workdir, 'gis')
+    if isinstance(drain_gis, str):
+        drain_gis = gpd.read_file(drain_gis)
     name = f'{prefix}{"_" if prefix else ""}id_subset.gpkg'
-    dl[dl[id_column].isin(ids)].to_file(os.path.join(save_dir, name))
+    drain_gis[drain_gis[id_column].isin(ids)].to_file(os.path.join(workdir, dir_gis, name))
     return
 
 
