@@ -15,15 +15,19 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
 from .io import _find_model_files
+from .io import clbl_col
+from .io import mid_col
+from .io import get_table_path
 from .io import read_table
 from .io import write_table
 
-__all__ = ['generate', 'summarize_fit', 'plot_clusters', 'calc_silhouette', 'plot_silhouettes']
+__all__ = ['cluster', 'predict_labels', 'summarize_fit', 'plot_clusters', 'calc_silhouette', 'plot_silhouettes',
+           'plot_fit_metrics', 'plot_centers', ]
 
 logger = logging.getLogger(__name__)
 
 
-def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
+def cluster(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
     """
     Trains scikit-learn MiniBatchKMeans models and saves as pickle
 
@@ -45,6 +49,27 @@ def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None
         kmeans.fit_predict(x)
         joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     return
+
+
+def predict_labels(workdir: str, n_clusters: int, x: pd.DataFrame) -> pd.DataFrame:
+    """
+    Predict the cluster labels for a set number of FDCs
+
+    Args:
+        workdir: path to the project directory
+        n_clusters: number of cluster model to use for prediction
+        x: A dataframe with 1 row per FDC (stream) and 1 column per FDC value. Index is the stream's ID.
+
+    Returns:
+        None
+    """
+    model = joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
+    labels_df = pd.DataFrame(
+        np.transpose([model.predict(x.values), x.index]),
+        columns=[clbl_col, mid_col]
+    )
+    write_table(labels_df, workdir, 'cluster_labels')
+    return labels_df
 
 
 def summarize_fit(workdir: str) -> None:
@@ -83,14 +108,10 @@ def summarize_fit(workdir: str) -> None:
     sum_df['knee'] = KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
     write_table(sum_df, workdir, 'cluster_metrics')
 
-    # save the labels as a parquet
-    labels = np.transpose(np.array(labels))
-    write_table(pd.DataFrame(labels, columns=np.array(range(2, labels.shape[1] + 2)).astype(str)),
-                workdir, 'cluster_labels')
     return
 
 
-def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = 'all', samples: int = 100_000) -> None:
+def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = 'all', samples: int = 75_000) -> None:
     """
     Calculate the silhouette score for the given number of clusters
 
@@ -363,7 +384,9 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
     clusters_dir = os.path.join(workdir, 'clusters')
 
     df = read_table(workdir, 'cluster_metrics')
-    df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
+    if os.path.exists(get_table_path(workdir, 'cluster_sscores')):
+        df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
+    df['number'] = df['number'].astype(int)
 
     # initialize the figure and labels
     fig, ax1 = plt.subplots(
@@ -371,24 +394,28 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
         dpi=750,
         tight_layout=True,
     )
-    ax2 = ax1.twinx()
 
     # Plot titles and labels
     ax1.set_title("Clustering Fit Metrics")
     ax1.set_xlabel("Number of Clusters")
     ax1.set_ylabel("Inertia")
-    ax2.set_ylabel("Silhouette Score")
 
     ticks = np.arange(1, df['number'].max() + 2)
     ax1.set_xlim(ticks[0], ticks[-1])
     ax1.set_xticks(ticks)
-    ax2.set_ylim(0, 1)
 
     # plot the inertia
-    knee = df['knee'].values[0]
+    knee = int(df['knee'].values[0])
     ax1.plot(df['number'], df['inertia'], marker='o', label='Inertia')
     ax1.plot(knee, df[df['number'] == knee]['inertia'], marker='o', c='red', label='Knee')
-    ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')
+
+    # add the silhouette scores if they were calculated
+    if 'silhouette' in df.columns:
+        df.loc[df['silhouette'].isna(), 'silhouette'] = ''
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("Silhouette Score")
+        ax2.set_ylim(0, 1)
+        ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')
 
     fig.savefig(os.path.join(clusters_dir, f'figure-fit-metrics.png'))
     plt.close(fig)

@@ -1,15 +1,12 @@
 import geopandas as gpd
-import netCDF4 as nc
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler as Scalar
 
-from .io import mid_col
-from .io import order_col
-from .io import read_table
 from .io import write_table
+from .io import mid_col
 
-__all__ = ['gis_tables', 'hindcast']
+__all__ = ['gis_tables', 'calculate_fdc']
 
 
 def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> None:
@@ -43,54 +40,35 @@ def gis_tables(workdir: str, gauge_gis: str = None, drain_gis: str = None) -> No
     return
 
 
-def hindcast(workdir: str, hind_nc_path: str, drop_order_1: bool = False) -> None:
+def calculate_fdc(workdir: str, df: pd.DataFrame, n_steps: int = 41) -> None:
     """
-    Creates hindcast_series_table.parquet and hindcast_fdc_table.parquet in the workdir/tables directory
-    for the GEOGloWS hindcast data
+    Creates the hindcast_fdc.parquet and hindcast_fdc_transformed.parquet tables in the workdir/tables directory
 
     Args:
         workdir: path to the working directory for the project
-        hind_nc_path: path to the hindcast or historical simulation netcdf
-        drop_order_1: whether to drop the order 1 streams from the hindcast
+        df: the hindcast hydrograph data DataFrame with 1 column per stream, 1 row per timestep, string column names
+            containing the stream's ID, and a datetime index. E.g. the shape should be (n_timesteps, n_streams). If not
+            provided, the function will attempt to load the data from workdir/tables/hindcast_series_table.parquet
+        n_steps: the number of exceedance probabilities to estimate from 0 to 100%, inclusive. Default is 41, which
+            produces, 0, 2.5, 5, ..., 97.5, 100.
 
     Returns:
         None
     """
-    # read the assignments table
-    model_ids = read_table(workdir, 'drain_table')
-    if drop_order_1:
-        model_ids = model_ids[model_ids[order_col] > 1]
-    model_ids = list(set(sorted(model_ids[mid_col].tolist())))
+    exceed_prob = np.linspace(100, 0, n_steps)
 
-    # read the hindcast netcdf, convert to dataframe, store as parquet
-    hnc = nc.Dataset(hind_nc_path)
-    ids = pd.Series(hnc['rivid'][:])
-    ids_selector = ids.isin(model_ids)
-    ids = ids[ids_selector].astype(str).values.flatten()
-
-    # save the model ids to table for reference
-    write_table(pd.DataFrame(ids, columns=[mid_col, ]), workdir, 'model_ids')
-
-    # save the hindcast series to parquet
-    df = pd.DataFrame(
-        hnc['Qout'][:, ids_selector],
-        columns=ids,
-        index=pd.to_datetime(hnc.variables['time'][:], unit='s')
-    )
-    df = df[df.index.year >= 1980]
-    df.index.name = 'datetime'
-    write_table(df, workdir, 'hindcast')
+    # write the ID list to file
+    write_table(pd.DataFrame(df.columns, columns=[mid_col, ]), workdir, 'model_ids')
 
     # calculate the FDC and save to parquet
-    exceed_prob = np.linspace(100, 0, 41)
-    df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
-    df.index = exceed_prob
-    df.index.name = 'exceed_prob'
-    write_table(df, workdir, 'hindcast_fdc')
+    fdc_df = df.apply(lambda x: np.transpose(np.nanpercentile(x, exceed_prob)))
+    fdc_df.index = exceed_prob
+    fdc_df.index.name = 'exceed_prob'
+    write_table(fdc_df, workdir, 'hindcast_fdc')
 
     # transform and prepare for clustering
-    df = pd.DataFrame(np.transpose(Scalar().fit_transform(np.squeeze(df.values))))
-    df.index = ids
-    df.columns = df.columns.astype(str)
-    write_table(df, workdir, 'hindcast_fdc_trans')
+    fdc_df = pd.DataFrame(np.transpose(Scalar().fit_transform(np.squeeze(fdc_df.values))))
+    fdc_df.index = df.columns
+    fdc_df.columns = fdc_df.columns.astype(str)
+    write_table(fdc_df, workdir, 'hindcast_fdc_trans')
     return

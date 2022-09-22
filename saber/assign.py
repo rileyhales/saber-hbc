@@ -1,78 +1,74 @@
 import logging
-import os
 
-import joblib
 import numpy as np
 import pandas as pd
 
-from ._propagation import propagate_in_table
-from ._propagation import walk_downstream
-from ._propagation import walk_upstream
 from .io import asgn_gid_col
 from .io import asgn_mid_col
+from .io import down_mid_col
 from .io import gid_col
 from .io import mid_col
 from .io import order_col
 from .io import read_table
 from .io import reason_col
 from .io import write_table
+from .io import clbl_col
+from .io import x_col
+from .io import y_col
 
-__all__ = ['gen', 'merge_clusters', 'assign_gauged', 'assign_propagation', 'assign_by_distance', ]
+__all__ = ['generate', 'assign_gauged', 'map_propagate', 'map_resolve_propagations', 'map_assign_ungauged', ]
 
 logger = logging.getLogger(__name__)
 
 
-def gen(workdir: str, cache: bool = True) -> pd.DataFrame:
+def generate(workdir: str, labels_df: pd.DataFrame = None, drain_table: pd.DataFrame = None,
+             gauge_table: pd.DataFrame = None, cache: bool = True) -> pd.DataFrame:
     """
     Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
 
     Args:
         workdir: path to the working directory
         cache: whether to cache the assign table immediately
+        labels_df: a dataframe with a column for the assigned cluster label and a column for the model_id
+        drain_table: the drain table dataframe
+        gauge_table: the gauge table dataframe
 
     Returns:
-        None
+        pd.DataFrame
     """
-    # read and merge the tables
-    assign_table = pd.merge(
-        read_table(workdir, 'drain_table'),
-        read_table(workdir, 'gauge_table'),
+    # read the tables if they are not provided
+    if labels_df is None:
+        labels_df = read_table(workdir, 'cluster_labels')
+    if drain_table is None:
+        drain_table = read_table(workdir, 'drain_table')
+    if gauge_table is None:
+        gauge_table = read_table(workdir, 'gauge_table')
+
+    # enforce correct column data types
+    labels_df[mid_col] = labels_df[mid_col].astype(str)
+    drain_table[mid_col] = drain_table[mid_col].astype(str)
+    drain_table[down_mid_col] = drain_table[down_mid_col].astype(str)
+    gauge_table[mid_col] = gauge_table[mid_col].astype(str)
+
+    # join the drain_table and gauge_table then join the labels_df
+    assign_df = pd.merge(
+        drain_table,
+        gauge_table,
         on=mid_col,
         how='outer'
-    )
+    ).merge(labels_df, on=mid_col, how='outer')
+    assign_df = assign_df.sort_values(by=mid_col).reset_index(drop=True)
 
-    # create the new columns
-    assign_table[asgn_mid_col] = np.nan
-    assign_table[asgn_gid_col] = np.nan
-    assign_table[reason_col] = np.nan
+    # create new columns asgn_mid_col, asgn_gid_col, reason_col
+    assign_df[[asgn_mid_col, asgn_gid_col, reason_col]] = ['unassigned', 'unassigned', 'unassigned']
 
     if cache:
-        write_table(assign_table, workdir, 'assign_table')
+        write_table(assign_df, workdir, 'assign_table')
+        write_table(assign_df[[mid_col, ]], workdir, 'mid_list')
+        write_table(assign_df[[gid_col, ]], workdir, 'gid_list')
+        write_table(assign_df[[mid_col, gid_col]], workdir, 'mid_gid_map')
 
-    return assign_table
-
-
-def merge_clusters(workdir: str, assign_table: pd.DataFrame, n_clusters: int = None) -> pd.DataFrame:
-    """
-    Creates a csv listing the streams assigned to each cluster in workdir/kmeans_models and also adds that information
-    to assign_table.csv
-
-    Args:
-        workdir: path to the project directory
-        assign_table: the assignment table DataFrame
-        n_clusters: number of clusters to use when applying the labels to the assign_table
-
-    Returns:
-        None
-    """
-    # create a dataframe with the optimal model's labels and the model_id's
-    df = pd.DataFrame({
-        'cluster': joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle')).labels_,
-        mid_col: read_table(workdir, 'model_ids').values.flatten()
-    }, dtype=str)
-
-    # merge the dataframes
-    return assign_table.merge(df, how='outer', on=mid_col)
+    return assign_df
 
 
 def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
@@ -83,41 +79,115 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
         df: the assignments table dataframe
 
     Returns:
-        Copy of df with assignments made
+        Copy of df1 with assignments made
     """
-    _df = df.copy()
-    selector = ~_df[gid_col].isna()
-    _df.loc[selector, asgn_mid_col] = _df[mid_col]
-    _df.loc[selector, asgn_gid_col] = _df[gid_col]
-    _df.loc[selector, reason_col] = 'gauged'
-    return _df
+    selector = df[gid_col].notna()
+    df.loc[selector, asgn_mid_col] = df[mid_col]
+    df.loc[selector, asgn_gid_col] = df[gid_col]
+    df.loc[selector, reason_col] = 'gauged'
+    return df
 
 
-def assign_propagation(df: pd.DataFrame, max_prop: int = 5) -> pd.DataFrame:
+def map_propagate(df: pd.DataFrame, start_mid: int, direction: str) -> pd.DataFrame or None:
     """
+    Meant to be mapped over a dataframe to propagate assignments downstream or upstream
 
     Args:
         df: the assignments table dataframe
-        max_prop: the max number of stream segments to propagate downstream
+        start_mid: the model_id to start the propagation from
+        direction: either 'down' or 'up' to indicate the direction of propagation
 
     Returns:
-        Copy of df with assignments made
+        pd.DataFrame
     """
-    _df = df.copy()
-    for gauged_stream in _df.loc[~_df[gid_col].isna(), mid_col]:
-        subset = _df.loc[_df[mid_col] == gauged_stream, gid_col]
-        if subset.empty:
-            continue
-        start_gid = subset.values[0]
-        connected_segments = walk_upstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'upstream')
-        connected_segments = walk_downstream(df, gauged_stream, same_order=True)
-        _df = propagate_in_table(_df, gauged_stream, start_gid, connected_segments, max_prop, 'downstream')
+    # logger.info(f'Prop {direction} from {start_mid}')
+    assigned_rows = []
+    start_order = df[df[mid_col] == start_mid][order_col].values[0]
 
-    return _df
+    # select the starting row
+    stream_row = df[df[mid_col] == start_mid]
+    start_gid = stream_row[asgn_gid_col].values[0]
+    select_same_order_streams = df[order_col] == start_order
+
+    n_steps = 1
+
+    # repeat as long as the current row is not empty
+    try:
+        while True:
+            # select the next up or downstream
+            if direction == 'down':
+                id_selector = df[mid_col] == stream_row[down_mid_col].values[0]
+            else:  # direction == 'up':
+                id_selector = df[down_mid_col] == stream_row[mid_col].values[0]
+
+            # select the next row using the ID and Order selectors
+            stream_row = df[np.logical_and(id_selector, select_same_order_streams)]
+
+            # Break the loop if
+            # 1. next row is empty -> no upstream/downstream row -> empty stream_row
+            # 2. next row stream order not a match -> not picked by select_same_order_streams -> empty stream_row
+            # 3. next row already has an assignment made -> reason column is not empty string
+            if stream_row.empty or stream_row[reason_col].values[0] != 'unassigned':
+                break
+
+            # copy the row, modify the assignment columns, and append to the list
+            new_row = stream_row.copy()
+            new_row[[asgn_mid_col, asgn_gid_col, reason_col]] = [start_mid, start_gid, f'prop-{direction}-{n_steps}']
+            assigned_rows.append(new_row)
+
+            # increment the steps counter
+            n_steps = n_steps + 1
+
+            # Break the loop if
+            # 1. The next row is an outlet -> no downstream row -> cause error when selecting next row
+            # 2. we have reach the max number of steps (n_steps -1)
+            if stream_row[down_mid_col].values[0] != -1 or n_steps >= 8:
+                break
+    except Exception as e:
+        logger.error(f'Error in map_propagate: {e}')
+
+    if len(assigned_rows):
+        return pd.concat(assigned_rows)
+    return pd.DataFrame(columns=df.columns)
 
 
-def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
+def map_resolve_propagations(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
+    """
+    Resolves the propagation assignments by choosing the assignment with the fewest steps
+
+    Args:
+        df_props: the combined upstream and downstream propagation assignments dataframe
+        mid: the model_id to resolve the propagation assignments for
+
+    Returns:
+        pd.DataFrame
+    """
+    df_mid = df_props[df_props[mid_col] == mid].copy()
+    # parse the reason statement into number of steps and prop up or downstream
+    df_mid[['direction', 'n_steps']] = pd.DataFrame(
+        df_props[reason_col].apply(lambda x: x.split('-')[1:]).to_list())
+    df_mid['n_steps'] = df_mid['n_steps'].astype(float)
+    # sort by n_steps then by reason
+    df_mid = df_mid.sort_values(['n_steps', 'direction'], ascending=[True, True])
+    # return the first row which is the fewest steps and preferring downstream to upstream)
+    return df_mid.head(1).drop(columns=['direction', 'n_steps'])
+
+
+def assign_propagation(df: pd.DataFrame, df_props: pd.DataFrame) -> pd.DataFrame:
+    """
+     Merge the assignment table and the propagation assignments
+
+    Args:
+        df: the assignments table dataframe
+        df_props: the combined upstream and downstream propagation assignments dataframe
+
+    Returns:
+        pd.DataFrame
+    """
+    return pd.concat([df[~df[mid_col].isin(df_props[mid_col])], df_props])
+
+
+def map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str) -> pd.DataFrame:
     """
     Assigns all possible ungauged basins a gauge that is
         (1) is closer than any other gauge
@@ -125,38 +195,27 @@ def assign_by_distance(df: pd.DataFrame) -> pd.DataFrame:
         (3) in the same simulated fdc cluster as ungauged basin
 
     Args:
-        df: the assignments table dataframe
+        assign_df: the assignments table dataframe
+        gauges_df: a subset of the assignments dataframe containing the gauges
+        mid: the model_id to assign a gauge for
 
     Returns:
-        Copy of df with assignments made
+        a new row for the given mid with the assignments made
     """
-    _df = df.copy()
-    # first filter by cluster number
-    for c_num in sorted(set(_df['sim-fdc-cluster'].values)):
-        c_sub = _df[_df['sim-fdc-cluster'] == c_num]
-        # next filter by stream order
-        for so_num in sorted(set(c_sub[order_col])):
-            c_so_sub = c_sub[c_sub[order_col] == so_num]
+    try:
+        # find the closest gauge using euclidean distance without accounting for projection/map distortion
+        mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].values.flatten()
+        row_idx_to_assign = pd.Series(
+            np.sqrt(np.power(gauges_df[x_col] - mid_x, 2) + np.power(gauges_df[y_col] - mid_y, 2))
+        ).idxmin()
 
-            # determine which ids **need** to be assigned
-            ids_to_assign = c_so_sub[c_so_sub[asgn_mid_col].isna()][mid_col].values
-            avail_assigns = c_so_sub[c_so_sub[asgn_mid_col].notna()]
-            if ids_to_assign.size == 0 or avail_assigns.empty:
-                logger.error(f'unable to assign cluster {c_num} to stream order {so_num}')
-                continue
-            # now you find the closest gauge to each unassigned
-            for id in ids_to_assign:
-                subset = c_so_sub.loc[c_so_sub[mid_col] == id, ['x', 'y']]
+        asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [asgn_mid_col, asgn_gid_col]]
+        asgn_reason = f'cluster-{gauges_df[clbl_col].values[0]}'
 
-                dx = avail_assigns.x.values - subset.x.values
-                dy = avail_assigns.y.values - subset.y.values
-                avail_assigns['dist'] = np.sqrt(dx * dx + dy * dy)
-                row_idx_to_assign = avail_assigns['dist'].idxmin()
+        new_row = assign_df[assign_df[mid_col] == mid].copy()
+        new_row[[asgn_mid_col, asgn_gid_col, reason_col]] = [asgn_mid, asgn_gid, asgn_reason]
+    except Exception as e:
+        logger.error(f'Error in map_assign_ungauged: {e}')
+        new_row = pd.DataFrame(columns=assign_df.columns)
 
-                mid_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_model_id
-                gid_to_assign = avail_assigns.loc[row_idx_to_assign].assigned_gauge_id
-
-                _df.loc[_df[mid_col] == id, [asgn_mid_col, asgn_gid_col, reason_col]] = \
-                    [mid_to_assign, gid_to_assign, f'cluster-{c_num}-dist']
-
-    return _df
+    return new_row
