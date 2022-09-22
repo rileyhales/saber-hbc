@@ -34,6 +34,8 @@ table_hindcast = 'hindcast.parquet'
 table_hindcast_fdc = 'hindcast_fdc.parquet'
 table_hindcast_fdc_trans = 'hindcast_fdc_transformed.parquet'
 table_mids = 'mid_table.parquet'
+table_gids = 'gid_table.parquet'
+table_mid_gid_map = 'mid_gid_map_table.parquet'
 
 table_drain = 'drain_table.parquet'
 table_gauge = 'gauge_table.parquet'
@@ -81,8 +83,8 @@ def get_table_path(workdir: str, table_name: str) -> str:
     Get the path to a table in the project directory by name
 
     Args:
-        workdir:
-        table_name:
+        workdir: path to the project directory
+        table_name: name of the table to find a path for
 
     Returns:
         Path (str) to the table
@@ -96,16 +98,20 @@ def get_table_path(workdir: str, table_name: str) -> str:
         return os.path.join(workdir, dir_tables, table_hindcast_fdc)
     elif table_name == 'hindcast_fdc_trans':
         return os.path.join(workdir, dir_tables, table_hindcast_fdc_trans)
-    elif table_name == 'model_ids':
-        return os.path.join(workdir, dir_tables, table_mids)
 
+    elif table_name == 'assign_table':
+        return os.path.join(workdir, dir_tables, table_assign)
     elif table_name == 'drain_table':
         return os.path.join(workdir, dir_tables, table_drain)
     elif table_name == 'gauge_table':
         return os.path.join(workdir, dir_tables, table_gauge)
+    elif table_name == 'mid_list':
+        return os.path.join(workdir, dir_tables, table_mids)
+    elif table_name == 'gid_list':
+        return os.path.join(workdir, dir_tables, table_gids)
+    elif table_name == 'mid_gid_map':
+        return os.path.join(workdir, dir_tables, table_mid_gid_map)
 
-    elif table_name == 'assign_table':
-        return os.path.join(workdir, dir_tables, table_assign)
     elif table_name == 'prop_resolved':
         return os.path.join(workdir, dir_tables, table_prop_resolved)
     elif table_name == 'prop_downstream':

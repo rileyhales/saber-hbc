@@ -17,6 +17,7 @@ from sklearn.metrics import silhouette_samples
 from .io import _find_model_files
 from .io import clbl_col
 from .io import mid_col
+from .io import get_table_path
 from .io import read_table
 from .io import write_table
 
@@ -383,9 +384,9 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
     clusters_dir = os.path.join(workdir, 'clusters')
 
     df = read_table(workdir, 'cluster_metrics')
-    df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
+    if os.path.exists(get_table_path(workdir, 'cluster_sscores')):
+        df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
     df['number'] = df['number'].astype(int)
-    df.loc[df['silhouette'].isna(), 'silhouette'] = ''
 
     # initialize the figure and labels
     fig, ax1 = plt.subplots(
@@ -393,24 +394,28 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
         dpi=750,
         tight_layout=True,
     )
-    ax2 = ax1.twinx()
 
     # Plot titles and labels
     ax1.set_title("Clustering Fit Metrics")
     ax1.set_xlabel("Number of Clusters")
     ax1.set_ylabel("Inertia")
-    ax2.set_ylabel("Silhouette Score")
 
     ticks = np.arange(1, df['number'].max() + 2)
     ax1.set_xlim(ticks[0], ticks[-1])
     ax1.set_xticks(ticks)
-    ax2.set_ylim(0, 1)
 
     # plot the inertia
     knee = int(df['knee'].values[0])
     ax1.plot(df['number'], df['inertia'], marker='o', label='Inertia')
     ax1.plot(knee, df[df['number'] == knee]['inertia'], marker='o', c='red', label='Knee')
-    ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')
+
+    # add the silhouette scores if they were calculated
+    if 'silhouette' in df.columns:
+        df.loc[df['silhouette'].isna(), 'silhouette'] = ''
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("Silhouette Score")
+        ax2.set_ylim(0, 1)
+        ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')
 
     fig.savefig(os.path.join(clusters_dir, f'figure-fit-metrics.png'))
     plt.close(fig)
