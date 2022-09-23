@@ -1,16 +1,13 @@
 import saber.assign
+import saber.calibrate
 import saber.cluster
 import saber.gis
 import saber.io
 import saber.prep
 import saber.validate
-from saber._calibrate import calibrate, calibrate_region
 
 __all__ = [
-    # individual functions
-    'calibrate', 'calibrate_region',
-    # modules
-    'io', 'prep', 'cluster', 'assign', 'gis', 'validate',
+    'io', 'prep', 'cluster', 'assign', 'gis', 'calibrate', 'validate',
 ]
 
 __author__ = 'Riley C. Hales'

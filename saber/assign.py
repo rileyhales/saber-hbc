@@ -16,7 +16,7 @@ from .io import clbl_col
 from .io import x_col
 from .io import y_col
 
-__all__ = ['generate', 'assign_gauged', 'map_propagate', 'map_resolve_propagations', 'map_assign_ungauged', ]
+__all__ = ['generate', 'assign_gauged', 'map_propagate', 'map_resolve_props', 'map_assign_ungauged', ]
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ def map_propagate(df: pd.DataFrame, start_mid: int, direction: str) -> pd.DataFr
     return pd.DataFrame(columns=df.columns)
 
 
-def map_resolve_propagations(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
+def map_resolve_props(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
     """
     Resolves the propagation assignments by choosing the assignment with the fewest steps
 
