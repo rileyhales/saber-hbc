@@ -2,12 +2,14 @@ import datetime
 import logging
 import os
 import statistics
+from multiprocessing import Pool
 
 import hydrostats as hs
 import hydrostats.data as hd
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
+import xarray
 from natsort import natsorted
 from scipy import interpolate, stats
 
@@ -17,15 +19,41 @@ from .io import cal_nc_name
 from .io import metric_list
 from .io import metric_nc_name_list
 from .io import mid_col
+from .io import gid_col
 from .io import table_hindcast
 
 logger = logging.getLogger(__name__)
 
 
-__all__ = ['fdc_mapping', 'sfdc_mapping', 'calibrate_region', 'map_saber', 'calc_fdc', 'calc_sfdc']
+__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'calibrate_region', 'map_saber', 'calc_fdc', 'calc_sfdc']
 
 
-def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hdf: pd.DataFrame, gauge_data: str) -> None:
+def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str) -> None:
+    """
+    Corrects all streams in the assignment table using the SABER method with a multiprocessing Pool
+
+    Args:
+        assign_df: the assignment table
+        hds: string dataset of hindcast streamflow data
+        gauge_data: path to the directory of observed data
+
+    Returns:
+        None
+    """
+    logger.info('Starting SABER Bias Correction')
+
+    with Pool(20) as p:
+        p.starmap(
+            map_saber,
+            [[mid, asgn_mid, asgn_gid, hds, gauge_data] for mid, asgn_mid, asgn_gid in
+             np.moveaxis(assign_df[[mid_col, asgn_mid_col, gid_col]].values, 0, 0)]
+        )
+
+    logger.info('Finished SABER Bias Correction')
+    return
+
+
+def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str) -> None:
     """
     Corrects all streams in the assignment table using the SABER method
 
@@ -33,29 +61,42 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hdf: pd.DataFrame, gauge_d
         mid: the model id of the stream to be corrected
         asgn_mid: the model id of the stream assigned to mid for bias correction
         asgn_gid: the gauge id of the stream assigned to mid for bias correction
-        hdf: the hindcast dataframe
+        hds: xarray dataset of hindcast streamflow data
         gauge_data: path to the directory of observed data
 
     Returns:
         None
     """
-    if asgn_gid is None:
-        logger.debug(f'No gauge assigned to {mid}')
-        return
+    try:
+        if asgn_gid is None:
+            logger.debug(f'No gauge assigned to {mid}')
+            return
 
-    # find the observed data to be used for correction
-    if not os.path.exists(os.path.join(gauge_data, f'{asgn_gid}.csv')):
-        logger.debug(f'Observed data "{asgn_gid}" not found. Cannot correct "{mid}".')
-    obs_df = pd.read_csv(os.path.join(gauge_data, f'{asgn_gid}.csv'), index_col=0)
-    obs_df.index = pd.to_datetime(obs_df.index)
+        # find the observed data to be used for correction
+        if not os.path.exists(os.path.join(gauge_data, f'{asgn_gid}.csv')):
+            logger.debug(f'Observed data "{asgn_gid}" not found. Cannot correct "{mid}".')
+        obs_df = pd.read_csv(os.path.join(gauge_data, f'{asgn_gid}.csv'), index_col=0)
+        obs_df.index = pd.to_datetime(obs_df.index)
 
-    # perform corrections
-    new_path = os.path.join(gauge_data, f'saber_corrected_{mid}.parquet')
-    if asgn_mid == mid:
-        sfdc_mapping(hdf[mid].copy(), obs_df, None).to_parquet(new_path)
-    else:
-        sfdc_mapping(hdf[asgn_mid].copy(), obs_df, hdf[mid].copy()).to_parquet(new_path)
+        # perform corrections
+        hds = xarray.open_mfdataset(hds, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
+        rivids = hds.rivid.values
+        sim_a = hds['Qout'][:, (rivids - int(mid)).argmin()].values
+        times = hds['time'].values
+        sim_a = pd.DataFrame(sim_a, index=times, columns=['Qsim'])
+        if asgn_mid != mid:
+            sim_b = hds['Qout'][:, (rivids - int(asgn_mid)).argmin()].values
+            sim_b = pd.DataFrame(sim_b, index=times, columns=['Qsim'])
+        hds.close()
 
+        new_path = os.path.join(gauge_data, f'saber_corrected_{mid}.parquet')
+        if asgn_mid == mid:
+            fdc_mapping(sim_a, obs_df).to_parquet(new_path)
+        else:
+            sfdc_mapping(sim_b, obs_df, sim_a).to_parquet(new_path)
+    except Exception as e:
+        logger.error(e)
+        logger.debug(f'Failed to correct {mid}')
     return
 
 
@@ -216,7 +257,7 @@ def calibrate_region(workdir: str, assign_table: pd.DataFrame,
     Returns:
         None
     """
-    # todo create a parquet instead of a netcdf
+    # todo create a zarr instead of a netcdf
     if gauge_table is None:
         gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
     if obs_data_dir is None:
@@ -423,9 +464,9 @@ def _make_interpolator(x: np.array, y: np.array, extrap: str = 'nearest',
     Returns:
         interpolate.interp1d
     """
-    # todo check that flows are not negative
-    if np.max(y.max()) - np.min(y.min()) < 5:
-        logger.warning('The observational data has the same max and min value. You may get unanticipated results.')
+    # todo check that flows are not negative and have sufficient variance - even for small variance in SAF
+    # if np.max(y) - np.min(y) < 5:
+    #     logger.warning('The y data has similar max/min values. You may get unanticipated results.')
 
     # make interpolator which converts the percentiles to scalars
     if extrap == 'nearest':
@@ -480,7 +521,6 @@ def _fit_extreme_values_to_gumbel(q_adjust: np.array, p_exceed: np.array, fit_ra
     xbar = statistics.mean(mid_vals['q'].values)
     std = statistics.stdev(mid_vals['q'].values, xbar)
 
-    # todo check that this is correct
     q = []
     for p in mid_vals[mid_vals['p'] <= fit_range[0]]['p'].tolist():
         q.append(_solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))

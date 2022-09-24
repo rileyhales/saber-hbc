@@ -21,13 +21,43 @@ from .io import get_table_path
 from .io import read_table
 from .io import write_table
 
-__all__ = ['cluster', 'predict_labels', 'summarize_fit', 'plot_clusters', 'calc_silhouette', 'plot_silhouettes',
-           'plot_fit_metrics', 'plot_centers', ]
+__all__ = [
+    'cluster',
+    'generate',
+    'summarize_fit', 'calc_silhouette',
+    'plot_fit_metrics', 'plot_centers', 'plot_clusters', 'plot_silhouettes',
+    'predict_labels'
+]
 
 logger = logging.getLogger(__name__)
 
 
-def cluster(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
+def cluster(workdir: str, train_df: str) -> None:
+    """
+    Train k-means cluster models, calculate fit metrics, and generate plots
+
+    Args:
+        workdir: path to the project directory
+        train_df: path to the prepared FDC data for training cluster models
+
+    Returns:
+        None
+    """
+    logger.info('Generate Clusters')
+    x_fdc_train = pd.read_parquet(train_df, engine='fastparquet').values
+    generate(workdir, x=x_fdc_train)
+    summarize_fit(workdir)
+    # calc_silhouette(workdir, x=x_fdc_train, n_clusters=range(2, 10))
+
+    logger.info('Create Plots')
+    plot_clusters(workdir, x=x_fdc_train)
+    plot_centers(workdir)
+    plot_fit_metrics(workdir)
+    # plot_silhouettes(workdir)
+    return
+
+
+def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
     """
     Trains scikit-learn MiniBatchKMeans models and saves as pickle
 

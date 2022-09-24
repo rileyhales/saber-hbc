@@ -5,6 +5,7 @@ import shutil
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import RepeatedKFold as RKFolds
 
 from .io import cal_nc_name
 from .io import gid_col
@@ -12,6 +13,46 @@ from .io import metric_nc_name_list
 from .io import mid_col
 from .io import read_table
 from .io import scaffold_workdir
+
+__all__ = ['gen_val_table', 'sample_gauges']
+
+
+def kfolds_validation(assign_df: pd.DataFrame, n_splits: int = 5, n_repeats: int = 10) -> pd.DataFrame:
+    """
+    Performs a k-fold validation of the calibration results. The validation set is randomly selected from the
+    gauges table. The validation set is then removed from the calibration set and the calibration is repeated
+    n_repeats times. The validation set is then added back to the calibration set and the calibration is repeated
+    n_repeats times. This process is repeated n_folds times.
+
+    Args:
+        assign_df: a completed assignment dataframe already filled by a successful SABER assignment run
+        n_splits: the number of folds to create in each iteration
+        n_repeats: the number of repeats to perform
+
+    Returns:
+        pandas.DataFrame
+    """
+    # todo fill out this section
+    # make a dataframe to record metrics from each test set
+    metrics_df = pd.DataFrame(columns=metric_nc_name_list)
+    # subset the assign dataframe to only rows which contain gauges & reset the index
+
+    # copy the gauged id column to a new column for the gauge used for validation metrics
+
+    for train_rows, test_rows in RKFolds(n_splits=n_splits, n_repeats=n_repeats).split(assign_df.index):
+        train_df = assign_df.iloc[train_rows]
+        test_df = assign_df.iloc[test_rows]
+        # on the test rows, clear the gid column so it is not assigned
+
+        # run the assignment on the training set
+
+        # bias correct only at the gauges in the test set
+
+        # calculate metrics for the test set
+
+        # add the metrics to the metrics dataframe
+        metrics_df = pd.concat([metrics_df, ])
+    return
 
 
 def sample_gauges(workdir: str, overwrite: bool = False) -> None:

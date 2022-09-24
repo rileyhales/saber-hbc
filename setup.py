@@ -11,21 +11,22 @@ VERSION = '0.6.0'
 PYTHON_REQUIRES = '>=3.10'
 INSTALL_REQUIRES = [
     'contextily',
-    'geopandas',
     'fastparquet',
+    'geopandas',
     'hydrostats',
     'joblib',
     'kneed',
     'matplotlib',
     'natsort',
-    'netCDF4',
     'numba',
     'numpy',
     'pandas',
     'pyarrow',
     'requests',
     'scikit-learn',
-    'scipy'
+    'scipy',
+    'xarray',
+    'zarr'
 ]
 
 TROVE_CLASSIFIERS = [
