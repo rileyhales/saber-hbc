@@ -358,46 +358,47 @@ def plot_centers(workdir: str, plt_width: int = 2, plt_height: int = 2, max_cols
 
     clusters_dir = os.path.join(workdir, 'clusters')
 
-    # count number of files to plot
-    centers_files = natsorted(glob.glob(os.path.join(clusters_dir, 'cluster_centers_*.parquet')))
-    n_files = len(centers_files)
-    n_cols = min(n_files, max_cols)
-    n_rows = math.ceil(n_files / n_cols)
+    for n_clusters in [4, 7, 10, 13]:
+        # count number of files to plot
+        centers_files = [os.path.join(clusters_dir, f'cluster_centers_{i}.parquet') for i in range(2, n_clusters + 1)]
+        n_files = len(centers_files)
+        n_cols = min(n_files, max_cols)
+        n_rows = math.ceil(n_files / n_cols)
 
-    # initialize the figure and labels
-    fig, axes = plt.subplots(
-        n_rows,
-        n_cols,
-        figsize=(plt_width * n_cols + 1.25, plt_height * n_rows + 1.25),
-        dpi=750,
-        squeeze=False,
-        tight_layout=True,
-        sharey='row',
-        sharex='col'
-    )
+        # initialize the figure and labels
+        fig, axes = plt.subplots(
+            n_rows,
+            n_cols,
+            figsize=(plt_width * n_cols + 1.25, plt_height * n_rows + 1.25),
+            dpi=750,
+            squeeze=False,
+            tight_layout=True,
+            sharey='row',
+            sharex='col'
+        )
 
-    fig.suptitle('Cluster Centers', fontsize=16)
-    fig.supylabel('Discharge Z-Score')
-    fig.supxlabel('Exceedance Probability (%)')
+        fig.suptitle('Cluster Centers', fontsize=16)
+        fig.supylabel('Discharge Z-Score')
+        fig.supxlabel('Exceedance Probability (%)')
 
-    for centers_table, ax in zip(centers_files, fig.axes[:n_files]):
-        n_clusters = int(centers_table.split('_')[-1].split('.')[0])
-        centers_df = pd.read_parquet(centers_table, engine='fastparquet')
+        for centers_table, ax in zip(centers_files, fig.axes[:n_files]):
+            n_clusters = int(centers_table.split('_')[-1].split('.')[0])
+            centers_df = pd.read_parquet(centers_table, engine='fastparquet')
 
-        for i in range(int(n_clusters)):
-            ax.plot(centers_df[f'{i}'].values, label=f'Cluster {i + 1}')
+            for i in range(int(n_clusters)):
+                ax.plot(centers_df[f'{i}'].values, label=f'Cluster {i + 1}')
 
-        # Plot titles and labels
-        ax.set_title(f"k={n_clusters} clusters")
-        ax.set_xlim(0, 40)
-        ax.set_ylim(-1, 5)
+            # Plot titles and labels
+            ax.set_title(f"k={n_clusters} clusters")
+            ax.set_xlim(0, 40)
+            ax.set_ylim(-2, 4)
 
-    fig.savefig(os.path.join(clusters_dir, f'figure-cluster-centers.png'))
-    plt.close(fig)
+        fig.savefig(os.path.join(clusters_dir, f'figure-cluster-centers-{n_clusters}.png'))
+        plt.close(fig)
     return
 
 
-def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> None:
+def plot_fit_metrics(workdir: str, plt_width: int = 4, plt_height: int = 4) -> None:
     """
     Plot the cluster metrics, inertia and silhouette score, vs number of clusters
 
@@ -417,32 +418,34 @@ def plot_fit_metrics(workdir: str, plt_width: int = 5, plt_height: int = 3) -> N
     if os.path.exists(get_table_path(workdir, 'cluster_sscores')):
         df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
     df['number'] = df['number'].astype(int)
+    df['inertia'] = df['inertia'].astype(float)
 
     # initialize the figure and labels
-    fig, ax1 = plt.subplots(
+    fig, ax = plt.subplots(
         figsize=(plt_width, plt_height),
         dpi=750,
         tight_layout=True,
     )
 
     # Plot titles and labels
-    ax1.set_title("Clustering Fit Metrics")
-    ax1.set_xlabel("Number of Clusters")
-    ax1.set_ylabel("Inertia")
+    ax.set_title("Clustering Fit Metrics")
+    ax.set_xlabel("Number of Clusters")
+    ax.set_ylabel("Inertia")
 
     ticks = np.arange(1, df['number'].max() + 2)
-    ax1.set_xlim(ticks[0], ticks[-1])
-    ax1.set_xticks(ticks)
+    ax.set_xlim(ticks[0], ticks[-1])
+    ax.set_xticks(ticks)
+    ax.set_yticks([])
 
     # plot the inertia
     knee = int(df['knee'].values[0])
-    ax1.plot(df['number'], df['inertia'], marker='o', label='Inertia')
-    ax1.plot(knee, df[df['number'] == knee]['inertia'], marker='o', c='red', label='Knee')
+    ax.plot(df['number'], df['inertia'], marker='o', label='Inertia')
+    ax.plot(knee, df[df['number'] == knee]['inertia'], marker='o', c='red', label='Knee')
 
     # add the silhouette scores if they were calculated
     if 'silhouette' in df.columns:
         df.loc[df['silhouette'].isna(), 'silhouette'] = ''
-        ax2 = ax1.twinx()
+        ax2 = ax.twinx()
         ax2.set_ylabel("Silhouette Score")
         ax2.set_ylim(0, 1)
         ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')

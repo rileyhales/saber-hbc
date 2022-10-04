@@ -2,22 +2,22 @@ import glob
 import os
 import shutil
 
-import netCDF4 as nc
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import RepeatedKFold as RKFolds
 
-from .io import cal_nc_name
 from .io import gid_col
 from .io import metric_nc_name_list
-from .io import mid_col
-from .io import read_table
-from .io import scaffold_workdir
+from .io import dir_valid
 
-__all__ = ['gen_val_table', 'sample_gauges']
+from .assign import mp_assign_all
+from .calibrate import mp_saber
+
+__all__ = ['val_kfolds', 'read_metrics']
 
 
-def kfolds_validation(assign_df: pd.DataFrame, n_splits: int = 5, n_repeats: int = 10) -> pd.DataFrame:
+def val_kfolds(workdir: str, assign_df: pd.DataFrame, gauge_data: str, hds: str,
+               n_splits: int = 5, n_repeats: int = 10, n_processes: int or None = None) -> None:
     """
     Performs a k-fold validation of the calibration results. The validation set is randomly selected from the
     gauges table. The validation set is then removed from the calibration set and the calibration is repeated
@@ -25,96 +25,62 @@ def kfolds_validation(assign_df: pd.DataFrame, n_splits: int = 5, n_repeats: int
     n_repeats times. This process is repeated n_folds times.
 
     Args:
+        workdir: the project working directory
         assign_df: a completed assignment dataframe already filled by a successful SABER assignment run
+        gauge_data: path to the directory of observed data
+        hds: string path to the hindcast streamflow dataset
         n_splits: the number of folds to create in each iteration
         n_repeats: the number of repeats to perform
+        n_processes: number of processes to use for multiprocessing, passed to Pool
 
     Returns:
         pandas.DataFrame
     """
-    # todo fill out this section
     # make a dataframe to record metrics from each test set
     metrics_df = pd.DataFrame(columns=metric_nc_name_list)
+
     # subset the assign dataframe to only rows which contain gauges & reset the index
+    assign_df = assign_df[assign_df[gid_col].notna()].reset_index(drop=True)
 
-    # copy the gauged id column to a new column for the gauge used for validation metrics
+    for i, (train_rows, test_rows) in enumerate(RKFolds(n_splits=n_splits, n_repeats=n_repeats).split(assign_df.index)):
+        # make a copy of the dataframe to work with for this iteration
+        val_df = assign_df.copy()
 
-    for train_rows, test_rows in RKFolds(n_splits=n_splits, n_repeats=n_repeats).split(assign_df.index):
-        train_df = assign_df.iloc[train_rows]
-        test_df = assign_df.iloc[test_rows]
-        # on the test rows, clear the gid column so it is not assigned
+        # on the test rows, clear the gid column so that it is not assigned to the gauge it contains
+        val_df.loc[test_rows, gid_col] = np.nan
 
-        # run the assignment on the training set
+        # make assignments on the training set
+        val_df = mp_assign_all(workdir, val_df, n_processes=n_processes)
+
+        # reduce the dataframe to only the test rows (index/row-order gets shuffled by mp assigning)
+        val_df = val_df[val_df[gid_col].isna()].reset_index(drop=True)
 
         # bias correct only at the gauges in the test set
+        mp_saber(val_df, hds, gauge_data, os.path.join(workdir, dir_valid), n_processes=n_processes)
 
         # calculate metrics for the test set
+        iter_metrics_df = read_metrics(workdir)
 
-        # add the metrics to the metrics dataframe
-        metrics_df = pd.concat([metrics_df, ])
-    return
+        # append the iteration's metrics to the metrics dataframe
+        iter_metrics_df = pd.concat([metrics_df, iter_metrics_df])
 
+        # write the metrics dataframe and the validation dataframe to disk
+        iter_metrics_df.to_csv(os.path.join(workdir, dir_valid, f'iter_{i}_metrics.csv'))
+        val_df.to_csv(os.path.join(workdir, dir_valid, f'iter_{i}_validation_table.csv'))
 
-def sample_gauges(workdir: str, overwrite: bool = False) -> None:
-    """
-    Prepares working directories in the validation_runs directory and populates the data_processed and gis_inputs
-    folders with data from the master working directory. The gauges tables placed in the validation runs are randomly
-    chosen samples of the master gauge table.
+        # clear the validation directory for the next iteration
+        shutil.rmtree(os.path.join(workdir, dir_valid))
+        os.mkdir(os.path.join(workdir, dir_valid))
 
-    Args:
-        workdir: the project working directory
-        overwrite: delete the old validation directory before sampling
-
-    Returns:
-        None
-    """
-    vr_path = os.path.join(workdir, 'validation')
-    if overwrite:
-        if os.path.exists(vr_path):
-            shutil.rmtree(vr_path)
-        os.mkdir(vr_path)
-
-    gt = read_table(workdir, 'gauge_table')
-    initial_row_count = gt.shape[0]
-
-    rows_to_drop = round(gt.shape[0] / 10)
-
-    for i in range(5):
-        # some math related to which iteration of filtering we're on
-        n = initial_row_count - rows_to_drop * (i + 1)
-        pct_remain = 100 - 10 * (i + 1)
-        subpath = os.path.join(vr_path, f'{pct_remain}')
-
-        # create the new project working directory
-        scaffold_workdir(subpath, include_validation=False)
-
-        # overwrite the processed data directory so we don't need to redo this each time
-        shutil.copytree(
-            os.path.join(workdir, 'data_processed'),
-            os.path.join(subpath, 'data_processed'),
-            dirs_exist_ok=True
-        )
-
-        # sample the gauge table
-        gt = gt.sample(n=n)
-        gt.to_csv(os.path.join(subpath, 'gis', 'gauge_table.csv'), index=False)
-        shutil.copyfile(os.path.join(workdir, 'gis', 'drain_table.csv'),
-                        os.path.join(subpath, 'gis', 'drain_table.csv'))
-
-        # filter the copied processed data to only contain the gauges included in this filtered step
-        processed_sim_data = glob.glob(os.path.join(subpath, 'data_processed', 'obs-*.csv'))
-        for f in processed_sim_data:
-            a = pd.read_csv(f, index_col=0)
-            a = a.filter(items=gt[gid_col].astype(str))
-            a.to_csv(f)
+    # write the metrics dataframe to disk
+    metrics_df.to_csv(os.path.join(workdir, dir_valid, 'metrics.csv'))
 
     return
 
 
-def gen_val_table(workdir: str) -> pd.DataFrame:
+def read_metrics(workdir: str) -> pd.DataFrame:
     """
-    Prepares the validation summary table that contains the list of gauged rivers plus their statistics computed in
-    each validation run. Used to create gis files for mapping the results.
+    Reads the metrics from the validation directory and returns a dataframe of the metrics
 
     Args:
         workdir: the project working directory
@@ -122,37 +88,6 @@ def gen_val_table(workdir: str) -> pd.DataFrame:
     Returns:
         pandas.DataFrame
     """
-    df = pd.read_csv(os.path.join(workdir, 'gis', 'gauge_table.csv'))
-    df['100'] = 1
-
-    stats_df = {}
-    a = nc.Dataset(os.path.join(workdir, cal_nc_name))
-    stats_df[mid_col] = np.asarray(a[mid_col][:])
-    for metric in metric_nc_name_list:
-        arr = np.asarray(a[metric][:])
-        stats_df[f'{metric}_raw'] = arr[:, 0]
-        stats_df[f'{metric}_adj'] = arr[:, 1]
-    a.close()
-
-    for d in sorted(
-            [a for a in glob.glob(os.path.join(workdir, 'validation', '*')) if os.path.isdir(a)],
-            reverse=True
-    ):
-        val_percent = os.path.basename(d)
-        valset_gids = pd.read_csv(os.path.join(d, 'gis', 'gauge_table.csv'))[gid_col].values.tolist()
-
-        # mark a column indicating the gauges included in the validation set
-        df[val_percent] = 0
-        df.loc[df[gid_col].isin(valset_gids), val_percent] = 1
-
-        # add columns for the metrics of all gauges during this validation set
-        a = nc.Dataset(os.path.join(d, cal_nc_name))
-        for metric in metric_nc_name_list:
-            stats_df[f'{metric}_{val_percent}'] = np.asarray(a[metric][:])[:, 1]
-        a.close()
-
-    # merge gauge_table with the stats, save and return
-    df = df.merge(pd.DataFrame(stats_df), on=mid_col, how='inner')
-    df.to_csv(os.path.join(workdir, 'validation', 'val_table.csv'), index=False)
-
-    return df
+    # todo read the metrics from the corrected csvs, aggregate them, and return a dataframe
+    # todo edit the correction functions to output the metrics to a csv
+    return

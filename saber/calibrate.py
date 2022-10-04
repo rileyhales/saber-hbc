@@ -28,24 +28,32 @@ logger = logging.getLogger(__name__)
 __all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'calibrate_region', 'map_saber', 'calc_fdc', 'calc_sfdc']
 
 
-def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str) -> None:
+def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str = None,
+             n_processes: int or None = None) -> None:
     """
     Corrects all streams in the assignment table using the SABER method with a multiprocessing Pool
 
     Args:
         assign_df: the assignment table
-        hds: string dataset of hindcast streamflow data
+        hds: string path to the hindcast streamflow dataset
         gauge_data: path to the directory of observed data
+        save_dir: path to the directory to save the corrected data
+        n_processes: number of processes to use for multiprocessing, passed to Pool
 
     Returns:
         None
     """
     logger.info('Starting SABER Bias Correction')
 
-    with Pool(20) as p:
+    if save_dir is None:
+        save_dir = os.path.join(gauge_data, 'corrected')
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+    with Pool(n_processes) as p:
         p.starmap(
             map_saber,
-            [[mid, asgn_mid, asgn_gid, hds, gauge_data] for mid, asgn_mid, asgn_gid in
+            [[mid, asgn_mid, asgn_gid, hds, gauge_data, save_dir] for mid, asgn_mid, asgn_gid in
              np.moveaxis(assign_df[[mid_col, asgn_mid_col, gid_col]].values, 0, 0)]
         )
 
@@ -53,7 +61,7 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str) -> None:
     return
 
 
-def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str) -> None:
+def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str, save_dir) -> None:
     """
     Corrects all streams in the assignment table using the SABER method
 
@@ -63,12 +71,13 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str)
         asgn_gid: the gauge id of the stream assigned to mid for bias correction
         hds: xarray dataset of hindcast streamflow data
         gauge_data: path to the directory of observed data
+        save_dir: path to the directory to save the corrected data
 
     Returns:
         None
     """
     try:
-        if asgn_gid is None:
+        if asgn_gid is None or pd.isna(asgn_gid):
             logger.debug(f'No gauge assigned to {mid}')
             return
 
@@ -82,18 +91,19 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str)
         hds = xarray.open_mfdataset(hds, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
         rivids = hds.rivid.values
         sim_a = hds['Qout'][:, (rivids - int(mid)).argmin()].values
-        times = hds['time'].values
-        sim_a = pd.DataFrame(sim_a, index=times, columns=['Qsim'])
+        sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=['Qsim'])
         if asgn_mid != mid:
             sim_b = hds['Qout'][:, (rivids - int(asgn_mid)).argmin()].values
-            sim_b = pd.DataFrame(sim_b, index=times, columns=['Qsim'])
+            sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=['Qsim'])
         hds.close()
 
-        new_path = os.path.join(gauge_data, f'saber_corrected_{mid}.parquet')
         if asgn_mid == mid:
-            fdc_mapping(sim_a, obs_df).to_parquet(new_path)
+            fdc_mapping(sim_a, obs_df).to_csv(
+                os.path.join(save_dir, f'saber_mid_{mid}_gid_{asgn_gid}.parquet'))
         else:
-            sfdc_mapping(sim_b, obs_df, sim_a).to_parquet(new_path)
+            sfdc_mapping(sim_b, obs_df, sim_a).to_csv(
+                os.path.join(save_dir, f'saber_mid_{mid}_gid_{asgn_gid}.parquet'))
+
     except Exception as e:
         logger.error(e)
         logger.debug(f'Failed to correct {mid}')

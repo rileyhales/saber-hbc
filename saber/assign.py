@@ -257,7 +257,7 @@ def map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str) 
     """
     try:
         # find the closest gauge using euclidean distance without accounting for projection/map distortion
-        mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].values.flatten()
+        mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].head(1).values.flatten()
         row_idx_to_assign = pd.Series(
             np.sqrt(np.power(gauges_df[x_col] - mid_x, 2) + np.power(gauges_df[y_col] - mid_y, 2))
         ).idxmin()

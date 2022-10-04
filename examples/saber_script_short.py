@@ -28,7 +28,7 @@ if __name__ == "__main__":
     hindcast_zarr = ''
     # END USER INPUTS
 
-    # Generate Plots
+    # Generate Clusters and Plots
     logger.info('Create Clusters and Plots')
     saber.cluster.cluster(workdir, x_fdc_train)
     # Before continuing, review the clustering results and select the best n_clusters for the next function
@@ -44,13 +44,11 @@ if __name__ == "__main__":
     saber.gis.create_maps(workdir, assign_df, drain_gis)
 
     # Optional - Compute the Corrected Simulation Data
+    logger.info('Compute Corrected Simulation Data')
     saber.calibrate.mp_saber(assign_df, hindcast_zarr, gauge_data)
 
     # Recommended Optional - Compute stochastic performance metrics
-    # print('Performing Validation')
-    # saber.validate.sample_gauges(workdir, overwrite=True)
-    # saber.validate.run_series(workdir, drain_shape, obs_data_dir)
-    # vtab = saber.validate.gen_val_table(workdir)
-    # saber.gis.validation_maps(workdir, gauge_shape, vtab)
+    logger.info('Compute Stochastic Performance Metrics')
+    saber.validate.val_kfolds(workdir, assign_df, gauge_data, hindcast_zarr)
 
     logger.info('SABER Completed')

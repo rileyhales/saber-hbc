@@ -110,10 +110,7 @@ if __name__ == "__main__":
     logger.info('SABER Calibration Completed')
 
     # Recommended Optional - Compute stochastic performance metrics
-    # print('Performing Validation')
-    # saber.validate.sample_gauges(workdir, overwrite=True)
-    # saber.validate.run_series(workdir, drain_shape, obs_data_dir)
-    # vtab = saber.validate.gen_val_table(workdir)
-    # saber.gis.validation_maps(workdir, gauge_shape, vtab)
+    logger.info('Compute Stochastic Performance Metrics')
+    saber.validate.val_kfolds(workdir, assign_df, gauge_data, hindcast_zarr, n_processes=1)
 
     logger.info('SABER Completed')
