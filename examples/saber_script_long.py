@@ -92,14 +92,18 @@ if __name__ == "__main__":
 
     logger.info('SABER Assignment Analysis Completed')
 
-    # Optional - Generate GIS files to visually inspect the assignments
+    # Recommended Optional - Generate GIS files to visually inspect the assignments
     logger.info('Generating GIS files')
     drain_gis = gpd.read_file(drain_gis)
     saber.gis.map_by_reason(workdir, assign_df, drain_gis)
     saber.gis.map_by_cluster(workdir, assign_df, drain_gis)
     saber.gis.map_unassigned(workdir, assign_df, drain_gis)
 
-    # Compute the corrected simulation data
+    # Recommended Optional - Compute performance metrics
+    logger.info('Compute Performance Metrics')
+    saber.calibrate.mp_saber(assign_df, hindcast_zarr, gauge_data)
+
+    # Optional - Compute the corrected simulation data
     logger.info('Computing Bias Corrected Simulations')
     with Pool(20) as p:
         p.starmap(
@@ -108,9 +112,5 @@ if __name__ == "__main__":
              np.moveaxis(assign_df[[saber.io.mid_col, saber.io.asgn_mid_col, saber.io.gid_col]].values, 0, 0)]
         )
     logger.info('SABER Calibration Completed')
-
-    # Recommended Optional - Compute stochastic performance metrics
-    logger.info('Compute Stochastic Performance Metrics')
-    saber.validate.val_kfolds(workdir, assign_df, gauge_data, hindcast_zarr, n_processes=1)
 
     logger.info('SABER Completed')

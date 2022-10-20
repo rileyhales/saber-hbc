@@ -41,14 +41,14 @@ if __name__ == "__main__":
 
     # Recommended Optional - Generate GIS files to visually inspect the assignments
     logger.info('Generating GIS files')
+
+    # Recommended Optional - Compute performance metrics
+    logger.info('Compute Performance Metrics')
+    saber.validate.mp_bootstrap(workdir, assign_df, gauge_data, hindcast_zarr, n_processes=4)
     saber.gis.create_maps(workdir, assign_df, drain_gis)
 
     # Optional - Compute the Corrected Simulation Data
     logger.info('Compute Corrected Simulation Data')
     saber.calibrate.mp_saber(assign_df, hindcast_zarr, gauge_data)
-
-    # Recommended Optional - Compute stochastic performance metrics
-    logger.info('Compute Stochastic Performance Metrics')
-    saber.validate.val_kfolds(workdir, assign_df, gauge_data, hindcast_zarr)
 
     logger.info('SABER Completed')

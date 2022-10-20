@@ -21,9 +21,11 @@ from .io import metric_nc_name_list
 from .io import mid_col
 from .io import gid_col
 from .io import table_hindcast
+from .io import q_sim
+from .io import q_obs
+from .io import q_mod
 
 logger = logging.getLogger(__name__)
-
 
 __all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'calibrate_region', 'map_saber', 'calc_fdc', 'calc_sfdc']
 
@@ -61,7 +63,7 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str =
     return
 
 
-def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str, save_dir) -> None:
+def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str, save_dir: str) -> pd.DataFrame | tuple | None:
     """
     Corrects all streams in the assignment table using the SABER method
 
@@ -91,23 +93,25 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
         hds = xarray.open_mfdataset(hds, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
         rivids = hds.rivid.values
         sim_a = hds['Qout'][:, (rivids - int(mid)).argmin()].values
-        sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=['Qsim'])
+        sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=[q_sim])
         if asgn_mid != mid:
             sim_b = hds['Qout'][:, (rivids - int(asgn_mid)).argmin()].values
-            sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=['Qsim'])
+            sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[q_sim])
         hds.close()
 
         if asgn_mid == mid:
-            fdc_mapping(sim_a, obs_df).to_csv(
-                os.path.join(save_dir, f'saber_mid_{mid}_gid_{asgn_gid}.parquet'))
+            corrected_df = fdc_mapping(sim_a, obs_df)
         else:
-            sfdc_mapping(sim_b, obs_df, sim_a).to_csv(
-                os.path.join(save_dir, f'saber_mid_{mid}_gid_{asgn_gid}.parquet'))
+            corrected_df = sfdc_mapping(sim_b, obs_df, sim_a)
+
+        # save the corrected data
+        corrected_df.to_csv(os.path.join(save_dir, f'saber_{mid}.csv'))
+        return corrected_df
 
     except Exception as e:
         logger.error(e)
         logger.debug(f'Failed to correct {mid}')
-    return
+        return
 
 
 def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
@@ -139,9 +143,10 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
         dates += month_sim.index.to_list()
         values += to_flow(to_prob(month_sim.values)).tolist()
 
-    corrected = pd.DataFrame(data=values, index=dates, columns=['Qcorrected'])
-    corrected = corrected.sort_index()
-    return corrected
+    return pd.DataFrame({
+        q_mod: values,
+        q_sim: sim_df.values.flatten(),
+    }, index=dates).sort_index()
 
 
 def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame = None,
@@ -149,7 +154,8 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
                  drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
                  filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
                  extrapolate: str = 'nearest', fill_value: int or float = None,
-                 fit_gumbel: bool = False, fit_range: tuple = (10, 90), ) -> pd.DataFrame:
+                 fit_gumbel: bool = False, fit_range: tuple = (10, 90),
+                 metadata: bool = False, ) -> pd.DataFrame:
     """
     Removes the bias from simulated discharge using the SABER method.
 
@@ -180,6 +186,8 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
         fit_gumbel (bool): flag to replace extremely low/high corrected flows with values from Gumbel type 1
         fit_range (tuple): lower and upper bounds of exceedance probabilities to replace with Gumbel values
+
+        metadata (bool): flag to return the scalars and metadata about the correction process
 
     Returns:
         pd.DataFrame with a DateTime index and columns with corrected flow, uncorrected flow, the scalar adjustment
@@ -214,28 +222,28 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     # compute the flow duration curves
     if drop_outliers:
-        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name='Q_sim')
-        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name='Q_sim')
-        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name='Q_obs')
+        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=q_sim)
+        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=q_sim)
+        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=q_obs)
     else:
-        sim_fdc_a = calc_fdc(sim_flow_a, col_name='Q_sim')
-        sim_fdc_b = calc_fdc(sim_flow_b, col_name='Q_sim')
-        obs_fdc = calc_fdc(obs_flow_a, col_name='Q_obs')
+        sim_fdc_a = calc_fdc(sim_flow_a, col_name=q_sim)
+        sim_fdc_b = calc_fdc(sim_flow_b, col_name=q_sim)
+        obs_fdc = calc_fdc(obs_flow_a, col_name=q_obs)
 
     # calculate the scalar flow duration curve (at point A with simulated and observed data)
-    scalar_fdc = calc_sfdc(sim_fdc_a['flow'].values.flatten(), obs_fdc['flow'].values.flatten())
+    scalar_fdc = calc_sfdc(sim_fdc_a[q_sim], obs_fdc[q_obs])
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
 
     # make interpolators: Q_b -> p_exceed_b, p_exceed_a -> scalars_a
     # flow at B converted to exceedance probabilities, then matched with the scalar computed at point A
-    flow_to_percent = _make_interpolator(sim_fdc_b.values,
+    flow_to_percent = _make_interpolator(sim_fdc_b.values.flatten(),
                                          sim_fdc_b.index,
                                          extrap=extrapolate,
                                          fill_value=fill_value)
 
     percent_to_scalar = _make_interpolator(scalar_fdc.index,
-                                           scalar_fdc.values,
+                                           scalar_fdc.values.flatten(),
                                            extrap=extrapolate,
                                            fill_value=fill_value)
 
@@ -248,9 +256,14 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
     if fit_gumbel:
         qb_adjusted = _fit_extreme_values_to_gumbel(qb_adjusted, p_exceed, fit_range)
 
-    return pd.DataFrame(data=np.transpose([qb_adjusted, qb_original, scalars, p_exceed]),
-                        index=sim_flow_b.index.to_list(),
-                        columns=('Qcorrected', 'Qoriginal', 'scalars', 'p_exceed'))
+    response = pd.DataFrame(data=np.transpose([qb_adjusted, qb_original]),
+                            index=sim_flow_b.index.to_list(),
+                            columns=(q_mod, q_sim))
+    if metadata:
+        response['scalars'] = scalars
+        response['p_exceed'] = p_exceed
+
+    return response
 
 
 def calibrate_region(workdir: str, assign_table: pd.DataFrame,
@@ -424,9 +437,13 @@ def calc_sfdc(sim_fdc: pd.DataFrame, obs_fdc: pd.DataFrame) -> pd.DataFrame:
         obs_fdc: observed flow duration curve
 
     Returns:
-        pd.DataFrame with index 'p_exceed' and columns 'Q'
+        pd.DataFrame with index (exceedance probabilities) and a column of scalars
     """
-    scalars_df = pd.DataFrame(np.divide(sim_fdc.values, obs_fdc.values), columns=['scalars'], index=sim_fdc.index)
+    scalars_df = pd.DataFrame(
+        np.divide(sim_fdc.values.flatten(), obs_fdc.values.flatten()),
+        columns=['scalars'],
+        index=sim_fdc.index
+    )
     scalars_df.replace(np.inf, np.nan, inplace=True)
     scalars_df.dropna(inplace=True)
     return scalars_df

@@ -222,7 +222,7 @@ def map_resolve_props(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
     df_mid['n_steps'] = df_mid['n_steps'].astype(float)
     # sort by n_steps then by reason
     df_mid = df_mid.sort_values(['n_steps', 'direction'], ascending=[True, True])
-    # return the first row which is the fewest steps and preferring downstream to upstream)
+    # return the first row which is the fewest steps and preferring downstream to upstream
     return df_mid.head(1).drop(columns=['direction', 'n_steps'])
 
 
@@ -256,13 +256,14 @@ def map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str) 
         a new row for the given mid with the assignments made
     """
     try:
+        # todo account for physical parameters if they are included
         # find the closest gauge using euclidean distance without accounting for projection/map distortion
         mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].head(1).values.flatten()
         row_idx_to_assign = pd.Series(
             np.sqrt(np.power(gauges_df[x_col] - mid_x, 2) + np.power(gauges_df[y_col] - mid_y, 2))
         ).idxmin()
 
-        asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [asgn_mid_col, asgn_gid_col]]
+        asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [mid_col, gid_col]]
         asgn_reason = f'cluster-{gauges_df[clbl_col].values[0]}'
 
         new_row = assign_df[assign_df[mid_col] == mid].copy()
