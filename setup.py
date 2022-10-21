@@ -25,6 +25,7 @@ INSTALL_REQUIRES = [
     'requests',
     'scikit-learn',
     'scipy',
+    'seaborn',
     'xarray',
     'zarr'
 ]

@@ -27,6 +27,7 @@ if __name__ == "__main__":
     drain_gis = ''
     gauge_data = ''
     hindcast_zarr = ''
+    n_processes = 1  # number of processes to use for multiprocessing
     # END USER INPUTS
 
     logger.info('Generate Clusters')
@@ -101,7 +102,8 @@ if __name__ == "__main__":
 
     # Recommended Optional - Compute performance metrics
     logger.info('Compute Performance Metrics')
-    saber.calibrate.mp_saber(assign_df, hindcast_zarr, gauge_data)
+    saber.validate.mp_bootstrap(workdir, assign_df, gauge_data, hindcast_zarr, n_processes=n_processes)
+    saber.validate.bootstrap_figures(workdir)
 
     # Optional - Compute the corrected simulation data
     logger.info('Computing Bias Corrected Simulations')

@@ -6,6 +6,8 @@ from multiprocessing import Pool
 import hydrostats as hs
 import numpy as np
 import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
 from sklearn.model_selection import RepeatedKFold as RKFolds
 
 from .assign import map_assign_ungauged
@@ -13,14 +15,14 @@ from .assign import mp_assign_all
 from .calibrate import map_saber, mp_saber
 from .io import asgn_gid_col
 from .io import asgn_mid_col
-from .io import q_mod
-from .io import q_obs
-from .io import q_sim
 from .io import dir_valid
 from .io import gid_col
 from .io import mid_col
+from .io import q_mod
+from .io import q_obs
+from .io import q_sim
 
-__all__ = ['kfolds', 'bootstrap', 'mp_bootstrap']
+__all__ = ['kfolds', 'bootstrap', 'mp_bootstrap', 'bootstrap_figures']
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +100,7 @@ def bootstrap(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hds: str,
         )
 
         if corrected_df is None:
+            logger.warning(f'No corrected data for {row[mid_col]}')
             return None
         if not all([q_mod in corrected_df.columns, q_sim in corrected_df]):
             logger.warning(f'missing columns')
@@ -137,7 +140,7 @@ def bootstrap(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hds: str,
         })
     except Exception as e:
         logger.error(e)
-        logger.error(f'Failed bootstrap validation for {row.transpose()}')
+        logger.error(f'Failed bootstrap validation for {row[mid_col]}')
         return None
 
 
@@ -167,6 +170,72 @@ def mp_bootstrap(workdir: str, assign_df: pd.DataFrame, gauge_data: str, hds: st
             )
         )
 
-    metrics_df.to_csv(os.path.join(save_dir, 'bootstrap_metrics.csv'))
+    metrics_df.to_csv(os.path.join(save_dir, 'bootstrap_metrics.csv'), index=False)
 
+    return
+
+
+def bootstrap_figures(workdir: str, df: pd.DataFrame = None, stat: str = None) -> None:
+    """
+
+    Args:
+        workdir: the project working directory
+        df: pandas.DataFrame of the bootstrap metrics
+        stat: the statistic to plot
+
+    Returns:
+        None
+    """
+    if df is None:
+        df = pd.read_csv(os.path.join(workdir, dir_valid, 'bootstrap_metrics.csv'), index_col=0)
+
+    if stat is None:
+        for stat in ['me', 'mae', 'rmse', 'nse', 'kge']:
+            bootstrap_figures(workdir, df, stat)
+        return
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), dpi=1500, tight_layout=True, sharey=True)
+
+    if stat == 'kge':
+        binwidth = 0.5
+        binrange = (-6, 1)
+        ax1.axvline(-0.44, c='red', linestyle='--')
+        ax2.axvline(-0.44, c='red', linestyle='--')
+
+    elif stat == 'nse':
+        binwidth = 0.5
+        binrange = (-6, 1)
+
+    elif stat == 'me':
+        binwidth = 20
+        binrange = (-200, 200)
+
+    elif stat == 'mae':
+        binwidth = 30
+        binrange = (0, 300)
+
+    elif stat == 'rmse':
+        binwidth = 20
+        binrange = (0, 200)
+
+    else:
+        raise ValueError(f'Invalid statistic: {stat}')
+
+    fig.suptitle(f'Bootstrap Validation: {stat.upper()}')
+    ax1.grid(True, 'both', zorder=0, linestyle='--')
+    ax2.grid(True, 'both', zorder=0, linestyle='--')
+    ax1.set_xlim(binrange)
+    ax2.set_xlim(binrange)
+
+    stat_df = df[[f'{stat}_corr', f'{stat}_sim']].reset_index(drop=True).copy()
+    stat_df[stat_df <= binrange[0]] = binrange[0]
+    stat_df[stat_df >= binrange[1]] = binrange[1]
+
+    sns.histplot(stat_df, x=f'{stat}_sim', binwidth=binwidth, binrange=binrange, ax=ax1)
+    sns.histplot(stat_df, x=f'{stat}_corr', binwidth=binwidth, binrange=binrange, ax=ax2)
+
+    ax1.axvline(stat_df[f'{stat}_sim'].median(), c='green')
+    ax2.axvline(stat_df[f'{stat}_corr'].median(), c='green')
+
+    fig.savefig(os.path.join(workdir, dir_valid, f'bootstrap_{stat}.png'))
     return

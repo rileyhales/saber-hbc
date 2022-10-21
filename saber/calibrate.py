@@ -1,33 +1,24 @@
-import datetime
 import logging
 import os
 import statistics
 from multiprocessing import Pool
 
-import hydrostats as hs
-import hydrostats.data as hd
-import netCDF4 as nc
 import numpy as np
 import pandas as pd
 import xarray
 from natsort import natsorted
 from scipy import interpolate, stats
 
-from .io import asgn_gid_col
 from .io import asgn_mid_col
-from .io import cal_nc_name
-from .io import metric_list
-from .io import metric_nc_name_list
-from .io import mid_col
 from .io import gid_col
-from .io import table_hindcast
-from .io import q_sim
-from .io import q_obs
+from .io import mid_col
 from .io import q_mod
+from .io import q_obs
+from .io import q_sim
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'calibrate_region', 'map_saber', 'calc_fdc', 'calc_sfdc']
+__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'map_saber', 'calc_fdc', 'calc_sfdc']
 
 
 def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str = None,
@@ -63,7 +54,8 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str =
     return
 
 
-def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str, save_dir: str) -> pd.DataFrame | tuple | None:
+def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
+              save_dir: str) -> pd.DataFrame | tuple | None:
     """
     Corrects all streams in the assignment table using the SABER method
 
@@ -92,17 +84,21 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
         # perform corrections
         hds = xarray.open_mfdataset(hds, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
         rivids = hds.rivid.values
-        sim_a = hds['Qout'][:, (rivids - int(mid)).argmin()].values
+        sim_a = hds['Qout'][:, rivids == int(mid)].values
         sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=[q_sim])
         if asgn_mid != mid:
-            sim_b = hds['Qout'][:, (rivids - int(asgn_mid)).argmin()].values
+            sim_b = hds['Qout'][:, rivids == int(asgn_mid)].values
             sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[q_sim])
         hds.close()
 
         if asgn_mid == mid:
             corrected_df = fdc_mapping(sim_a, obs_df)
         else:
-            corrected_df = sfdc_mapping(sim_b, obs_df, sim_a)
+            corrected_df = sfdc_mapping(
+                sim_b, obs_df, sim_a,
+                drop_outliers=True, outlier_threshold=3,
+                fit_gumbel=True, fit_range=(5, 95),
+            )
 
         # save the corrected data
         corrected_df.to_csv(os.path.join(save_dir, f'saber_{mid}.csv'))
@@ -266,148 +262,6 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
     return response
 
 
-def calibrate_region(workdir: str, assign_table: pd.DataFrame,
-                     gauge_table: pd.DataFrame = None, obs_data_dir: str = None) -> None:
-    """
-    Creates a netCDF of all corrected flows in a region.
-
-    Args:
-        workdir: path to project working directory
-        assign_table: the assign_table dataframe
-        gauge_table: path to the gauge table
-        obs_data_dir: path to the observed data
-
-    Returns:
-        None
-    """
-    # todo create a zarr instead of a netcdf
-    if gauge_table is None:
-        gauge_table = pd.read_csv(os.path.join(workdir, 'gis_inputs', 'gauge_table.csv'))
-    if obs_data_dir is None:
-        obs_data_dir = os.path.join(workdir, 'data_inputs', 'obs_csvs')
-
-    bcs_nc_path = os.path.join(workdir, cal_nc_name)
-    ts = pd.read_pickle(os.path.join(workdir, 'data_processed', table_hindcast))
-
-    # create the new netcdf
-    bcs_nc = nc.Dataset(bcs_nc_path, 'w')
-
-    # set up the dimensions
-    t_size = ts.values.shape[0]
-    m_size = ts.values.shape[1]
-    c_size = 2
-    bcs_nc.createDimension('time', t_size)
-    bcs_nc.createDimension('model_id', m_size)
-    bcs_nc.createDimension('corrected', c_size)
-
-    # coordinate variables
-    bcs_nc.createVariable('time', 'i', ('time',), zlib=True, shuffle=True, fill_value=-9999)
-    bcs_nc.createVariable('model_id', 'i', ('model_id',), zlib=True, shuffle=True, fill_value=-9999)
-    bcs_nc.createVariable('corrected', 'i', ('corrected',), zlib=True, shuffle=True, fill_value=-1)
-
-    # other variables
-    bcs_nc.createVariable('flow_sim', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('flow_bc', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('percentiles', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    bcs_nc.createVariable('scalars', 'f4', ('time', 'model_id'), zlib=True, shuffle=True, fill_value=np.nan)
-    for metric in metric_nc_name_list:
-        bcs_nc.createVariable(metric, 'f4', ('model_id', 'corrected'), zlib=True, shuffle=True, fill_value=np.nan)
-
-    # times from the datetime index
-    times = ts.index.values.astype(datetime.datetime)
-    # convert nanoseconds to milliseconds
-    times = times / 1000000
-    # convert to dates
-    times = nc.num2date(times, 'milliseconds since 1970-01-01 00:00:00', calendar='standard')
-    # convert to a simpler unit
-    times = nc.date2num(times, 'days since 1970-01-01 00:00:00', calendar='standard')
-
-    # fill the values we already know
-    bcs_nc['time'].unit = 'days since 1970-01-01 00:00:00+00'
-    bcs_nc['time'][:] = times
-    bcs_nc['model_id'][:] = ts.columns.to_list()
-    bcs_nc['corrected'][:] = np.array((0, 1))
-    bcs_nc['flow_sim'][:] = ts.values
-
-    bcs_nc.sync()
-
-    # set up arrays to compute the corrected, percentile and scalar arrays
-    c_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
-    p_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
-    s_array = np.array([np.nan] * t_size * m_size).reshape((t_size, m_size))
-
-    computed_metrics = {}
-    for metric in metric_list:
-        computed_metrics[metric] = np.array([np.nan] * m_size * c_size).reshape(m_size, c_size)
-
-    errors = {'g1': 0, 'g2': 0, 'g3': 0, 'g4': 0}
-    for idx, triple in enumerate(assign_table[[mid_col, asgn_mid_col, asgn_gid_col]].values):
-        try:
-            if idx % 25 == 0:
-                logger.info(f'\n\t\t{idx + 1}/{m_size}')
-
-            model_id, asgn_mid, asgn_gid = triple
-            if np.isnan(asgn_gid) or np.isnan(asgn_mid):
-                continue
-            model_id = int(model_id)
-            asgn_mid = int(asgn_mid)
-            asgn_gid = int(asgn_gid)
-        except Exception as e:
-            errors['g1'] += 1
-            continue
-
-        try:
-            obs_df = pd.read_csv(os.path.join(obs_data_dir, f'{asgn_gid}.csv'), index_col=0, parse_dates=True)
-            obs_df = obs_df.dropna()
-        except Exception as e:
-            logger.info('failed to read the observed data')
-            logger.info(e)
-            errors['g2'] += 1
-            continue
-
-        try:
-            calibrated_df = sfdc_mapping(ts[[asgn_mid]], obs_df, ts[[model_id]])
-            c_array[:, idx] = calibrated_df['flow'].values
-            p_array[:, idx] = calibrated_df['percentile'].values
-            s_array[:, idx] = calibrated_df['scalars'].values
-        except Exception as e:
-            logger.info('failed during the calibration step')
-            logger.info(e)
-            errors['g3'] += 1
-            continue
-
-        try:
-            if model_id in gauge_table['model_id'].values:
-                correct_id = gauge_table.loc[gauge_table['model_id'] == model_id, 'gauge_id'].values[0]
-                obs_df = pd.read_csv(os.path.join(obs_data_dir, f'{correct_id}.csv'), index_col=0, parse_dates=True)
-                sim_obs_stats = hs.make_table(hd.merge_data(sim_df=ts[[model_id]], obs_df=obs_df), metric_list)
-                bcs_obs_stats = hs.make_table(hd.merge_data(sim_df=calibrated_df[['flow']], obs_df=obs_df), metric_list)
-                for metric in metric_list:
-                    computed_metrics[metric][idx, :] = \
-                        float(sim_obs_stats[metric].values[0]), float(bcs_obs_stats[metric].values[0])
-
-        except Exception as e:
-            logger.info('failed during collecting stats')
-            logger.info(e)
-            errors['g4'] += 1
-            continue
-
-    bcs_nc['flow_bc'][:] = c_array
-    bcs_nc['percentiles'][:] = p_array
-    bcs_nc['scalars'][:] = s_array
-    for idx, metric in enumerate(metric_list):
-        bcs_nc[metric_nc_name_list[idx]][:] = computed_metrics[metric]
-
-    bcs_nc.sync()
-    bcs_nc.close()
-
-    logger.info(errors)
-    with open(os.path.join(workdir, 'calibration_errors.json'), 'w') as f:
-        f.write(str(errors))
-
-    return
-
-
 def calc_fdc(flows: np.array, steps: int = 201, col_name: str = 'Q') -> pd.DataFrame:
     """
     Compute flow duration curve (exceedance probabilities) from a list of flows
@@ -539,26 +393,19 @@ def _fit_extreme_values_to_gumbel(q_adjust: np.array, p_exceed: np.array, fit_ra
         fit_range: range of exceedance probabilities to fit to the Gumbel distribution
 
     Returns:
-        np.array of the flows with the extreme values replaced
+        array of the flows with the extreme values replaced
     """
     all_values = pd.DataFrame(np.transpose([q_adjust, p_exceed]), columns=('q', 'p'))
+
     # compute the average and standard deviation for the values within the user specified fit_range
-    mid_vals = all_values.copy()
-    mid_vals = mid_vals[np.logical_and(mid_vals['p'] > fit_range[0], mid_vals['p'] < fit_range[1])]
+    mid_vals = all_values[np.logical_and(all_values['p'] >= fit_range[0], all_values['p'] <= fit_range[1])]
     xbar = statistics.mean(mid_vals['q'].values)
     std = statistics.stdev(mid_vals['q'].values, xbar)
 
-    q = []
-    for p in mid_vals[mid_vals['p'] <= fit_range[0]]['p'].tolist():
-        q.append(_solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
-    mid_vals.loc[mid_vals['p'] <= fit_range[0], 'q'] = q
+    outlier_vals = all_values.drop(mid_vals.index)
+    outlier_vals['q'] = outlier_vals['q'] = -np.log(
+        -np.log(1 - (1 / (1 / (1 - (outlier_vals['p'] / 100)))))) * std * .7797 + xbar - (.45 * std)
+    outlier_vals[outlier_vals < 0] = 0
+    all_values.update(outlier_vals)
 
-    q = []
-    for p in mid_vals[mid_vals['p'] >= fit_range[1]]['p'].tolist():
-        if p >= 100:
-            p = 99.999
-        q.append(_solve_gumbel1(std, xbar, 1 / (1 - (p / 100))))
-    mid_vals.loc[mid_vals['p'] >= fit_range[1], 'q'] = q
-
-    qb_adjusted = mid_vals['q'].values
-    return qb_adjusted
+    return all_values['q'].values.flatten()
