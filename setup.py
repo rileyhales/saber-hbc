@@ -6,26 +6,28 @@ with open("README.md", "r") as readme:
 AUTHOR = 'Riley C. Hales'
 DESCRIPTION = 'The SABER tool for bias correcting large hydrologic models'
 
-VERSION = '0.6.0'
+VERSION = '0.7.0'
 
 PYTHON_REQUIRES = '>=3.10'
 INSTALL_REQUIRES = [
     'contextily',
-    'geopandas',
     'fastparquet',
+    'geopandas',
     'hydrostats',
     'joblib',
     'kneed',
     'matplotlib',
     'natsort',
-    'netCDF4',
     'numba',
     'numpy',
     'pandas',
     'pyarrow',
     'requests',
     'scikit-learn',
-    'scipy'
+    'scipy',
+    'seaborn',
+    'xarray',
+    'zarr'
 ]
 
 TROVE_CLASSIFIERS = [

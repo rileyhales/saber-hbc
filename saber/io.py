@@ -19,6 +19,11 @@ order_col = 'strahler_order'
 x_col = 'x_mod'
 y_col = 'y_mod'
 
+# dataframe columns names
+q_obs = 'Qobs'
+q_mod = 'Qmod'
+q_sim = 'Qsim'
+
 # name of some files produced by the algorithm
 cluster_count_file = 'best-fit-cluster-count.json'
 cal_nc_name = 'calibrated_simulated_flow.nc'
@@ -52,8 +57,8 @@ table_cluster_sscores = 'cluster_sscores.csv'
 table_cluster_labels = 'cluster_labels.parquet'
 
 # metrics computed on validation sets
-metric_list = ['ME', 'MAE', 'RMSE', 'MAPE', 'NSE', 'KGE (2012)']
-metric_nc_name_list = ['ME', 'MAE', 'RMSE', 'MAPE', 'NSE', 'KGE2012']
+metric_list = ['ME', 'MAE', 'RMSE', 'NSE', 'KGE (2012)']
+metric_nc_name_list = ['ME', 'MAE', 'RMSE', 'NSE', 'KGE2012']
 
 
 def scaffold_workdir(path: str, include_validation: bool = True) -> None:

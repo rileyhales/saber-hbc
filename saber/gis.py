@@ -15,39 +15,46 @@ from .io import reason_col
 from .io import dir_gis
 from .io import clbl_col
 
-__all__ = ['generate_all', 'clip_by_assignment', 'clip_by_cluster', 'clip_by_unassigned', 'clip_by_ids',
+__all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids',
            'validation_maps']
 
 logger = logging.getLogger(__name__)
 
 
-def generate_all(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def create_maps(workdir: str, assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
     """
     Runs all the clip functions which create subsets of the drainage lines GIS dataset based on how they were assigned
     for bias correction.
 
     Args:
         workdir: the path to the working directory for the project
-        assign_table: the assign_table dataframe
+        assign_df: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated in separate instances
 
     Returns:
         None
     """
-    clip_by_assignment(workdir, assign_table, drain_gis, prefix)
-    clip_by_cluster(workdir, assign_table, drain_gis, prefix)
-    clip_by_unassigned(workdir, assign_table, drain_gis, prefix)
+    if type(drain_gis) == str:
+        gdf = gpd.read_file(drain_gis)
+    elif type(drain_gis) == gpd.GeoDataFrame:
+        gdf = drain_gis
+    else:
+        raise TypeError(f'Invalid type for drain_gis: {type(drain_gis)}')
+
+    map_by_reason(workdir, assign_df, gdf, prefix)
+    map_by_cluster(workdir, assign_df, gdf, prefix)
+    map_unassigned(workdir, assign_df, gdf, prefix)
     return
 
 
-def clip_by_assignment(workdir: str, assign_df: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def map_by_reason(workdir: str, assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs for each unique value in the assignment column
 
     Args:
         workdir: the path to the working directory for the project
-        assign_df: the assign_table dataframe
+        assign_df: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
 
@@ -72,13 +79,13 @@ def clip_by_assignment(workdir: str, assign_df: pd.DataFrame, drain_gis: str, pr
     return
 
 
-def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def map_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the drainage lines based on the fdc cluster they were assigned to
 
     Args:
         workdir: the path to the working directory for the project
-        assign_table: the assign_table dataframe
+        assign_table: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
 
@@ -97,13 +104,13 @@ def clip_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, pr
     return
 
 
-def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def map_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the drainage lines which haven't been assigned a gauge yet
 
     Args:
         workdir: the path to the working directory for the project
-        assign_table: the assign_table dataframe
+        assign_table: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
 
@@ -123,7 +130,7 @@ def clip_by_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str,
     return
 
 
-def clip_by_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_column: str = mid_col) -> None:
+def map_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_column: str = mid_col) -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the subset of 'drain_shape' with an ID in the specified list
 

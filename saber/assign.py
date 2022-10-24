@@ -1,4 +1,5 @@
 import logging
+from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
@@ -16,9 +17,62 @@ from .io import clbl_col
 from .io import x_col
 from .io import y_col
 
-__all__ = ['generate', 'assign_gauged', 'map_propagate', 'map_resolve_propagations', 'map_assign_ungauged', ]
+__all__ = ['mp_assign_all', 'generate', 'assign_gauged', 'map_propagate', 'map_resolve_props', 'map_assign_ungauged', ]
 
 logger = logging.getLogger(__name__)
+
+
+def mp_assign_all(workdir: str, assign_df: pd.DataFrame, n_processes: int or None = None) -> pd.DataFrame:
+    """
+
+    Args:
+        workdir: path to the working directory
+        assign_df: the assignments table dataframe with the clustering labels already applied
+        n_processes: number of processes to use for multiprocessing, passed to Pool
+
+    Returns:
+        pd.DataFrame
+    """
+    gauged_mids = assign_df[assign_df[gid_col].notna()][mid_col].values
+
+    # assign gauged basins
+    logger.info('Assigning Gauged Basins')
+    assign_df = assign_gauged(assign_df)
+
+    logger.info('Assigning by Hydraulic Connectivity')
+    with Pool(n_processes) as p:
+        logger.info('Finding Downstream Assignments')
+        df_prop_down = pd.concat(p.starmap(map_propagate, [(assign_df, x, 'down') for x in gauged_mids]))
+        logger.info('Caching Downstream Assignments')
+        write_table(df_prop_down, workdir, 'prop_downstream')
+
+        logger.info('Finding Upstream Assignments')
+        df_prop_up = pd.concat(p.starmap(map_propagate, [(assign_df, x, 'up') for x in gauged_mids]))
+        logger.info('Caching Upstream Assignments')
+        write_table(df_prop_up, workdir, 'prop_upstream')
+
+        logger.info('Resolving Propagation Assignments')
+        df_prop = pd.concat([df_prop_down, df_prop_up]).reset_index(drop=True)
+        df_prop = pd.concat(p.starmap(map_resolve_props, [(df_prop, x) for x in df_prop[mid_col].unique()]))
+        logger.info('Caching Propagation Assignments')
+        write_table(df_prop, workdir, 'prop_resolved')
+
+        logger.info('Assign Remaining Basins by Cluster, Spatial, and Physical Decisions')
+        for cluster_number in range(assign_df[clbl_col].max() + 1):
+            logger.info(f'Assigning basins in cluster {cluster_number}')
+            # limit by cluster number
+            c_df = assign_df[assign_df[clbl_col] == cluster_number]
+            # keep a list of the unassigned basins in the cluster
+            mids = c_df[c_df[reason_col] == 'unassigned'][mid_col].values
+            # filter cluster dataframe to find only gauged basins
+            c_df = c_df[c_df[gid_col].notna()]
+            assign_df = pd.concat([
+                pd.concat(p.starmap(map_assign_ungauged, [(assign_df, c_df, x) for x in mids])),
+                assign_df[~assign_df[mid_col].isin(mids)]
+            ]).reset_index(drop=True)
+
+    logger.info('SABER Assignment Analysis Completed')
+    return assign_df
 
 
 def generate(workdir: str, labels_df: pd.DataFrame = None, drain_table: pd.DataFrame = None,
@@ -100,7 +154,6 @@ def map_propagate(df: pd.DataFrame, start_mid: int, direction: str) -> pd.DataFr
     Returns:
         pd.DataFrame
     """
-    # logger.info(f'Prop {direction} from {start_mid}')
     assigned_rows = []
     start_order = df[df[mid_col] == start_mid][order_col].values[0]
 
@@ -151,7 +204,7 @@ def map_propagate(df: pd.DataFrame, start_mid: int, direction: str) -> pd.DataFr
     return pd.DataFrame(columns=df.columns)
 
 
-def map_resolve_propagations(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
+def map_resolve_props(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
     """
     Resolves the propagation assignments by choosing the assignment with the fewest steps
 
@@ -169,7 +222,7 @@ def map_resolve_propagations(df_props: pd.DataFrame, mid: str) -> pd.DataFrame:
     df_mid['n_steps'] = df_mid['n_steps'].astype(float)
     # sort by n_steps then by reason
     df_mid = df_mid.sort_values(['n_steps', 'direction'], ascending=[True, True])
-    # return the first row which is the fewest steps and preferring downstream to upstream)
+    # return the first row which is the fewest steps and preferring downstream to upstream
     return df_mid.head(1).drop(columns=['direction', 'n_steps'])
 
 
@@ -203,13 +256,14 @@ def map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str) 
         a new row for the given mid with the assignments made
     """
     try:
+        # todo account for physical parameters if they are included
         # find the closest gauge using euclidean distance without accounting for projection/map distortion
-        mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].values.flatten()
+        mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].head(1).values.flatten()
         row_idx_to_assign = pd.Series(
             np.sqrt(np.power(gauges_df[x_col] - mid_x, 2) + np.power(gauges_df[y_col] - mid_y, 2))
         ).idxmin()
 
-        asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [asgn_mid_col, asgn_gid_col]]
+        asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [mid_col, gid_col]]
         asgn_reason = f'cluster-{gauges_df[clbl_col].values[0]}'
 
         new_row = assign_df[assign_df[mid_col] == mid].copy()
