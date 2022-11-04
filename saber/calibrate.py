@@ -54,8 +54,7 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str =
     return
 
 
-def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
-              save_dir: str) -> pd.DataFrame | tuple | None:
+def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str) -> pd.DataFrame | tuple | None:
     """
     Corrects all streams in the assignment table using the SABER method
 
@@ -65,7 +64,6 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
         asgn_gid: the gauge id of the stream assigned to mid for bias correction
         hds: xarray dataset of hindcast streamflow data
         gauge_data: path to the directory of observed data
-        save_dir: path to the directory to save the corrected data
 
     Returns:
         None
@@ -89,6 +87,8 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
         if asgn_mid != mid:
             sim_b = hds['Qout'][:, rivids == int(asgn_mid)].values
             sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[q_sim])
+            sim_b = sim_b[sim_b.index.year >= 1980]
+        sim_a = sim_a[sim_a.index.year >= 1980]
         hds.close()
 
         if asgn_mid == mid:
@@ -96,12 +96,11 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str,
         else:
             corrected_df = sfdc_mapping(
                 sim_b, obs_df, sim_a,
+                use_log=True,
                 drop_outliers=True, outlier_threshold=3,
                 fit_gumbel=True, fit_range=(5, 95),
             )
 
-        # save the corrected data
-        corrected_df.to_csv(os.path.join(save_dir, f'saber_{mid}.csv'))
         return corrected_df
 
     except Exception as e:
@@ -117,6 +116,7 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
     Args:
         sim_df: A dataframe with a datetime index and a single column of streamflow values
         obs_df: A dataframe with a datetime index and a single column of streamflow values
+
     Returns:
         pandas DataFrame with a datetime index and a single column of streamflow values
     """
@@ -146,6 +146,7 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b: pd.DataFrame = None,
+                 use_log: bool = False,
                  fix_seasonally: bool = True, empty_months: str = 'skip',
                  drop_outliers: bool = False, outlier_threshold: int or float = 2.5,
                  filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
@@ -166,6 +167,8 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
         sim_flow_b (pd.DataFrame): (optional) simulated hydrograph at point B to correct using scalar flow duration
             curve mapping and the bias relationship at point A. should contain a datetime index with daily values
             and a single column of discharge values.
+
+        use_log (bool): (optional) if True, log10 transform the discharge values before correcting. default is False.
 
         fix_seasonally (bool): fix on a monthly (True) or annual (False) basis
         empty_months (str): how to handle months in the simulated data where no observed data are available. Options:
@@ -216,6 +219,12 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
         # combine the results from each monthly into a single dataframe (sorted chronologically) and return it
         return pd.concat(monthly_results).sort_index()
 
+    if use_log:
+        sim_flow_a = np.log10(sim_flow_a)
+        obs_flow_a = np.log10(obs_flow_a)
+        if sim_flow_b is not None:
+            sim_flow_b = np.log10(sim_flow_b)
+
     # compute the flow duration curves
     if drop_outliers:
         sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=q_sim)
@@ -230,6 +239,8 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
     scalar_fdc = calc_sfdc(sim_fdc_a[q_sim], obs_fdc[q_obs])
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
+
+    logger.debug(f'Min/Max Scalar {scalar_fdc.min()} {scalar_fdc.max()}')
 
     # make interpolators: Q_b -> p_exceed_b, p_exceed_a -> scalars_a
     # flow at B converted to exceedance probabilities, then matched with the scalar computed at point A
@@ -251,6 +262,10 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     if fit_gumbel:
         qb_adjusted = _fit_extreme_values_to_gumbel(qb_adjusted, p_exceed, fit_range)
+
+    if use_log:
+        qb_adjusted = np.power(10, qb_adjusted)
+        qb_original = np.power(10, qb_original)
 
     response = pd.DataFrame(data=np.transpose([qb_adjusted, qb_original]),
                             index=sim_flow_b.index.to_list(),

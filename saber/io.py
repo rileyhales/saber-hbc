@@ -44,6 +44,9 @@ table_mids = 'mid_table.parquet'
 table_gids = 'gid_table.parquet'
 table_mid_gid_map = 'mid_gid_map_table.parquet'
 
+table_assign_bootstrap = 'assign_table_bootstrap.csv'
+table_bootstrap_metrics = 'bootstrap_metrics.csv'
+
 table_drain = 'drain_table.parquet'
 table_gauge = 'gauge_table.parquet'
 
@@ -117,6 +120,11 @@ def get_table_path(workdir: str, table_name: str) -> str:
         return os.path.join(workdir, dir_tables, table_gids)
     elif table_name == 'mid_gid_map':
         return os.path.join(workdir, dir_tables, table_mid_gid_map)
+
+    elif table_name == 'assign_table_bootstrap':
+        return os.path.join(workdir, dir_tables, table_assign_bootstrap)
+    elif table_name == 'bootstrap_metrics':
+        return os.path.join(workdir, dir_tables, table_bootstrap_metrics)
 
     elif table_name == 'prop_resolved':
         return os.path.join(workdir, dir_tables, table_prop_resolved)

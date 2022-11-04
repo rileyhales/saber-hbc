@@ -3,10 +3,10 @@ import saber.calibrate
 import saber.cluster
 import saber.gis
 import saber.io
-import saber.validate
+import saber.bstrap
 
 __all__ = [
-    'io', 'cluster', 'assign', 'gis', 'calibrate', 'validate',
+    'io', 'cluster', 'assign', 'gis', 'calibrate', 'bstrap',
 ]
 
 __author__ = 'Riley C. Hales'
