@@ -1,3 +1,0 @@
-# `saber.validate`
-
-::: saber.validate

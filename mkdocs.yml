@@ -12,21 +12,22 @@ nav:
       - GIS Datasets: data/gis-data.md
       - Discharge Datasets: data/discharge-data.md
   - User Guide:
+      - Installation: user-guide/installation.md
       - Using SABER: user-guide/index.md
-      - Data Preparation: user-guide/data_preparation.md
+      - Brief Theory: user-guide/theory.md
       - Clustering: user-guide/clustering.md
-      - Assignments Tables: user-guide/assignments_table.md
+      - Assignments Table: user-guide/assignments_table.md
       - Visualization: user-guide/visualization.md
       - Bias Correction: user-guide/bias_correction.md
-      - Validation: user-guide/validation.md
+      - Bootstrap Validation: user-guide/validation.md
   - Demonstration: demo/index.md
   - API Docs:
       - API Reference: api/index.md
-      - saber.prep: api/prep.md
       - saber.cluster: api/cluster.md
+      - saber.calibrate: api/calibrate.md
       - saber.assign: api/assign.md
       - saber.gis: api/gis.md
-      - saber.validate: api/validate.md
+      - saber.bstrap: api/bootstrap.md
   - Cite SABER: cite/index.md
 
 plugins:

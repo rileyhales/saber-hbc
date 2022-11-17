@@ -1,6 +1,10 @@
 # User Guide
 
+A very brief explanation is given in the [Theory](theory.md) page. Refer to the resources listed there for more details.
+
 While following this guide, you may also want to refer to the [API Documentation](../api).
+
+An example script is given in 
 
 We anticipate the primary usage of `saber` will be in scripts or workflows that process data in isolated environments, 
 such as web servers or interactively in notebooks, rather than using the api in an app. The package's API is designed with 

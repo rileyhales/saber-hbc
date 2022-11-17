@@ -11,7 +11,6 @@ The Assignments Table is a `pandas` dataframe which is saved to disk as a `parqu
 | ...                 | ...               | ...           | ...          | ...              |
 
 
-
 ### 6 Assign basins by Location (streams which contain a gauge)
 This step involves editing the `assign_table.csv` and but does not change the file structure of the project.
 
