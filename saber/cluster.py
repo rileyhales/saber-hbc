@@ -15,7 +15,7 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
 from .io import _find_model_files
-from .io import clbl_col
+from .io import cls_col
 from .io import mid_col
 from .io import get_table_path
 from .io import read_table
@@ -32,13 +32,14 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def cluster(workdir: str, train_df: str) -> None:
+def cluster(workdir: str, train_df: str, plot: bool = False) -> None:
     """
     Train k-means cluster models, calculate fit metrics, and generate plots
 
     Args:
         workdir: path to the project directory
         train_df: path to the prepared FDC data for training cluster models
+        plot: boolean flag to indicate whether plots should be generated after clustering
 
     Returns:
         None
@@ -48,6 +49,9 @@ def cluster(workdir: str, train_df: str) -> None:
     generate(workdir, x=x_fdc_train)
     summarize_fit(workdir)
     # calc_silhouette(workdir, x=x_fdc_train, n_clusters=range(2, 10))
+
+    if not plot:
+        return
 
     logger.info('Create Plots')
     plot_clusters(workdir, x=x_fdc_train)
@@ -96,7 +100,7 @@ def predict_labels(workdir: str, n_clusters: int, x: pd.DataFrame) -> pd.DataFra
     model = joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     labels_df = pd.DataFrame(
         np.transpose([model.predict(x.values), x.index]),
-        columns=[clbl_col, mid_col]
+        columns=[cls_col, mid_col]
     )
     write_table(labels_df, workdir, 'cluster_labels')
     return labels_df

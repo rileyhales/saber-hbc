@@ -13,7 +13,7 @@ from .io import metric_nc_name_list
 from .io import mid_col
 from .io import reason_col
 from .io import dir_gis
-from .io import clbl_col
+from .io import cls_col
 
 __all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids',
            'validation_maps']
@@ -94,9 +94,9 @@ def map_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, pre
     """
     if isinstance(drain_gis, str):
         drain_gis = gpd.read_file(drain_gis)
-    for num in assign_table[clbl_col].unique():
+    for num in assign_table[cls_col].unique():
         logger.info(f'Creating GIS output for cluster: {num}')
-        gdf = drain_gis[drain_gis[mid_col].astype(str).isin(assign_table[assign_table[clbl_col] == num][mid_col])]
+        gdf = drain_gis[drain_gis[mid_col].astype(str).isin(assign_table[assign_table[cls_col] == num][mid_col])]
         if gdf.empty:
             logger.debug(f'Empty filter: No streams are assigned to cluster {num}')
             continue

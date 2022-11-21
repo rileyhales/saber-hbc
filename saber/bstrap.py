@@ -10,12 +10,13 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 
-from .assign import map_assign_ungauged
+from .assign import _map_assign_ungauged
 from .calibrate import map_saber
-from .io import asgn_gid_col
-from .io import asgn_mid_col
+from .io import asn_gid_col
+from .io import asn_mid_col
 from .io import dir_valid
 from .io import gid_col
+from .io import rid_col
 from .io import mid_col
 from .io import q_mod
 from .io import q_obs
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
 
 
-def mp_table(workdir: str, assign_df: pd.DataFrame, n_processes: int = 1) -> pd.DataFrame:
+def mp_table(workdir: str, assign_df: pd.DataFrame, n_processes: int or None = None) -> pd.DataFrame:
     """
     Generates the assignment table for bootstrap validation by assigning each gauged stream to a different gauged stream
     following the same rules as all other gauges.
@@ -43,7 +44,8 @@ def mp_table(workdir: str, assign_df: pd.DataFrame, n_processes: int = 1) -> pd.
         None
     """
     # subset the assign dataframe to only rows which contain gauges & reset the index
-    assign_df = assign_df[assign_df[gid_col].notna()].reset_index(drop=True)
+    assign_df = assign_df[assign_df[gid_col].notna()]
+    assign_df = assign_df.reset_index(drop=True)
 
     with Pool(n_processes) as p:
         bootstrap_assign_df = pd.concat(
@@ -66,7 +68,7 @@ def _map_mp_table(assign_df: pd.DataFrame, row_idx: int) -> pd.DataFrame:
     Returns:
         pandas.DataFrame of the row with the new assignment
     """
-    return map_assign_ungauged(assign_df, assign_df.drop(row_idx), assign_df.loc[row_idx][mid_col])
+    return _map_assign_ungauged(assign_df, assign_df.drop(row_idx), assign_df.loc[row_idx][mid_col])
 
 
 def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hds: str) -> pd.DataFrame | None:
@@ -86,8 +88,8 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hds: str) ->
         row = assign_df.loc[row_idx]
         corrected_df = map_saber(
             row[mid_col],
-            row[asgn_mid_col],
-            row[asgn_gid_col],
+            row[asn_mid_col],
+            row[asn_gid_col],
             hds,
             gauge_data,
         )
@@ -138,7 +140,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hds: str) ->
 
             'reach_id': row[mid_col],
             'gauge_id': row[gid_col],
-            'asgn_reach_id': row[asgn_mid_col],
+            'asgn_reach_id': row[asn_mid_col],
         }, index=[0, ])
     except Exception as e:
         logger.error(e)
@@ -146,7 +148,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hds: str) ->
         return None
 
 
-def mp_metrics(workdir: str, assign_df: pd.DataFrame, gauge_data: str, hds: str, n_processes: int = 1) -> pd.DataFrame:
+def mp_metrics(workdir: str, assign_df: pd.DataFrame, gauge_data: str, hds: str, n_processes: int or None = None) -> pd.DataFrame:
     """
     Performs bootstrap validation using multiprocessing.
 

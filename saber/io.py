@@ -9,9 +9,13 @@ from natsort import natsorted
 # assign table and gis_input file required column names
 mid_col = 'model_id'
 gid_col = 'gauge_id'
-clbl_col = 'cluster_label'
-asgn_mid_col = 'assigned_model_id'
-asgn_gid_col = 'assigned_gauge_id'
+rid_col = 'reg_id'
+cls_col = 'cluster_label'
+g_prop_col = 'gauge_prop'
+r_prop_col = 'dam_prop'
+
+asn_mid_col = 'assigned_model_id'
+asn_gid_col = 'assigned_gauge_id'
 down_mid_col = 'downstream_model_id'
 reason_col = 'reason'
 area_col = 'drain_area'
@@ -49,6 +53,7 @@ table_bootstrap_metrics = 'bootstrap_metrics.csv'
 
 table_drain = 'drain_table.parquet'
 table_gauge = 'gauge_table.parquet'
+table_regulate = 'regulate_table.csv'
 
 table_prop_resolved = 'prop_table_resolved.parquet'
 table_prop_downstream = 'prop_table_downstream.parquet'
@@ -114,6 +119,9 @@ def get_table_path(workdir: str, table_name: str) -> str:
         return os.path.join(workdir, dir_tables, table_drain)
     elif table_name == 'gauge_table':
         return os.path.join(workdir, dir_tables, table_gauge)
+    elif table_name == 'regulate_table':
+        return os.path.join(workdir, dir_tables, table_regulate)
+
     elif table_name == 'mid_list':
         return os.path.join(workdir, dir_tables, table_mids)
     elif table_name == 'gid_list':
@@ -137,7 +145,7 @@ def get_table_path(workdir: str, table_name: str) -> str:
         return os.path.join(workdir, dir_clusters, table_cluster_metrics)
     elif table_name == 'cluster_sscores':
         return os.path.join(workdir, dir_clusters, table_cluster_sscores)
-    elif table_name == 'cluster_labels':
+    elif table_name == 'cluster_table':
         return os.path.join(workdir, dir_clusters, table_cluster_labels)
     elif table_name.startswith('cluster_centers_'):  # cluster_centers_{n_clusters}.parquet - 1 per cluster
         return os.path.join(workdir, dir_clusters, f'{table_name}.parquet')

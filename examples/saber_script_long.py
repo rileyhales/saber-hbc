@@ -61,11 +61,11 @@ if __name__ == "__main__":
 
     with Pool(20) as p:
         logger.info('Assign by Hydraulic Connectivity')
-        df_prop_down = pd.concat(p.starmap(saber.assign.map_propagate, [(assign_df, x, 'down') for x in gauged_mids]))
-        df_prop_up = pd.concat(p.starmap(saber.assign.map_propagate, [(assign_df, x, 'up') for x in gauged_mids]))
+        df_prop_down = pd.concat(p.starmap(saber.assign._map_propagate, [(assign_df, x, 'down') for x in gauged_mids]))
+        df_prop_up = pd.concat(p.starmap(saber.assign._map_propagate, [(assign_df, x, 'up') for x in gauged_mids]))
         df_prop = pd.concat([df_prop_down, df_prop_up]).reset_index(drop=True)
         df_prop = pd.concat(
-            p.starmap(saber.assign.map_resolve_props, [(df_prop, x) for x in df_prop[saber.io.mid_col].unique()])
+            p.starmap(saber.assign._map_resolve_props, [(df_prop, x) for x in df_prop[saber.io.mid_col].unique()])
         )
 
         logger.info('Resolve Propagation Assignments')
@@ -75,13 +75,13 @@ if __name__ == "__main__":
         for cluster_number in range(n_clusters):
             logger.info(f'Assigning basins in cluster {cluster_number}')
             # limit by cluster number
-            c_df = assign_df[assign_df[saber.io.clbl_col] == cluster_number]
+            c_df = assign_df[assign_df[saber.io.cls_col] == cluster_number]
             # keep a list of the unassigned basins in the cluster
             mids = c_df[c_df[saber.io.reason_col] == 'unassigned'][saber.io.mid_col].values
             # filter cluster dataframe to find only gauged basins
             c_df = c_df[c_df[saber.io.gid_col].notna()]
             assign_df = pd.concat([
-                pd.concat(p.starmap(saber.assign.map_assign_ungauged, [(assign_df, c_df, x) for x in mids])),
+                pd.concat(p.starmap(saber.assign._map_assign_ungauged, [(assign_df, c_df, x) for x in mids])),
                 assign_df[~assign_df[saber.io.mid_col].isin(mids)]
             ]).reset_index(drop=True)
 
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
     # Recommended Optional - Compute performance metrics
     logger.info('Compute Performance Metrics')
-    bs_assign_df = saber.bstrap.mp_table(workdir, assign_df, n_processes)
+    bs_assign_df = saber.bstrap.mp_table(workdir, assign_df)
     bs_metrics_df = saber.bstrap.mp_metrics(workdir, bs_assign_df, gauge_data, hindcast_zarr, n_processes=n_processes)
     saber.bstrap.merge_metrics_and_gis(workdir, gauge_gis, bs_metrics_df)
 
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         p.starmap(
             saber.calibrate.map_saber,
             [[mid, asgn_mid, asgn_gid, hindcast_zarr, gauge_data] for mid, asgn_mid, asgn_gid in
-             np.moveaxis(assign_df[[saber.io.mid_col, saber.io.asgn_mid_col, saber.io.gid_col]].values, 0, 0)]
+             np.moveaxis(assign_df[[saber.io.mid_col, saber.io.asn_mid_col, saber.io.gid_col]].values, 0, 0)]
         )
     logger.info('SABER Calibration Completed')
 
