@@ -15,7 +15,7 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
 from .io import _find_model_files
-from .io import cls_col
+from .io import cid_col
 from .io import mid_col
 from .io import get_table_path
 from .io import read_table
@@ -100,9 +100,9 @@ def predict_labels(workdir: str, n_clusters: int, x: pd.DataFrame) -> pd.DataFra
     model = joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
     labels_df = pd.DataFrame(
         np.transpose([model.predict(x.values), x.index]),
-        columns=[cls_col, mid_col]
+        columns=[cid_col, mid_col]
     )
-    write_table(labels_df, workdir, 'cluster_labels')
+    write_table(labels_df, workdir, 'cluster_table')
     return labels_df
 
 

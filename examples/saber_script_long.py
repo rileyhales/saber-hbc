@@ -75,7 +75,7 @@ if __name__ == "__main__":
         for cluster_number in range(n_clusters):
             logger.info(f'Assigning basins in cluster {cluster_number}')
             # limit by cluster number
-            c_df = assign_df[assign_df[saber.io.cls_col] == cluster_number]
+            c_df = assign_df[assign_df[saber.io.cid_col] == cluster_number]
             # keep a list of the unassigned basins in the cluster
             mids = c_df[c_df[saber.io.reason_col] == 'unassigned'][saber.io.mid_col].values
             # filter cluster dataframe to find only gauged basins

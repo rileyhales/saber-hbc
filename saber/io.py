@@ -7,23 +7,40 @@ import pandas as pd
 from natsort import natsorted
 
 # assign table and gis_input file required column names
-mid_col = 'model_id'
-gid_col = 'gauge_id'
-rid_col = 'reg_id'
-cls_col = 'cluster_label'
-g_prop_col = 'gauge_prop'
-r_prop_col = 'dam_prop'
+mid_col = 'model_id'  # model id column name: in drain_table, gauge_table, regulate_table, cluster_table
+gid_col = 'gauge_id'  # gauge id column name: in gauge_table
+rid_col = 'reg_id'  # regulate id column name: in regulate_table
+cid_col = 'clstr_id'  # cluster column name: in cluster_table
 
-asn_mid_col = 'assigned_model_id'
-asn_gid_col = 'assigned_gauge_id'
-down_mid_col = 'downstream_model_id'
-reason_col = 'reason'
-area_col = 'drain_area'
-order_col = 'strahler_order'
-x_col = 'x_mod'
-y_col = 'y_mod'
+order_col = 'strahler_order'  # strahler order column name: in drain_table
+x_col = 'x_mod'  # x coordinate column name: in drain_table
+y_col = 'y_mod'  # y coordinate column name: in drain_table
+down_mid_col = 'downstream_model_id'  # downstream model id column name: in drain_table
 
-# dataframe columns names
+rprop_col = 'rprop'  # regulated stream propagation: created by assign_table
+gprop_col = 'gprop'  # gauged stream propagation: created by assign_table
+asn_mid_col = 'asgn_mid'  # assigned model id column name: in assign_table
+asn_gid_col = 'asgn_gid'  # assigned gauge id column name: in assign_table
+reason_col = 'reason'  # reason column name: in assign_table
+
+all_cols = [mid_col,
+            gid_col,
+            rid_col,
+            order_col,
+            x_col,
+            y_col,
+            rprop_col,
+            gprop_col,
+            cid_col,
+            down_mid_col,
+            asn_mid_col,
+            asn_gid_col,
+            reason_col, ]
+
+atable_cols = [asn_mid_col, asn_gid_col, reason_col, rprop_col, gprop_col]
+atable_cols_defaults = ['unassigned', 'unassigned', 'unassigned', '', '']
+
+# discharge dataframe columns names
 q_obs = 'Qobs'
 q_mod = 'Qmod'
 q_sim = 'Qsim'
@@ -63,6 +80,27 @@ table_prop_upstream = 'prop_table_upstream.parquet'
 table_cluster_metrics = 'cluster_metrics.csv'
 table_cluster_sscores = 'cluster_sscores.csv'
 table_cluster_labels = 'cluster_labels.parquet'
+
+table_name_config = {
+    "hindcast": table_hindcast,
+    "hindcast_fdc": table_hindcast_fdc,
+    "hindcast_fdc_trans": table_hindcast_fdc_trans,
+    "assign_table": table_assign,
+    "drain_table": table_drain,
+    "gauge_table": table_gauge,
+    "regulate_table": table_regulate,
+    "mid_list": table_mids,
+    "gid_list": table_gids,
+    "mid_gid_map": table_mid_gid_map,
+    "assign_table_bootstrap": table_assign_bootstrap,
+    "bootstrap_metrics": table_bootstrap_metrics,
+    "prop_resolved": table_prop_resolved,
+    "prop_downstream": table_prop_downstream,
+    "prop_upstream": table_prop_upstream,
+    "cluster_metrics": table_cluster_metrics,
+    "cluster_sscores": table_cluster_sscores,
+    "cluster_table": table_cluster_labels,
+}
 
 # metrics computed on validation sets
 metric_list = ['ME', 'MAE', 'RMSE', 'NSE', 'KGE (2012)']
@@ -106,52 +144,12 @@ def get_table_path(workdir: str, table_name: str) -> str:
     Raises:
         ValueError: if the table name is not recognized
     """
-    if table_name == 'hindcast':
-        return os.path.join(workdir, dir_tables, table_hindcast)
-    elif table_name == 'hindcast_fdc':
-        return os.path.join(workdir, dir_tables, table_hindcast_fdc)
-    elif table_name == 'hindcast_fdc_trans':
-        return os.path.join(workdir, dir_tables, table_hindcast_fdc_trans)
-
-    elif table_name == 'assign_table':
-        return os.path.join(workdir, dir_tables, table_assign)
-    elif table_name == 'drain_table':
-        return os.path.join(workdir, dir_tables, table_drain)
-    elif table_name == 'gauge_table':
-        return os.path.join(workdir, dir_tables, table_gauge)
-    elif table_name == 'regulate_table':
-        return os.path.join(workdir, dir_tables, table_regulate)
-
-    elif table_name == 'mid_list':
-        return os.path.join(workdir, dir_tables, table_mids)
-    elif table_name == 'gid_list':
-        return os.path.join(workdir, dir_tables, table_gids)
-    elif table_name == 'mid_gid_map':
-        return os.path.join(workdir, dir_tables, table_mid_gid_map)
-
-    elif table_name == 'assign_table_bootstrap':
-        return os.path.join(workdir, dir_tables, table_assign_bootstrap)
-    elif table_name == 'bootstrap_metrics':
-        return os.path.join(workdir, dir_tables, table_bootstrap_metrics)
-
-    elif table_name == 'prop_resolved':
-        return os.path.join(workdir, dir_tables, table_prop_resolved)
-    elif table_name == 'prop_downstream':
-        return os.path.join(workdir, dir_tables, table_prop_downstream)
-    elif table_name == 'prop_upstream':
-        return os.path.join(workdir, dir_tables, table_prop_upstream)
-
-    elif table_name == 'cluster_metrics':
-        return os.path.join(workdir, dir_clusters, table_cluster_metrics)
-    elif table_name == 'cluster_sscores':
-        return os.path.join(workdir, dir_clusters, table_cluster_sscores)
-    elif table_name == 'cluster_table':
-        return os.path.join(workdir, dir_clusters, table_cluster_labels)
-    elif table_name.startswith('cluster_centers_'):  # cluster_centers_{n_clusters}.parquet - 1 per cluster
+    if table_name in table_name_config:
+        return os.path.join(workdir, dir_tables, table_name_config[table_name])
+    elif table_name.startswith('cluster_'):
+        # cluster_centers_{n_clusters}.parquet - 1 per cluster
+        # cluster_sscores_{n_clusters}.parquet - 1 per cluster
         return os.path.join(workdir, dir_clusters, f'{table_name}.parquet')
-    elif table_name.startswith('cluster_sscores_'):  # cluster_sscores_{n_clusters}.parquet - 1 per cluster
-        return os.path.join(workdir, dir_clusters, f'{table_name}.parquet')
-
     else:
         raise ValueError(f'Unknown table name: {table_name}')
 

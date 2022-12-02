@@ -6,10 +6,10 @@ import pandas as pd
 
 from .io import asn_gid_col
 from .io import asn_mid_col
-from .io import cls_col
+from .io import cid_col
 from .io import gid_col
 from .io import mid_col
-from .io import g_prop_col
+from .io import gprop_col
 from .io import reason_col
 from .io import x_col
 from .io import y_col
@@ -83,10 +83,10 @@ def mp_assign_clusters(df: pd.DataFrame, n_processes: int or None = None) -> pd.
     # todo filter the dataframe
     with Pool(n_processes) as p:
         logger.info('Assign Basins within Clusters')
-        for cluster_number in range(df[cls_col].max() + 1):
+        for cluster_number in range(df[cid_col].max() + 1):
             logger.info(f'Assigning basins in cluster {cluster_number}')
             # limit by cluster number
-            c_df = df[df[cls_col] == cluster_number]
+            c_df = df[df[cid_col] == cluster_number]
             # keep a list of the unassigned basins in the cluster
             mids = c_df[c_df[reason_col] == 'unassigned'][mid_col].values
             # filter cluster dataframe to find only gauged basins
@@ -116,8 +116,8 @@ def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str)
     """
     try:
         new_row = assign_df[assign_df[mid_col] == mid].copy()
-        if new_row[g_prop_col].values[0] != '':
-            prop_str = new_row[g_prop_col].values[0]
+        if new_row[gprop_col].values[0] != '':
+            prop_str = new_row[gprop_col].values[0]
             asgn_mid = prop_str.split('-')[-1]
             asgn_gid = assign_df[assign_df[mid_col] == asgn_mid][asn_gid_col].values[0]
             asgn_reason = prop_str
@@ -129,7 +129,7 @@ def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str)
                 np.sqrt(np.power(gauges_df[x_col] - mid_x, 2) + np.power(gauges_df[y_col] - mid_y, 2))
             ).idxmin()
             asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [mid_col, gid_col]]
-            asgn_reason = f'cluster-{gauges_df[cls_col].values[0]}'
+            asgn_reason = f'cluster-{gauges_df[cid_col].values[0]}'
 
         new_row[[asn_mid_col, asn_gid_col, reason_col]] = [asgn_mid, asgn_gid, asgn_reason]
     except Exception as e:
