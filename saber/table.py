@@ -24,8 +24,7 @@ __all__ = ['init', 'mp_prop_gauges', 'mp_prop_regulated']
 logger = logging.getLogger(__name__)
 
 
-def init(workdir: str,
-         drain_table: pd.DataFrame = None,
+def init(drain_table: pd.DataFrame = None,
          gauge_table: pd.DataFrame = None,
          reg_table: pd.DataFrame = None,
          cluster_table: pd.DataFrame = None,
@@ -34,7 +33,6 @@ def init(workdir: str,
     Joins the drain_table.csv and gauge_table.csv to create the assign_table.csv
 
     Args:
-        workdir: path to the working directory
         drain_table: the drain table dataframe
         gauge_table: the gauge table dataframe
         reg_table: the regulatory structure table dataframe
@@ -47,22 +45,22 @@ def init(workdir: str,
     # read the tables if they are not provided
     if drain_table is None:
         try:
-            drain_table = read_table(workdir, 'drain_table')
+            drain_table = read_table('drain_table')
         except FileNotFoundError:
             raise FileNotFoundError('The drain_table must be provided or created first')
     if gauge_table is None:
         try:
-            gauge_table = read_table(workdir, 'gauge_table')
+            gauge_table = read_table('gauge_table')
         except FileNotFoundError:
             raise FileNotFoundError('The gauge_table must be provided or created first')
     if reg_table is None:
         try:
-            reg_table = read_table(workdir, 'regulate_table')
+            reg_table = read_table('regulate_table')
         except FileNotFoundError:
             raise FileNotFoundError('The regulate_table must be provided or created first')
     if cluster_table is None:
         try:
-            cluster_table = read_table(workdir, 'cluster_table')
+            cluster_table = read_table('cluster_table')
         except FileNotFoundError:
             raise FileNotFoundError('The cluster_table must be provided or created first')
 
@@ -94,7 +92,7 @@ def init(workdir: str,
         raise AssertionError('Missing columns in assign table. Check your input tables.')
 
     if cache:
-        write_table(assign_df, workdir, 'assign_table')
+        write_table(assign_df, 'assign_table')
 
     return assign_df
 
@@ -110,15 +108,15 @@ def mp_prop_gauges(df: pd.DataFrame, n_processes: int or None = None) -> pd.Data
     Returns:
         pd.DataFrame
     """
-    logger.info('Propagating from Gauges Basins')
+    logger.info('Propagating from Gauges')
     gauged_mids = df[df[gid_col].notna()][mid_col].values
 
     with Pool(n_processes) as p:
-        logger.info('Finding Downstream Assignments')
+        logger.info('Finding Downstream')
         df_prop_down = pd.concat(p.starmap(_map_propagate, [(df, x, 'down', gprop_col) for x in gauged_mids]))
-        logger.info('Finding Upstream Assignments')
+        logger.info('Finding Upstream')
         df_prop_up = pd.concat(p.starmap(_map_propagate, [(df, x, 'up', gprop_col) for x in gauged_mids]))
-        logger.info('Resolving Propagation Assignments')
+        logger.info('Resolving Nearest Propagation Neighbor')
         df_prop = pd.concat([df_prop_down, df_prop_up]).reset_index(drop=True)
         df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, gprop_col) for x in df_prop[mid_col].unique()]))
 
@@ -137,10 +135,12 @@ def mp_prop_regulated(df: pd.DataFrame, n_processes: int or None = None) -> pd.D
         pd.DataFrame
     """
     logger.info('Propagating from Regulatory Structures')
-    regulated_ids = df[df[rid_col].notna()][mid_col].values
     with Pool(n_processes) as p:
         logger.info('Propagating Downstream')
-        df_prop = pd.concat(p.starmap(_map_propagate, [(df, x, 'down', rprop_col, False) for x in regulated_ids]))
+        df_prop = pd.concat(p.starmap(
+            _map_propagate,
+            [(df, x, 'down', rprop_col, False) for x in df[df[rid_col].notna()][mid_col].values]
+        ))
         logger.info('Resolving Propagation')
         df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, rprop_col) for x in df_prop[mid_col].unique()]))
 
@@ -199,7 +199,7 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
             # copy the row, modify the assignment columns, and append to the list
             new_row = stream_row.copy()
             new_row[[asn_mid_col, asn_gid_col, prop_col]] = [start_mid, start_gid,
-                                                             f'prop-{direction}-{n_steps}-{start_mid}']
+                                                             f'{direction}-{n_steps}-{start_mid}']
             assigned_rows.append(new_row)
 
             # increment the steps counter
@@ -232,7 +232,7 @@ def _map_resolve_props(df_props: pd.DataFrame, mid: str, prop_col: str) -> pd.Da
     """
     df_mid = df_props[df_props[mid_col] == mid].copy()
     # parse the reason statement into number of steps and prop up or downstream
-    df_mid[['direction', 'n_steps']] = pd.DataFrame(df_props[prop_col].apply(lambda x: x.split('-')[1:3]).to_list())
+    df_mid[['direction', 'n_steps']] = df_mid[prop_col].apply(lambda x: x.split('-')[:2]).to_list()
     df_mid['n_steps'] = df_mid['n_steps'].astype(int)
     # sort by n_steps then by reason
     df_mid = df_mid.sort_values(['n_steps', 'direction'], ascending=[True, True])

@@ -9,25 +9,22 @@ import numpy as np
 import pandas as pd
 
 from .io import gid_col
-from .io import metric_nc_name_list
 from .io import mid_col
 from .io import reason_col
-from .io import dir_gis
 from .io import cid_col
+from .io import get_dir
 
-__all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids',
-           'validation_maps']
+__all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids', ]
 
 logger = logging.getLogger(__name__)
 
 
-def create_maps(workdir: str, assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
+def create_maps(assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
     """
     Runs all the clip functions which create subsets of the drainage lines GIS dataset based on how they were assigned
     for bias correction.
 
     Args:
-        workdir: the path to the working directory for the project
         assign_df: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated in separate instances
@@ -42,18 +39,17 @@ def create_maps(workdir: str, assign_df: pd.DataFrame, drain_gis: str or gpd.Geo
     else:
         raise TypeError(f'Invalid type for drain_gis: {type(drain_gis)}')
 
-    map_by_reason(workdir, assign_df, gdf, prefix)
-    map_by_cluster(workdir, assign_df, gdf, prefix)
-    map_unassigned(workdir, assign_df, gdf, prefix)
+    map_by_reason(assign_df, gdf, prefix)
+    map_by_cluster(assign_df, gdf, prefix)
+    map_unassigned(assign_df, gdf, prefix)
     return
 
 
-def map_by_reason(workdir: str, assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
+def map_by_reason(assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs for each unique value in the assignment column
 
     Args:
-        workdir: the path to the working directory for the project
         assign_df: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: a prefix for names of the outputs to distinguish between data generated at separate instances
@@ -75,16 +71,15 @@ def map_by_reason(workdir: str, assign_df: pd.DataFrame, drain_gis: str or gpd.G
             logger.debug(f'Empty filter: No streams are assigned for {reason}')
             continue
         else:
-            subset.to_file(os.path.join(workdir, dir_gis, name))
+            subset.to_file(os.path.join(get_dir('gis'), name))
     return
 
 
-def map_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def map_by_cluster(assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the drainage lines based on the fdc cluster they were assigned to
 
     Args:
-        workdir: the path to the working directory for the project
         assign_table: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
@@ -100,16 +95,15 @@ def map_by_cluster(workdir: str, assign_table: pd.DataFrame, drain_gis: str, pre
         if gdf.empty:
             logger.debug(f'Empty filter: No streams are assigned to cluster {num}')
             continue
-        gdf.to_file(os.path.join(workdir, dir_gis, f'{prefix}{"_" if prefix else ""}cluster-{int(num)}.gpkg'))
+        gdf.to_file(os.path.join(get_dir('gis'), f'{prefix}{"_" if prefix else ""}cluster-{int(num)}.gpkg'))
     return
 
 
-def map_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
+def map_unassigned(assign_table: pd.DataFrame, drain_gis: str, prefix: str = '') -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the drainage lines which haven't been assigned a gauge yet
 
     Args:
-        workdir: the path to the working directory for the project
         assign_table: the assignment table dataframe
         drain_gis: path to a drainage line shapefile which can be clipped
         prefix: optional, a prefix to prepend to each created file's name
@@ -125,17 +119,16 @@ def map_unassigned(workdir: str, assign_table: pd.DataFrame, drain_gis: str, pre
     if subset.empty:
         logger.debug('Empty filter: No streams are unassigned')
         return
-    savepath = os.path.join(workdir, dir_gis, f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
+    savepath = os.path.join(get_dir('gis'), f'{prefix}{"_" if prefix else ""}assignments_unassigned.gpkg')
     subset.to_file(savepath)
     return
 
 
-def map_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_column: str = mid_col) -> None:
+def map_ids(ids: list, drain_gis: str, prefix: str = '', id_column: str = mid_col) -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the subset of 'drain_shape' with an ID in the specified list
 
     Args:
-        workdir: path to the project directory
         ids: any iterable containing a series of model_ids
         drain_gis: path to the drainage shapefile to be clipped
         prefix: optional, a prefix to prepend to each created file's name
@@ -147,58 +140,11 @@ def map_ids(workdir: str, ids: list, drain_gis: str, prefix: str = '', id_column
     if isinstance(drain_gis, str):
         drain_gis = gpd.read_file(drain_gis)
     name = f'{prefix}{"_" if prefix else ""}id_subset.gpkg'
-    drain_gis[drain_gis[id_column].isin(ids)].to_file(os.path.join(workdir, dir_gis, name))
+    drain_gis[drain_gis[id_column].isin(ids)].to_file(os.path.join(get_dir('gis'), name))
     return
 
 
-def validation_maps(workdir: str, gauge_gis: str, val_table: pd.DataFrame = None, prefix: str = '') -> None:
-    """
-    Creates Geopackage files in workdir/gis_outputs of subsets of the gauge_shape.
-    1 is the fill gauge shape with added attribute columns for all the computed stats. There are 2 for each of the 5
-    validation groups; 1 which shows the gauges included in the validation set and 1 which shows gauges that were
-    excluded from the validation set.
-
-    Args:
-        workdir: path to the project directory
-        val_table: the validation table produced by saber.validate
-        gauge_gis: path to the gauge locations shapefile
-        prefix: optional, a prefix to prepend to each created file's name
-
-    Returns:
-        None
-    """
-    if val_table is None:
-        val_table = pd.read_csv(os.path.join(workdir, 'validation_runs', 'val_table.csv'))
-    save_dir = os.path.join(workdir, 'gis')
-
-    # merge gauge table with the validation table
-    gdf = gpd.read_file(gauge_gis)
-    gdf = gdf.merge(val_table, on=gid_col, how='inner')
-    gdf.to_file(os.path.join(save_dir, 'gauges_with_validation_stats.gpkg'))
-
-    core_columns = [mid_col, gid_col, 'geometry']
-
-    # generate gis files by validation run, by stat, and by included/excluded
-    for val_set in ('50', '60', '70', '80', '90'):
-        for metric in metric_nc_name_list:
-            # select only columns for the validation run we're iterating on - too complex for filter/regex
-            cols_to_select = core_columns + [val_set, f'{metric}_{val_set}']
-            gdf_sub = gdf[cols_to_select]
-            gdf_sub = gdf_sub.rename(columns={f'{metric}_{val_set}': metric})
-
-            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_included.gpkg'
-            gdf_sub[gdf_sub[val_set] == 1].to_file(os.path.join(save_dir, name))
-
-            name = f'{prefix}{"_" if prefix else ""}valset_{val_set}_{metric}_excluded.gpkg'
-            exc = gdf_sub[gdf_sub[val_set] == 0]
-            exc.to_file(os.path.join(save_dir, name))
-            if metric == 'KGE2012':
-                histomaps(exc, metric, val_set, workdir)
-
-    return
-
-
-def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> None:
+def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str) -> None:
     """
     Creates a histogram of the KGE2012 values for the validation set
 
@@ -206,7 +152,6 @@ def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> No
         gdf: a GeoDataFrame containing validation metrics
         metric:name of th emetric to plot
         prct: Percentile of the validation set used to generate the histogram
-        workdir: the project working directory
 
     Returns:
         None
@@ -250,5 +195,5 @@ def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str, workdir: str) -> No
     gdf[core_columns + [metric, ]].to_crs(epsg=3857).plot(metric)
     cx.add_basemap(ax=axm, zoom=9, source=cx.providers.Esri.WorldTopoMap, attribution='')
 
-    fig.savefig(os.path.join(workdir, 'gis', f'{metric}_{prct}.png'))
+    fig.savefig(os.path.join(get_dir('gis'), f'{metric}_{prct}.png'))
     return

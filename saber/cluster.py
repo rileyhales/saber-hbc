@@ -17,9 +17,10 @@ from sklearn.metrics import silhouette_samples
 from .io import _find_model_files
 from .io import cid_col
 from .io import mid_col
-from .io import get_table_path
+from .io import _get_table_path
 from .io import read_table
 from .io import write_table
+from .io import get_dir
 
 __all__ = [
     'cluster',
@@ -32,41 +33,39 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def cluster(workdir: str, train_df: str, plot: bool = False) -> None:
+def cluster(plot: bool = False) -> None:
     """
     Train k-means cluster models, calculate fit metrics, and generate plots
 
     Args:
-        workdir: path to the project directory
-        train_df: path to the prepared FDC data for training cluster models
         plot: boolean flag to indicate whether plots should be generated after clustering
 
     Returns:
         None
     """
     logger.info('Generate Clusters')
-    x_fdc_train = pd.read_parquet(train_df, engine='fastparquet').values
-    generate(workdir, x=x_fdc_train)
-    summarize_fit(workdir)
+
+    x_fdc_train = read_table("x_fdc_train").values
+    generate(x=x_fdc_train)
+    summarize_fit()
     # calc_silhouette(workdir, x=x_fdc_train, n_clusters=range(2, 10))
 
     if not plot:
         return
 
     logger.info('Create Plots')
-    plot_clusters(workdir, x=x_fdc_train)
-    plot_centers(workdir)
-    plot_fit_metrics(workdir)
+    plot_clusters(x=x_fdc_train)
+    plot_centers()
+    plot_fit_metrics()
     # plot_silhouettes(workdir)
     return
 
 
-def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None:
+def generate(x: np.ndarray = None, max_clusters: int = 13) -> None:
     """
     Trains scikit-learn MiniBatchKMeans models and saves as pickle
 
     Args:
-        workdir: path to the project directory
         x: a numpy array of the prepared FDC data
         max_clusters: maximum number of clusters to train
 
@@ -74,44 +73,43 @@ def generate(workdir: str, x: np.ndarray = None, max_clusters: int = 13) -> None
         None
     """
     if x is None:
-        x = read_table(workdir, 'hindcast_fdc_trans').values
+        x = read_table('x_fdc_train').values
 
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
         logger.info(f'Clustering n={n_clusters}')
         kmeans = MiniBatchKMeans(n_clusters=n_clusters, init='k-means++', n_init=100)
         kmeans.fit_predict(x)
-        joblib.dump(kmeans, os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
+        joblib.dump(kmeans, os.path.join(get_dir('clusters'), f'kmeans-{n_clusters}.pickle'))
     return
 
 
-def predict_labels(workdir: str, n_clusters: int, x: pd.DataFrame) -> pd.DataFrame:
+def predict_labels(n_clusters: int, x: pd.DataFrame = None) -> pd.DataFrame:
     """
     Predict the cluster labels for a set number of FDCs
 
     Args:
-        workdir: path to the project directory
         n_clusters: number of cluster model to use for prediction
         x: A dataframe with 1 row per FDC (stream) and 1 column per FDC value. Index is the stream's ID.
 
     Returns:
         None
     """
-    model = joblib.load(os.path.join(workdir, 'clusters', f'kmeans-{n_clusters}.pickle'))
+    if x is None:
+        x = read_table('x_fdc_all')
+
+    model = joblib.load(os.path.join(get_dir('clusters'), f'kmeans-{n_clusters}.pickle'))
     labels_df = pd.DataFrame(
         np.transpose([model.predict(x.values), x.index]),
         columns=[cid_col, mid_col]
     )
-    write_table(labels_df, workdir, 'cluster_table')
+    write_table(labels_df, 'cluster_table')
     return labels_df
 
 
-def summarize_fit(workdir: str) -> None:
+def summarize_fit() -> None:
     """
     Generate a summary of the clustering results save the centers and labels to parquet
-
-    Args:
-        workdir: path to the project directory
 
     Returns:
         None
@@ -119,7 +117,7 @@ def summarize_fit(workdir: str) -> None:
     summary = {'number': [], 'inertia': [], 'n_iter': []}
     labels = []
 
-    for model_file in _find_model_files(workdir, n_clusters='all'):
+    for model_file in _find_model_files(n_clusters='all'):
         logger.info(f'Post Processing {os.path.basename(model_file)}')
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
@@ -128,9 +126,7 @@ def summarize_fit(workdir: str) -> None:
         # save cluster centroids to table - columns are the cluster number, rows are the centroid FDC values
         write_table(
             pd.DataFrame(np.transpose(kmeans.cluster_centers_), columns=np.array(range(n_clusters)).astype(str)),
-            workdir,
-            f'cluster_centers_{n_clusters}'
-        )
+            f'cluster_centers_{n_clusters}')
 
         # save the summary stats from this model
         summary['number'].append(n_clusters)
@@ -140,17 +136,16 @@ def summarize_fit(workdir: str) -> None:
     # save the summary results as a csv
     sum_df = pd.DataFrame(summary)
     sum_df['knee'] = KneeLocator(summary['number'], summary['inertia'], curve='convex', direction='decreasing').knee
-    write_table(sum_df, workdir, 'cluster_metrics')
+    write_table(sum_df, 'cluster_metrics')
 
     return
 
 
-def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = 'all', samples: int = 75_000) -> None:
+def calc_silhouette(x: np.ndarray, n_clusters: int or Iterable = 'all', samples: int = 75_000) -> None:
     """
     Calculate the silhouette score for the given number of clusters
 
     Args:
-        workdir: path to the project directory
         x: a numpy array of the prepared FDC data
         n_clusters: the number of clusters to calculate the silhouette score for
         samples: the number of samples to use for the silhouette score calculation
@@ -159,14 +154,14 @@ def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = '
         None
     """
     if x is None:
-        x = read_table(workdir, 'hindcast_fdc_trans').values
+        x = read_table('hindcast_fdc_trans').values
     fdc_df = pd.DataFrame(x)
 
     summary = {'number': [], 'silhouette': []}
 
     random_shuffler = np.random.default_rng()
 
-    for model_file in _find_model_files(workdir, n_clusters):
+    for model_file in _find_model_files(n_clusters):
         logger.info(f'Calculating Silhouettes for {os.path.basename(model_file)}')
         kmeans = joblib.load(model_file)
 
@@ -185,24 +180,23 @@ def calc_silhouette(workdir: str, x: np.ndarray, n_clusters: int or Iterable = '
         ss_df['silhouette'] = silhouette_samples(ss_df.drop(columns='label').values, ss_df['label'].values, n_jobs=-1)
         ss_df['silhouette'] = ss_df['silhouette'].round(3)
         ss_df.columns = ss_df.columns.astype(str)
-        write_table(ss_df, workdir, f'cluster_sscores_{kmeans.n_clusters}')
+        write_table(ss_df, f'cluster_sscores_{kmeans.n_clusters}')
 
         # save the summary stats from this model
         summary['number'].append(kmeans.n_clusters)
         summary['silhouette'].append(ss_df['silhouette'].mean())
 
     # save the summary stats
-    write_table(pd.DataFrame(summary), workdir, 'cluster_sscores')
+    write_table(pd.DataFrame(summary), 'cluster_sscores')
     return
 
 
-def plot_clusters(workdir: str, x: np.ndarray = None, n_clusters: int or Iterable = 'all',
+def plot_clusters(x: np.ndarray = None, n_clusters: int or Iterable = 'all',
                   max_cols: int = 3, plt_width: int = 2, plt_height: int = 2, n_lines: int = 2_500) -> None:
     """
     Generate figures of the clustered FDC's
 
     Args:
-        workdir: path to the project directory
         x: a numpy array of the prepared FDC data
         n_clusters: number of clusters to create figures for
         max_cols: maximum number of columns (subplots) in the figure
@@ -214,7 +208,7 @@ def plot_clusters(workdir: str, x: np.ndarray = None, n_clusters: int or Iterabl
         None
     """
     if x is None:
-        x = read_table(workdir, 'hindcast_fdc_trans').values
+        x = read_table('hindcast_fdc_trans').values
 
     size = x.shape[1]
     x_values = np.linspace(0, size, 5)
@@ -222,7 +216,7 @@ def plot_clusters(workdir: str, x: np.ndarray = None, n_clusters: int or Iterabl
 
     random_shuffler = np.random.default_rng()
 
-    for model_file in _find_model_files(workdir, n_clusters):
+    for model_file in _find_model_files(n_clusters):
         logger.info(f'Plotting Clusters {os.path.basename(model_file)}')
 
         # load the model and calculate
@@ -260,7 +254,7 @@ def plot_clusters(workdir: str, x: np.ndarray = None, n_clusters: int or Iterabl
         for ax in fig.axes[n_clusters:]:
             ax.axis('off')
 
-        fig.savefig(os.path.join(workdir, 'clusters', f'figure-clusters-{n_clusters}.png'))
+        fig.savefig(os.path.join(get_dir('clusters'), f'figure-clusters-{n_clusters}.png'))
         plt.close(fig)
     return
 
@@ -286,7 +280,7 @@ def plot_silhouettes(workdir: str, plt_width: int = 3, plt_height: int = 3) -> N
         logger.info(f'Generating Silhouette Diagram: {os.path.basename(sscore_table)}')
         n_clusters = int(sscore_table.split('_')[-1].split('.')[0])
         sscore_df = pd.read_parquet(sscore_table, engine='fastparquet')
-        centers_df = read_table(workdir, f'cluster_centers_{n_clusters}')
+        centers_df = read_table(f'cluster_centers_{n_clusters}')
         mean_ss = sscore_df['silhouette'].mean()
 
         # initialize the figure
@@ -345,12 +339,11 @@ def plot_silhouettes(workdir: str, plt_width: int = 3, plt_height: int = 3) -> N
     return
 
 
-def plot_centers(workdir: str, plt_width: int = 2, plt_height: int = 2, max_cols: int = 3) -> None:
+def plot_centers(plt_width: int = 2, plt_height: int = 2, max_cols: int = 3) -> None:
     """
     Plot the cluster centers for each cluster.
 
     Args:
-        workdir: path to the project directory
         plt_width: width of each subplot in inches
         plt_height: height of each subplot in inches
         max_cols: maximum number of columns of subplots in the figure
@@ -360,7 +353,7 @@ def plot_centers(workdir: str, plt_width: int = 2, plt_height: int = 2, max_cols
     """
     logger.info('Plotting Cluster Centers')
 
-    clusters_dir = os.path.join(workdir, 'clusters')
+    clusters_dir = get_dir('clusters')
 
     for n_clusters in [4, 7, 10, 13]:
         # count number of files to plot
@@ -402,12 +395,11 @@ def plot_centers(workdir: str, plt_width: int = 2, plt_height: int = 2, max_cols
     return
 
 
-def plot_fit_metrics(workdir: str, plt_width: int = 4, plt_height: int = 4) -> None:
+def plot_fit_metrics(plt_width: int = 4, plt_height: int = 4) -> None:
     """
     Plot the cluster metrics, inertia and silhouette score, vs number of clusters
 
     Args:
-        workdir: path to the project directory
         plt_width: width of each subplot in inches
         plt_height: height of each subplot in inches
 
@@ -416,11 +408,11 @@ def plot_fit_metrics(workdir: str, plt_width: int = 4, plt_height: int = 4) -> N
     """
     logger.info('Plotting Cluster Fit Metrics')
 
-    clusters_dir = os.path.join(workdir, 'clusters')
+    clusters_dir = get_dir('clusters')
 
-    df = read_table(workdir, 'cluster_metrics')
-    if os.path.exists(get_table_path(workdir, 'cluster_sscores')):
-        df = df.merge(read_table(workdir, 'cluster_sscores'), on='number', how='outer')
+    df = read_table('cluster_metrics')
+    if os.path.exists(_get_table_path('cluster_sscores')):
+        df = df.merge(read_table('cluster_sscores'), on='number', how='outer')
     df['number'] = df['number'].astype(int)
     df['inertia'] = df['inertia'].astype(float)
 

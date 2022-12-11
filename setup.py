@@ -22,6 +22,7 @@ INSTALL_REQUIRES = [
     'numpy',
     'pandas',
     'pyarrow',
+    'pyyaml',
     'requests',
     'scikit-learn',
     'scipy',
