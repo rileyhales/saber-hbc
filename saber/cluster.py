@@ -15,12 +15,12 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
 from .io import _find_model_files
-from .io import cid_col
-from .io import mid_col
 from .io import _get_table_path
+from .io import cid_col
+from .io import get_dir
+from .io import mid_col
 from .io import read_table
 from .io import write_table
-from .io import get_dir
 
 __all__ = [
     'cluster',

@@ -16,8 +16,8 @@ from .io import mid_col
 from .io import order_col
 from .io import read_table
 from .io import rid_col
-from .io import write_table
 from .io import rprop_col
+from .io import write_table
 
 __all__ = ['init', 'mp_prop_gauges', 'mp_prop_regulated']
 

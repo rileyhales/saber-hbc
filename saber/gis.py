@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 import contextily as cx
 import geopandas as gpd
@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from .io import cid_col
+from .io import get_dir
 from .io import gid_col
 from .io import mid_col
 from .io import reason_col
-from .io import cid_col
-from .io import get_dir
 
 __all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids', ]
 

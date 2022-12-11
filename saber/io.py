@@ -1,11 +1,11 @@
 import glob
+import logging
 import os
 from collections.abc import Iterable
 from typing import List
-import yaml
-import logging
 
 import pandas as pd
+import yaml
 from natsort import natsorted
 
 logger = logging.getLogger(__name__)

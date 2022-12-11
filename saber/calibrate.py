@@ -9,12 +9,12 @@ import xarray
 from natsort import natsorted
 from scipy import interpolate, stats
 
-from .io import asn_mid_col
-from .io import gid_col
-from .io import mid_col
 from .io import DF_QMOD
 from .io import DF_QOBS
 from .io import DF_QSIM
+from .io import asn_mid_col
+from .io import gid_col
+from .io import mid_col
 
 logger = logging.getLogger(__name__)
 

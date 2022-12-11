@@ -12,17 +12,17 @@ from matplotlib import pyplot as plt
 
 from .assign import _map_assign_ungauged
 from .calibrate import map_saber
-from .io import asn_gid_col
-from .io import asn_mid_col
-from .io import gid_col
-from .io import mid_col
 from .io import DF_QMOD
 from .io import DF_QOBS
 from .io import DF_QSIM
-from .io import write_table
-from .io import get_state
+from .io import asn_gid_col
+from .io import asn_mid_col
 from .io import get_dir
+from .io import get_state
+from .io import gid_col
+from .io import mid_col
 from .io import read_table
+from .io import write_table
 
 __all__ = ['mp_table', 'metrics', 'mp_metrics', 'plots', 'merge_metrics_and_gis']
 

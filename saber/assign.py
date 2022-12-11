@@ -8,8 +8,8 @@ from .io import asn_gid_col
 from .io import asn_mid_col
 from .io import cid_col
 from .io import gid_col
-from .io import mid_col
 from .io import gprop_col
+from .io import mid_col
 from .io import reason_col
 from .io import x_col
 from .io import y_col
