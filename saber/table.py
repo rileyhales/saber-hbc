@@ -4,19 +4,19 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 
+from .io import COL_ASN_GID
+from .io import COL_ASN_MID
+from .io import COL_GGROP
+from .io import COL_GID
+from .io import COL_MID
+from .io import COL_MID_DOWN
+from .io import COL_RID
+from .io import COL_RPROP
+from .io import COL_STRM_ORD
 from .io import all_cols
-from .io import asn_gid_col
-from .io import asn_mid_col
 from .io import atable_cols
 from .io import atable_cols_defaults
-from .io import down_mid_col
-from .io import gid_col
-from .io import gprop_col
-from .io import mid_col
-from .io import order_col
 from .io import read_table
-from .io import rid_col
-from .io import rprop_col
 from .io import write_table
 
 __all__ = ['init', 'mp_prop_gauges', 'mp_prop_regulated']
@@ -65,21 +65,21 @@ def init(drain_table: pd.DataFrame = None,
             raise FileNotFoundError('The cluster_table must be provided or created first')
 
     # enforce correct column data types
-    drain_table[mid_col] = drain_table[mid_col].astype(str)
-    drain_table[down_mid_col] = drain_table[down_mid_col].astype(str)
-    gauge_table[mid_col] = gauge_table[mid_col].astype(str)
-    gauge_table[gid_col] = gauge_table[gid_col].astype(str)
-    reg_table[mid_col] = reg_table[mid_col].astype(str)
-    reg_table[rid_col] = reg_table[rid_col].astype(str)
-    cluster_table[mid_col] = cluster_table[mid_col].astype(str)
+    drain_table[COL_MID] = drain_table[COL_MID].astype(str)
+    drain_table[COL_MID_DOWN] = drain_table[COL_MID_DOWN].astype(str)
+    gauge_table[COL_MID] = gauge_table[COL_MID].astype(str)
+    gauge_table[COL_GID] = gauge_table[COL_GID].astype(str)
+    reg_table[COL_MID] = reg_table[COL_MID].astype(str)
+    reg_table[COL_RID] = reg_table[COL_RID].astype(str)
+    cluster_table[COL_MID] = cluster_table[COL_MID].astype(str)
 
     # merge the drain_table, gauge_table, reg_table, and labels_df on the model_id column
     assign_df = (
         drain_table
-        .merge(gauge_table, on=mid_col, how='outer')
-        .merge(reg_table, on=mid_col, how='outer')
-        .merge(cluster_table, on=mid_col, how='outer')
-        .sort_values(by=mid_col).reset_index(drop=True)
+        .merge(gauge_table, on=COL_MID, how='outer')
+        .merge(reg_table, on=COL_MID, how='outer')
+        .merge(cluster_table, on=COL_MID, how='outer')
+        .sort_values(by=COL_MID).reset_index(drop=True)
     )
 
     # create new columns asn_mid_col, asn_gid_col, reason_col
@@ -109,18 +109,18 @@ def mp_prop_gauges(df: pd.DataFrame, n_processes: int or None = None) -> pd.Data
         pd.DataFrame
     """
     logger.info('Propagating from Gauges')
-    gauged_mids = df[df[gid_col].notna()][mid_col].values
+    gauged_mids = df[df[COL_GID].notna()][COL_MID].values
 
     with Pool(n_processes) as p:
         logger.info('Finding Downstream')
-        df_prop_down = pd.concat(p.starmap(_map_propagate, [(df, x, 'down', gprop_col) for x in gauged_mids]))
+        df_prop_down = pd.concat(p.starmap(_map_propagate, [(df, x, 'down', COL_GGROP) for x in gauged_mids]))
         logger.info('Finding Upstream')
-        df_prop_up = pd.concat(p.starmap(_map_propagate, [(df, x, 'up', gprop_col) for x in gauged_mids]))
+        df_prop_up = pd.concat(p.starmap(_map_propagate, [(df, x, 'up', COL_GGROP) for x in gauged_mids]))
         logger.info('Resolving Nearest Propagation Neighbor')
         df_prop = pd.concat([df_prop_down, df_prop_up]).reset_index(drop=True)
-        df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, gprop_col) for x in df_prop[mid_col].unique()]))
+        df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, COL_GGROP) for x in df_prop[COL_MID].unique()]))
 
-    return pd.concat([df[~df[mid_col].isin(df_prop[mid_col])], df_prop])
+    return pd.concat([df[~df[COL_MID].isin(df_prop[COL_MID])], df_prop])
 
 
 def mp_prop_regulated(df: pd.DataFrame, n_processes: int or None = None) -> pd.DataFrame:
@@ -139,12 +139,12 @@ def mp_prop_regulated(df: pd.DataFrame, n_processes: int or None = None) -> pd.D
         logger.info('Propagating Downstream')
         df_prop = pd.concat(p.starmap(
             _map_propagate,
-            [(df, x, 'down', rprop_col, False) for x in df[df[rid_col].notna()][mid_col].values]
+            [(df, x, 'down', COL_RPROP, False) for x in df[df[COL_RID].notna()][COL_MID].values]
         ))
         logger.info('Resolving Propagation')
-        df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, rprop_col) for x in df_prop[mid_col].unique()]))
+        df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, COL_RPROP) for x in df_prop[COL_MID].unique()]))
 
-    return pd.concat([df[~df[mid_col].isin(df_prop[mid_col])], df_prop])
+    return pd.concat([df[~df[COL_MID].isin(df_prop[COL_MID])], df_prop])
 
 
 def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: str,
@@ -165,15 +165,15 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
     assigned_rows = []
 
     # select the row to start the propagation from
-    start_order = df[df[mid_col] == start_mid][order_col].values[0]
-    stream_row = df[df[mid_col] == start_mid]
-    start_gid = stream_row[asn_gid_col].values[0]
+    start_order = df[df[COL_MID] == start_mid][COL_STRM_ORD].values[0]
+    stream_row = df[df[COL_MID] == start_mid]
+    start_gid = stream_row[COL_ASN_GID].values[0]
 
     # create a boolean selector array for filtering all future queries
     if same_order:
         select_same_order_streams = True
     else:
-        select_same_order_streams = df[order_col] == start_order
+        select_same_order_streams = df[COL_STRM_ORD] == start_order
 
     # counter for the number of steps taken by the loop
     n_steps = 1
@@ -183,9 +183,9 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
         while True:
             # select the next up or downstream
             if direction == 'down':
-                id_selector = df[mid_col] == stream_row[down_mid_col].values[0]
+                id_selector = df[COL_MID] == stream_row[COL_MID_DOWN].values[0]
             else:  # direction == 'up':
-                id_selector = df[down_mid_col] == stream_row[mid_col].values[0]
+                id_selector = df[COL_MID_DOWN] == stream_row[COL_MID].values[0]
 
             # select the next row using the ID and Order selectors
             stream_row = df[np.logical_and(id_selector, select_same_order_streams)]
@@ -198,7 +198,7 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
 
             # copy the row, modify the assignment columns, and append to the list
             new_row = stream_row.copy()
-            new_row[[asn_mid_col, asn_gid_col, prop_col]] = [start_mid, start_gid,
+            new_row[[COL_ASN_MID, COL_ASN_GID, prop_col]] = [start_mid, start_gid,
                                                              f'{direction}-{n_steps}-{start_mid}']
             assigned_rows.append(new_row)
 
@@ -208,7 +208,7 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
             # Break the loop if
             # 1. The next row is an outlet -> no downstream row -> cause error when selecting next row
             # 2. we have reach the max number of steps (n_steps -1)
-            if int(stream_row[down_mid_col].values[0]) == -1 or n_steps > max_steps:
+            if int(stream_row[COL_MID_DOWN].values[0]) == -1 or n_steps > max_steps:
                 break
     except Exception as e:
         logger.error(f'Error in map_propagate: {e}')
@@ -230,7 +230,7 @@ def _map_resolve_props(df_props: pd.DataFrame, mid: str, prop_col: str) -> pd.Da
     Returns:
         pd.DataFrame
     """
-    df_mid = df_props[df_props[mid_col] == mid].copy()
+    df_mid = df_props[df_props[COL_MID] == mid].copy()
     # parse the reason statement into number of steps and prop up or downstream
     df_mid[['direction', 'n_steps']] = df_mid[prop_col].apply(lambda x: x.split('-')[:2]).to_list()
     df_mid['n_steps'] = df_mid['n_steps'].astype(int)

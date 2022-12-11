@@ -7,14 +7,5 @@ gauge_gis: ''
 gauge_data: ''
 hindcast_zarr: ''
 
-# assign table and gis_input file required column names
-mid_col: 'model_id'
-gid_col: 'gauge_id'
-rid_col: 'reg_id'  # regulate id column name: in regulate_table
-cid_col: 'clstr_id'  # cluster column name: in cluster_table
-order_col: 'strahler_order'
-x_col: 'x_mod'
-y_col: 'y_mod'
-
 # options for processing data
 n_processes: 20

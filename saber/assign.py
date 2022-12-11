@@ -4,15 +4,15 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 
-from .io import asn_gid_col
-from .io import asn_mid_col
-from .io import cid_col
-from .io import gid_col
-from .io import gprop_col
-from .io import mid_col
-from .io import reason_col
-from .io import x_col
-from .io import y_col
+from .io import COL_ASN_GID
+from .io import COL_ASN_MID
+from .io import COL_CID
+from .io import COL_GID
+from .io import COL_GGROP
+from .io import COL_MID
+from .io import COL_ASN_REASON
+from .io import COL_X
+from .io import COL_Y
 
 __all__ = ['assign_gauged', 'assign_propagation', 'mp_assign_clusters', ]
 
@@ -46,10 +46,10 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         Copy of df1 with assignments made
     """
-    selector = df[gid_col].notna()
-    df.loc[selector, asn_mid_col] = df[mid_col]
-    df.loc[selector, asn_gid_col] = df[gid_col]
-    df.loc[selector, reason_col] = 'gauged'
+    selector = df[COL_GID].notna()
+    df.loc[selector, COL_ASN_MID] = df[COL_MID]
+    df.loc[selector, COL_ASN_GID] = df[COL_GID]
+    df.loc[selector, COL_ASN_REASON] = 'gauged'
     return df
 
 
@@ -64,7 +64,7 @@ def assign_propagation(df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame
     """
     # todo
-    not_gauged = df[df[gid_col].isna()]
+    not_gauged = df[df[COL_GID].isna()]
 
     # need to write values to the asgn mid and gid columns and also the reasons
     return
@@ -83,17 +83,17 @@ def mp_assign_clusters(df: pd.DataFrame, n_processes: int or None = None) -> pd.
     # todo filter the dataframe
     with Pool(n_processes) as p:
         logger.info('Assign Basins within Clusters')
-        for cluster_number in range(df[cid_col].max() + 1):
+        for cluster_number in range(df[COL_CID].max() + 1):
             logger.info(f'Assigning basins in cluster {cluster_number}')
             # limit by cluster number
-            c_df = df[df[cid_col] == cluster_number]
+            c_df = df[df[COL_CID] == cluster_number]
             # keep a list of the unassigned basins in the cluster
-            mids = c_df[c_df[reason_col] == 'unassigned'][mid_col].values
+            mids = c_df[c_df[COL_ASN_REASON] == 'unassigned'][COL_MID].values
             # filter cluster dataframe to find only gauged basins
-            c_df = c_df[c_df[gid_col].notna()]
+            c_df = c_df[c_df[COL_GID].notna()]
             df = pd.concat([
                 pd.concat(p.starmap(_map_assign_ungauged, [(df, c_df, x) for x in mids])),
-                df[~df[mid_col].isin(mids)]
+                df[~df[COL_MID].isin(mids)]
             ]).reset_index(drop=True)
 
     return df
@@ -115,23 +115,23 @@ def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str)
         a new row for the given mid with the assignments made
     """
     try:
-        new_row = assign_df[assign_df[mid_col] == mid].copy()
-        if new_row[gprop_col].values[0] != '':
-            prop_str = new_row[gprop_col].values[0]
+        new_row = assign_df[assign_df[COL_MID] == mid].copy()
+        if new_row[COL_GGROP].values[0] != '':
+            prop_str = new_row[COL_GGROP].values[0]
             asgn_mid = prop_str.split('-')[-1]
-            asgn_gid = assign_df[assign_df[mid_col] == asgn_mid][asn_gid_col].values[0]
+            asgn_gid = assign_df[assign_df[COL_MID] == asgn_mid][COL_ASN_GID].values[0]
             asgn_reason = prop_str
 
         else:
             # find the closest gauge using euclidean distance without accounting for projection/map distortion
-            mid_x, mid_y = assign_df.loc[assign_df[mid_col] == mid, [x_col, y_col]].head(1).values.flatten()
+            mid_x, mid_y = assign_df.loc[assign_df[COL_MID] == mid, [COL_X, COL_Y]].head(1).values.flatten()
             row_idx_to_assign = pd.Series(
-                np.sqrt(np.power(gauges_df[x_col] - mid_x, 2) + np.power(gauges_df[y_col] - mid_y, 2))
+                np.sqrt(np.power(gauges_df[COL_X] - mid_x, 2) + np.power(gauges_df[COL_Y] - mid_y, 2))
             ).idxmin()
-            asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [mid_col, gid_col]]
-            asgn_reason = f'cluster-{gauges_df[cid_col].values[0]}'
+            asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [COL_MID, COL_GID]]
+            asgn_reason = f'cluster-{gauges_df[COL_CID].values[0]}'
 
-        new_row[[asn_mid_col, asn_gid_col, reason_col]] = [asgn_mid, asgn_gid, asgn_reason]
+        new_row[[COL_ASN_MID, COL_ASN_GID, COL_ASN_REASON]] = [asgn_mid, asgn_gid, asgn_reason]
     except Exception as e:
         logger.error(f'Error in map_assign_ungauged: {e}')
         new_row = pd.DataFrame(columns=assign_df.columns)

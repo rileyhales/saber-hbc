@@ -14,11 +14,11 @@ from natsort import natsorted
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import silhouette_samples
 
+from .io import COL_CID
+from .io import COL_MID
 from .io import _find_model_files
 from .io import _get_table_path
-from .io import cid_col
 from .io import get_dir
-from .io import mid_col
 from .io import read_table
 from .io import write_table
 
@@ -101,7 +101,7 @@ def predict_labels(n_clusters: int, x: pd.DataFrame = None) -> pd.DataFrame:
     model = joblib.load(os.path.join(get_dir('clusters'), f'kmeans-{n_clusters}.pickle'))
     labels_df = pd.DataFrame(
         np.transpose([model.predict(x.values), x.index]),
-        columns=[cid_col, mid_col]
+        columns=[COL_CID, COL_MID]
     )
     write_table(labels_df, 'cluster_table')
     return labels_df

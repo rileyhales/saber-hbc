@@ -1,14 +1,9 @@
 import logging
 
-import numpy as np
-
 import saber
 
-np.seterr(all="ignore")
-
-
 # USER INPUTS - POPULATE THESE PATHS
-config_file = ''  # Path to the configuration file
+config_file = '/Users/rchales/Projects/saber-hbc/examples/config.yml'  # Path to the configuration file
 log_path = ''  # leave blank to write to console
 # END USER INPUTS
 
@@ -33,7 +28,7 @@ if __name__ == "__main__":
     # Generate Assignments Table and Propagate from Gauges, Dams/Reservoirs
     logger.info('Generating Assignments Table')
     assign_df = saber.table.init()
-    assign_df = saber.table.mp_prop_gauges(assign_df,)
+    assign_df = saber.table.mp_prop_gauges(assign_df)
     assign_df = saber.table.mp_prop_regulated(assign_df)
     saber.io.write_table(assign_df, 'assign_table')
 
@@ -44,11 +39,11 @@ if __name__ == "__main__":
     saber.bstrap.merge_metrics_and_gis(bs_metrics_df)
 
     # Optional - Make all assignments
-    # logger.info('Make Assignments')
+    logger.info('Make Assignments')
     # assign_df = saber.assign.mp_assign(assign_df, n_processes=n_processes)
 
     # Optional - Generate GIS files to visually inspect the assignments (must run assignments command first)
-    # logger.info('Generating GIS files')
+    logger.info('Generating GIS files')
     # saber.gis.create_maps(workdir, assign_df, drain_gis)
 
     logger.info('SABER Completed')

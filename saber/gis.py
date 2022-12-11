@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .io import cid_col
+from .io import COL_ASN_REASON
+from .io import COL_CID
+from .io import COL_GID
+from .io import COL_MID
 from .io import get_dir
-from .io import gid_col
-from .io import mid_col
-from .io import reason_col
 
 __all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids', ]
 
@@ -62,9 +62,9 @@ def map_by_reason(assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, p
         drain_gis = gpd.read_file(drain_gis)
 
     # get the unique list of assignment reasons
-    for reason in assign_df[reason_col].unique():
+    for reason in assign_df[COL_ASN_REASON].unique():
         logger.info(f'Creating GIS output for group: {reason}')
-        selector = drain_gis[mid_col].astype(str).isin(assign_df[assign_df[reason_col] == reason][mid_col])
+        selector = drain_gis[COL_MID].astype(str).isin(assign_df[assign_df[COL_ASN_REASON] == reason][COL_MID])
         subset = drain_gis[selector]
         name = f'{f"{prefix}_" if prefix else ""}assignments_{reason}.gpkg'
         if subset.empty:
@@ -89,9 +89,9 @@ def map_by_cluster(assign_table: pd.DataFrame, drain_gis: str, prefix: str = '')
     """
     if isinstance(drain_gis, str):
         drain_gis = gpd.read_file(drain_gis)
-    for num in assign_table[cid_col].unique():
+    for num in assign_table[COL_CID].unique():
         logger.info(f'Creating GIS output for cluster: {num}')
-        gdf = drain_gis[drain_gis[mid_col].astype(str).isin(assign_table[assign_table[cid_col] == num][mid_col])]
+        gdf = drain_gis[drain_gis[COL_MID].astype(str).isin(assign_table[assign_table[COL_CID] == num][COL_MID])]
         if gdf.empty:
             logger.debug(f'Empty filter: No streams are assigned to cluster {num}')
             continue
@@ -114,8 +114,8 @@ def map_unassigned(assign_table: pd.DataFrame, drain_gis: str, prefix: str = '')
     logger.info('Creating GIS output for unassigned basins')
     if isinstance(drain_gis, str):
         drain_gis = gpd.read_file(drain_gis)
-    ids = assign_table[assign_table[reason_col] == 'unassigned'][mid_col].values
-    subset = drain_gis[drain_gis[mid_col].astype(str).isin(ids)]
+    ids = assign_table[assign_table[COL_ASN_REASON] == 'unassigned'][COL_MID].values
+    subset = drain_gis[drain_gis[COL_MID].astype(str).isin(ids)]
     if subset.empty:
         logger.debug('Empty filter: No streams are unassigned')
         return
@@ -124,7 +124,7 @@ def map_unassigned(assign_table: pd.DataFrame, drain_gis: str, prefix: str = '')
     return
 
 
-def map_ids(ids: list, drain_gis: str, prefix: str = '', id_column: str = mid_col) -> None:
+def map_ids(ids: list, drain_gis: str, prefix: str = '', id_column: str = COL_MID) -> None:
     """
     Creates Geopackage files in workdir/gis_outputs of the subset of 'drain_shape' with an ID in the specified list
 
@@ -156,7 +156,7 @@ def histomaps(gdf: gpd.GeoDataFrame, metric: str, prct: str) -> None:
     Returns:
         None
     """
-    core_columns = [mid_col, gid_col, 'geometry']
+    core_columns = [COL_MID, COL_GID, 'geometry']
     # world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
     # world.plot(ax=axm, color='white', edgecolor='black')
 

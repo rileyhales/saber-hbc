@@ -12,15 +12,15 @@ from matplotlib import pyplot as plt
 
 from .assign import _map_assign_ungauged
 from .calibrate import map_saber
+from .io import COL_ASN_GID
+from .io import COL_ASN_MID
+from .io import COL_GID
+from .io import COL_MID
 from .io import DF_QMOD
 from .io import DF_QOBS
 from .io import DF_QSIM
-from .io import asn_gid_col
-from .io import asn_mid_col
 from .io import get_dir
 from .io import get_state
-from .io import gid_col
-from .io import mid_col
 from .io import read_table
 from .io import write_table
 
@@ -43,7 +43,7 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
         None
     """
     # subset the assign dataframe to only rows which contain gauges & reset the index
-    assign_df = assign_df[assign_df[gid_col].notna()]
+    assign_df = assign_df[assign_df[COL_GID].notna()]
     assign_df = assign_df.reset_index(drop=True)
 
     with Pool(get_state('n_processes')) as p:
@@ -67,7 +67,7 @@ def _map_mp_table(assign_df: pd.DataFrame, row_idx: int) -> pd.DataFrame:
     Returns:
         pandas.DataFrame of the row with the new assignment
     """
-    return _map_assign_ungauged(assign_df, assign_df.drop(row_idx), assign_df.loc[row_idx][mid_col])
+    return _map_assign_ungauged(assign_df, assign_df.drop(row_idx), assign_df.loc[row_idx][COL_MID])
 
 
 def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zarr: str) -> pd.DataFrame | None:
@@ -86,22 +86,22 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
     try:
         row = assign_df.loc[row_idx]
         corrected_df = map_saber(
-            row[mid_col],
-            row[asn_mid_col],
-            row[asn_gid_col],
+            row[COL_MID],
+            row[COL_ASN_MID],
+            row[COL_ASN_GID],
             hindcast_zarr,
             gauge_data,
         )
 
         if corrected_df is None:
-            logger.warning(f'No corrected data for {row[mid_col]}')
+            logger.warning(f'No corrected data for {row[COL_MID]}')
             return None
         if not (DF_QMOD in corrected_df.columns and DF_QSIM in corrected_df.columns):
             logger.warning(f'Missing adjusted and simulated columns')
             return None
 
         # create a dataframe of original and corrected streamflow that can be used for calculating metrics
-        metrics_df = pd.read_csv(os.path.join(gauge_data, f'{row[gid_col]}.csv'), index_col=0)
+        metrics_df = pd.read_csv(os.path.join(gauge_data, f'{row[COL_GID]}.csv'), index_col=0)
         metrics_df.columns = [DF_QOBS, ]
         metrics_df.index = pd.to_datetime(metrics_df.index)
         metrics_df = pd.merge(corrected_df, metrics_df, how='inner', left_index=True, right_index=True)
@@ -111,7 +111,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
 
         # if the dataframe is empty (dates did not align or all rows were inf or NaN), return None
         if metrics_df.empty:
-            logger.warning(f'Empty dataframe for {row[mid_col]}')
+            logger.warning(f'Empty dataframe for {row[COL_MID]}')
             return None
 
         obs_values = metrics_df[DF_QOBS].values.flatten()
@@ -137,13 +137,13 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'nse_corr': hs.nse(mod_values, obs_values),
             'kge_corr': hs.kge_2012(mod_values, sim_values),
 
-            'reach_id': row[mid_col],
-            'gauge_id': row[gid_col],
-            'asgn_reach_id': row[asn_mid_col],
+            'reach_id': row[COL_MID],
+            'gauge_id': row[COL_GID],
+            'asgn_reach_id': row[COL_ASN_MID],
         }, index=[0, ])
     except Exception as e:
         logger.error(e)
-        logger.error(f'Failed bootstrap validation for {row[mid_col]}')
+        logger.error(f'Failed bootstrap validation for {row[COL_MID]}')
         return None
 
 
@@ -164,7 +164,7 @@ def mp_metrics(assign_df: pd.DataFrame = None) -> pd.DataFrame:
     hindcast_zarr = get_state('hindcast_zarr')
 
     # subset the assign dataframe to only rows which contain gauges & reset the index
-    assign_df = assign_df[assign_df[gid_col].notna()].reset_index(drop=True)
+    assign_df = assign_df[assign_df[COL_GID].notna()].reset_index(drop=True)
 
     with Pool(get_state('n_processes')) as p:
         metrics_df = pd.concat(
@@ -256,7 +256,7 @@ def merge_metrics_and_gis(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: g
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
-    gauge_gdf = gauge_gdf.merge(bdf, on=gid_col, how='left')
+    gauge_gdf = gauge_gdf.merge(bdf, on=COL_GID, how='left')
 
     for metric in ['me', 'mae', 'rmse', 'kge', 'nse']:
         # convert from string to float then prepare a column for the results.

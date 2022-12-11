@@ -9,12 +9,12 @@ import xarray
 from natsort import natsorted
 from scipy import interpolate, stats
 
+from .io import COL_ASN_MID
+from .io import COL_GID
+from .io import COL_MID
 from .io import DF_QMOD
 from .io import DF_QOBS
 from .io import DF_QSIM
-from .io import asn_mid_col
-from .io import gid_col
-from .io import mid_col
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str =
         p.starmap(
             map_saber,
             [[mid, asgn_mid, asgn_gid, hds, gauge_data, save_dir] for mid, asgn_mid, asgn_gid in
-             np.moveaxis(assign_df[[mid_col, asn_mid_col, gid_col]].values, 0, 0)]
+             np.moveaxis(assign_df[[COL_MID, COL_ASN_MID, COL_GID]].values, 0, 0)]
         )
 
     logger.info('Finished SABER Bias Correction')

@@ -10,6 +10,8 @@ from natsort import natsorted
 
 logger = logging.getLogger(__name__)
 
+__all__ = ['read_config', 'scaffold_workdir', 'get_state', 'get_dir', 'read_table', 'write_table']
+
 # file paths used in this project which should come from the config file
 workdir = ''
 x_fdc_train = ''
@@ -23,37 +25,37 @@ hindcast_zarr = ''
 n_processes = 1
 
 # assign table and gis_input file required column names
-mid_col = 'model_id'  # model id column name: in drain_table, gauge_table, regulate_table, cluster_table
-gid_col = 'gauge_id'  # gauge id column name: in gauge_table
-rid_col = 'reg_id'  # regulate id column name: in regulate_table
-cid_col = 'clstr_id'  # cluster column name: in cluster_table
+COL_MID = 'model_id'  # model id column name: in drain_table, gauge_table, regulate_table, cluster_table
+COL_GID = 'gauge_id'  # gauge id column name: in gauge_table
+COL_RID = 'reg_id'  # regulate id column name: in regulate_table
+COL_CID = 'clstr_id'  # cluster column name: in cluster_table
 
-order_col = 'strahler_order'  # strahler order column name: in drain_table
-x_col = 'x_mod'  # x coordinate column name: in drain_table
-y_col = 'y_mod'  # y coordinate column name: in drain_table
-down_mid_col = 'downstream_model_id'  # downstream model id column name: in drain_table
+COL_STRM_ORD = 'strahler_order'  # strahler order column name: in drain_table
+COL_X = 'x_mod'  # x coordinate column name: in drain_table
+COL_Y = 'y_mod'  # y coordinate column name: in drain_table
+COL_MID_DOWN = 'downstream_model_id'  # downstream model id column name: in drain_table
 
-rprop_col = 'rprop'  # regulated stream propagation: created by assign_table
-gprop_col = 'gprop'  # gauged stream propagation: created by assign_table
-asn_mid_col = 'asgn_mid'  # assigned model id column name: in assign_table
-asn_gid_col = 'asgn_gid'  # assigned gauge id column name: in assign_table
-reason_col = 'reason'  # reason column name: in assign_table
+COL_RPROP = 'rprop'  # regulated stream propagation: created by assign_table
+COL_GGROP = 'gprop'  # gauged stream propagation: created by assign_table
+COL_ASN_MID = 'asgn_mid'  # assigned model id column name: in assign_table
+COL_ASN_GID = 'asgn_gid'  # assigned gauge id column name: in assign_table
+COL_ASN_REASON = 'reason'  # reason column name: in assign_table
 
-all_cols = [mid_col,
-            gid_col,
-            rid_col,
-            order_col,
-            x_col,
-            y_col,
-            rprop_col,
-            gprop_col,
-            cid_col,
-            down_mid_col,
-            asn_mid_col,
-            asn_gid_col,
-            reason_col, ]
+all_cols = [COL_MID,
+            COL_GID,
+            COL_RID,
+            COL_STRM_ORD,
+            COL_X,
+            COL_Y,
+            COL_RPROP,
+            COL_GGROP,
+            COL_CID,
+            COL_MID_DOWN,
+            COL_ASN_MID,
+            COL_ASN_GID,
+            COL_ASN_REASON, ]
 
-atable_cols = [asn_mid_col, asn_gid_col, reason_col, rprop_col, gprop_col]
+atable_cols = [COL_ASN_MID, COL_ASN_GID, COL_ASN_REASON, COL_RPROP, COL_GGROP]
 atable_cols_defaults = ['unassigned', 'unassigned', 'unassigned', '', '']
 
 # discharge dataframe columns names
@@ -72,10 +74,6 @@ TABLE_ASSIGN = 'assign_table.parquet'
 TABLE_DRAIN = 'drain_table.parquet'
 TABLE_GAUGE = 'gauge_table.parquet'
 TABLE_REGULATE = 'regulate_table.csv'
-TABLE_MIDS = 'mid_table.parquet'
-TABLE_GIDS = 'gid_table.parquet'
-# todo make this MID GID RID and only use this table
-table_mid_gid_map = 'mid_gid_map_table.parquet'
 
 # tables produced to cache results during propagation
 TABLE_PROP_RESOLVED = 'prop_table_resolved.parquet'
@@ -94,9 +92,6 @@ TABLE_BTSTRP_METRICS = 'bootstrap_metrics.csv'
 
 GENERATED_TABLE_NAMES_MAP = {
     "assign_table": TABLE_ASSIGN,
-    "drain_table": TABLE_DRAIN,
-    "gauge_table": TABLE_GAUGE,
-    "regulate_table": TABLE_REGULATE,
     "assign_table_bootstrap": TABLE_ASSIGN_BTSTRP,
     "bootstrap_metrics": TABLE_BTSTRP_METRICS,
     "cluster_metrics": TABLE_CLUSTER_METRICS,
@@ -112,12 +107,8 @@ VALID_YAML_KEYS = {
     'gauge_gis',
     'gauge_data',
     'hindcast_zarr',
-    'n_processes',
 
-    'mid_col',
-    'gid_col',
-    'rid_col',
-    'cid_col',
+    'n_processes',
 }
 
 
