@@ -15,4 +15,4 @@ gauge_data: ''
 hindcast_zarr: ''
 
 # options for processing data
-n_processes: 20
+n_processes: 1
