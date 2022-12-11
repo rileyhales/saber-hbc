@@ -16,6 +16,9 @@ __all__ = ['read_config', 'scaffold_workdir', 'get_state', 'get_dir', 'read_tabl
 workdir = ''
 x_fdc_train = ''
 x_fdc_all = ''
+drain_table = ''
+gauge_table = ''
+regulate_table = ''
 drain_gis = ''
 gauge_gis = ''
 gauge_data = ''
@@ -69,11 +72,8 @@ DIR_GIS = 'gis'
 DIR_CLUSTERS = 'clusters'
 DIR_VALID = 'validation'
 
-# name of the required input tables and the outputs
+# name of the required input tables
 TABLE_ASSIGN = 'assign_table.parquet'
-TABLE_DRAIN = 'drain_table.parquet'
-TABLE_GAUGE = 'gauge_table.parquet'
-TABLE_REGULATE = 'regulate_table.csv'
 
 # tables produced to cache results during propagation
 TABLE_PROP_RESOLVED = 'prop_table_resolved.parquet'
@@ -101,10 +101,17 @@ GENERATED_TABLE_NAMES_MAP = {
 
 VALID_YAML_KEYS = {
     'workdir',
+
     'x_fdc_train',
     'x_fdc_all',
+
+    'drain_table',
+    'gauge_table',
+    'regulate_table',
+
     'drain_gis',
     'gauge_gis',
+
     'gauge_data',
     'hindcast_zarr',
 
@@ -146,8 +153,8 @@ def read_config(config: str) -> None:
         logger.warning(f'Gauge network GIS file does not exist: {gauge_gis}')
     if not os.path.isdir(gauge_data):
         logger.warning(f'Gauge data directory does not exist: {gauge_data}')
-    if not os.path.exists(hindcast_zarr):
-        logger.warning(f'Hindcast zarr directory does not exist: {hindcast_zarr}')
+    if not glob.glob(hindcast_zarr):
+        logger.warning(f'Hindcast zarr directory does not exist or is empty: {hindcast_zarr}')
 
     return
 
@@ -274,7 +281,6 @@ def _get_table_path(table_name: str) -> str:
     Raises:
         ValueError: if the table name is not recognized
     """
-    # todo organize the table names better
     if table_name in VALID_YAML_KEYS:
         return os.path.join(workdir, globals()[table_name])
     elif table_name in GENERATED_TABLE_NAMES_MAP:
