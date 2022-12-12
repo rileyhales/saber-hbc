@@ -1,0 +1,18 @@
+# file paths to input data
+workdir: ''
+
+x_fdc_train: ''
+x_fdc_all: ''
+
+drain_table: ''
+gauge_table: ''
+regulate_table: ''
+
+drain_gis: ''
+gauge_gis: ''
+
+gauge_data: ''
+hindcast_zarr: ''
+
+# options for processing data
+n_processes: 1

@@ -6,7 +6,7 @@ with open("README.md", "r") as readme:
 AUTHOR = 'Riley C. Hales'
 DESCRIPTION = 'The SABER tool for bias correcting large hydrologic models'
 
-VERSION = '0.7.0'
+VERSION = '0.8.0'
 
 PYTHON_REQUIRES = '>=3.10'
 INSTALL_REQUIRES = [
@@ -22,6 +22,7 @@ INSTALL_REQUIRES = [
     'numpy',
     'pandas',
     'pyarrow',
+    'pyyaml',
     'requests',
     'scikit-learn',
     'scipy',
