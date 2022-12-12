@@ -16,15 +16,16 @@ from .io import COL_ASN_GID
 from .io import COL_ASN_MID
 from .io import COL_GID
 from .io import COL_MID
-from .io import DF_QMOD
-from .io import DF_QOBS
-from .io import DF_QSIM
+from .io import COL_QMOD
+from .io import COL_QOBS
+from .io import COL_QSIM
 from .io import get_dir
 from .io import get_state
+from .io import read_gis
 from .io import read_table
 from .io import write_table
 
-__all__ = ['mp_table', 'metrics', 'mp_metrics', 'plots', 'merge_metrics_and_gis']
+__all__ = ['mp_table', 'metrics', 'mp_metrics', 'plots', 'gauge_metric_map']
 
 logger = logging.getLogger(__name__)
 
@@ -96,13 +97,13 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
         if corrected_df is None:
             logger.warning(f'No corrected data for {row[COL_MID]}')
             return None
-        if not (DF_QMOD in corrected_df.columns and DF_QSIM in corrected_df.columns):
+        if not (COL_QMOD in corrected_df.columns and COL_QSIM in corrected_df.columns):
             logger.warning(f'Missing adjusted and simulated columns')
             return None
 
         # create a dataframe of original and corrected streamflow that can be used for calculating metrics
         metrics_df = pd.read_csv(os.path.join(gauge_data, f'{row[COL_GID]}.csv'), index_col=0)
-        metrics_df.columns = [DF_QOBS, ]
+        metrics_df.columns = [COL_QOBS, ]
         metrics_df.index = pd.to_datetime(metrics_df.index)
         metrics_df = pd.merge(corrected_df, metrics_df, how='inner', left_index=True, right_index=True)
 
@@ -114,9 +115,9 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             logger.warning(f'Empty dataframe for {row[COL_MID]}')
             return None
 
-        obs_values = metrics_df[DF_QOBS].values.flatten()
-        sim_values = metrics_df[DF_QSIM].values.flatten()
-        mod_values = np.squeeze(metrics_df[DF_QMOD].values.flatten())
+        obs_values = metrics_df[COL_QOBS].values.flatten()
+        sim_values = metrics_df[COL_QSIM].values.flatten()
+        mod_values = np.squeeze(metrics_df[COL_QMOD].values.flatten())
 
         if mod_values.dtype == np.dtype('O'):
             mod_values = np.array(mod_values.tolist()).astype(np.float64).flatten()
@@ -239,9 +240,10 @@ def plots(bdf: pd.DataFrame = None) -> None:
     return
 
 
-def merge_metrics_and_gis(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd.GeoDataFrame = None) -> None:
+def gauge_metric_map(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd.GeoDataFrame = None) -> None:
     """
-    Creates a matplolib map of KGE metrics
+    Creates a geopackge of the gauge locations with added attributes for metrics calculated during the bootstrap
+    validation.
 
     Args:
         bdf: pandas.DataFrame of the bootstrap metrics
@@ -251,7 +253,7 @@ def merge_metrics_and_gis(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: g
         None
     """
     if gauge_gdf is None:
-        gauge_gdf = gpd.read_gis('gauge_gis')
+        gauge_gdf = read_gis('gauge_gis')
 
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
@@ -273,8 +275,9 @@ def merge_metrics_and_gis(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: g
     for metric in ['me', 'mae', 'rmse']:
         # want to see decrease in absolute value or difference less than 10%
         gauge_gdf.loc[gauge_gdf[f'{metric}_corr'].abs() < gauge_gdf[f'{metric}_sim'].abs(), metric] = 2
-        gauge_gdf.loc[np.abs(gauge_gdf[f'{metric}_corr'] - gauge_gdf[f'{metric}_sim']) < gauge_gdf[f'{metric}_sim'].abs() * .1, metric] = 1
+        gauge_gdf.loc[np.abs(gauge_gdf[f'{metric}_corr'] - gauge_gdf[f'{metric}_sim']) < gauge_gdf[
+            f'{metric}_sim'].abs() * .1, metric] = 1
         gauge_gdf.loc[gauge_gdf[f'{metric}_corr'].abs() > gauge_gdf[f'{metric}_sim'].abs(), metric] = 0
 
-    gauge_gdf.to_file(os.path.join(get_dir('validation'), 'bootstrap_metrics_all.gpkg'), driver='GPKG')
+    gauge_gdf.to_file(os.path.join(get_dir('validation'), 'bootstrap_metrics.gpkg'), driver='GPKG')
     return

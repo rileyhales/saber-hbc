@@ -16,8 +16,7 @@ from sklearn.metrics import silhouette_samples
 
 from .io import COL_CID
 from .io import COL_MID
-from .io import _find_model_files
-from .io import _get_table_path
+from .io import list_cluster_files
 from .io import get_dir
 from .io import read_table
 from .io import write_table
@@ -117,7 +116,7 @@ def summarize_fit() -> None:
     summary = {'number': [], 'inertia': [], 'n_iter': []}
     labels = []
 
-    for model_file in _find_model_files(n_clusters='all'):
+    for model_file in list_cluster_files(n_clusters='all'):
         logger.info(f'Post Processing {os.path.basename(model_file)}')
         kmeans = joblib.load(model_file)
         n_clusters = int(kmeans.n_clusters)
@@ -161,7 +160,7 @@ def calc_silhouette(x: np.ndarray, n_clusters: int or Iterable = 'all', samples:
 
     random_shuffler = np.random.default_rng()
 
-    for model_file in _find_model_files(n_clusters):
+    for model_file in list_cluster_files(n_clusters):
         logger.info(f'Calculating Silhouettes for {os.path.basename(model_file)}')
         kmeans = joblib.load(model_file)
 
@@ -216,7 +215,7 @@ def plot_clusters(x: np.ndarray = None, n_clusters: int or Iterable = 'all',
 
     random_shuffler = np.random.default_rng()
 
-    for model_file in _find_model_files(n_clusters):
+    for model_file in list_cluster_files(n_clusters):
         logger.info(f'Plotting Clusters {os.path.basename(model_file)}')
 
         # load the model and calculate
@@ -411,8 +410,12 @@ def plot_fit_metrics(plt_width: int = 4, plt_height: int = 4) -> None:
     clusters_dir = get_dir('clusters')
 
     df = read_table('cluster_metrics')
-    if os.path.exists(_get_table_path('cluster_sscores')):
+
+    try:
         df = df.merge(read_table('cluster_sscores'), on='number', how='outer')
+    except FileNotFoundError:
+        pass
+
     df['number'] = df['number'].astype(int)
     df['inertia'] = df['inertia'].astype(float)
 

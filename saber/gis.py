@@ -13,25 +13,32 @@ from .io import COL_CID
 from .io import COL_GID
 from .io import COL_MID
 from .io import get_dir
+from .io import read_gis
+from .io import read_table
 
 __all__ = ['create_maps', 'map_by_reason', 'map_by_cluster', 'map_unassigned', 'map_ids', ]
 
 logger = logging.getLogger(__name__)
 
 
-def create_maps(assign_df: pd.DataFrame, drain_gis: str or gpd.GeoDataFrame, prefix: str = '') -> None:
+def create_maps(assign_df: pd.DataFrame = None, drain_gis: gpd.GeoDataFrame = None, prefix: str = '') -> None:
     """
     Runs all the clip functions which create subsets of the drainage lines GIS dataset based on how they were assigned
     for bias correction.
 
     Args:
         assign_df: the assignment table dataframe
-        drain_gis: path to a drainage line shapefile which can be clipped
+        drain_gis: a geodataframe of the drainage lines gis dataset
         prefix: a prefix for names of the outputs to distinguish between data generated in separate instances
 
     Returns:
         None
     """
+    if assign_df is None:
+        assign_df = read_table('assign_table')
+    if drain_gis is None:
+        drain_gis = read_gis('drain_gis')
+
     if type(drain_gis) == str:
         gdf = gpd.read_file(drain_gis)
     elif type(drain_gis) == gpd.GeoDataFrame:

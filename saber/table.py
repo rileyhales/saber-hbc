@@ -6,7 +6,7 @@ import pandas as pd
 
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
-from .io import COL_GGROP
+from .io import COL_GPROP
 from .io import COL_GID
 from .io import COL_MID
 from .io import COL_MID_DOWN
@@ -113,12 +113,12 @@ def mp_prop_gauges(df: pd.DataFrame, n_processes: int or None = None) -> pd.Data
 
     with Pool(n_processes) as p:
         logger.info('Finding Downstream')
-        df_prop_down = pd.concat(p.starmap(_map_propagate, [(df, x, 'down', COL_GGROP) for x in gauged_mids]))
+        df_prop_down = pd.concat(p.starmap(_map_propagate, [(df, x, 'down', COL_GPROP) for x in gauged_mids]))
         logger.info('Finding Upstream')
-        df_prop_up = pd.concat(p.starmap(_map_propagate, [(df, x, 'up', COL_GGROP) for x in gauged_mids]))
+        df_prop_up = pd.concat(p.starmap(_map_propagate, [(df, x, 'up', COL_GPROP) for x in gauged_mids]))
         logger.info('Resolving Nearest Propagation Neighbor')
         df_prop = pd.concat([df_prop_down, df_prop_up]).reset_index(drop=True)
-        df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, COL_GGROP) for x in df_prop[COL_MID].unique()]))
+        df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, COL_GPROP) for x in df_prop[COL_MID].unique()]))
 
     return pd.concat([df[~df[COL_MID].isin(df_prop[COL_MID])], df_prop])
 

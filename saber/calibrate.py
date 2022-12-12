@@ -12,9 +12,9 @@ from scipy import interpolate, stats
 from .io import COL_ASN_MID
 from .io import COL_GID
 from .io import COL_MID
-from .io import DF_QMOD
-from .io import DF_QOBS
-from .io import DF_QSIM
+from .io import COL_QMOD
+from .io import COL_QOBS
+from .io import COL_QSIM
 
 logger = logging.getLogger(__name__)
 
@@ -83,10 +83,10 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str)
         hds = xarray.open_mfdataset(hds, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
         rivids = hds.rivid.values
         sim_a = hds['Qout'][:, rivids == int(mid)].values
-        sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=[DF_QSIM])
+        sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=[COL_QSIM])
         if asgn_mid != mid:
             sim_b = hds['Qout'][:, rivids == int(asgn_mid)].values
-            sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[DF_QSIM])
+            sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[COL_QSIM])
             sim_b = sim_b[sim_b.index.year >= 1980]
         sim_a = sim_a[sim_a.index.year >= 1980]
         hds.close()
@@ -140,8 +140,8 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
         values += to_flow(to_prob(month_sim.values)).tolist()
 
     return pd.DataFrame({
-        DF_QMOD: values,
-        DF_QSIM: sim_df.values.flatten(),
+        COL_QMOD: values,
+        COL_QSIM: sim_df.values.flatten(),
     }, index=dates).sort_index()
 
 
@@ -227,16 +227,16 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     # compute the flow duration curves
     if drop_outliers:
-        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=DF_QSIM)
-        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=DF_QSIM)
-        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=DF_QOBS)
+        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=COL_QSIM)
+        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=COL_QSIM)
+        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=COL_QOBS)
     else:
-        sim_fdc_a = calc_fdc(sim_flow_a, col_name=DF_QSIM)
-        sim_fdc_b = calc_fdc(sim_flow_b, col_name=DF_QSIM)
-        obs_fdc = calc_fdc(obs_flow_a, col_name=DF_QOBS)
+        sim_fdc_a = calc_fdc(sim_flow_a, col_name=COL_QSIM)
+        sim_fdc_b = calc_fdc(sim_flow_b, col_name=COL_QSIM)
+        obs_fdc = calc_fdc(obs_flow_a, col_name=COL_QOBS)
 
     # calculate the scalar flow duration curve (at point A with simulated and observed data)
-    scalar_fdc = calc_sfdc(sim_fdc_a[DF_QSIM], obs_fdc[DF_QOBS])
+    scalar_fdc = calc_sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
 
@@ -269,7 +269,7 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     response = pd.DataFrame(data=np.transpose([qb_adjusted, qb_original]),
                             index=sim_flow_b.index.to_list(),
-                            columns=(DF_QMOD, DF_QSIM))
+                            columns=(COL_QMOD, COL_QSIM))
     if metadata:
         response['scalars'] = scalars
         response['p_exceed'] = p_exceed
