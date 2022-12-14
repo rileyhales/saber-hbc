@@ -11,7 +11,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from .assign import _map_assign_ungauged
-from .calibrate import map_saber
+from .saber import map_saber
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
 from .io import COL_GID
