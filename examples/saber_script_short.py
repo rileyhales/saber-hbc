@@ -3,8 +3,8 @@ import logging
 import saber
 
 # USER INPUTS - POPULATE THESE PATHS
-config_file = '/Users/rchales/Projects/saber-hbc/examples/config.yml'  # Path to the configuration file
-log_path = ''  # leave blank to write to console
+config_file = './config.yml'  # Path to the configuration file
+log_path = '/Users/rchales/Data/SABER/log.log'  # leave blank to write to console
 # END USER INPUTS
 
 logging.basicConfig(
@@ -12,7 +12,7 @@ logging.basicConfig(
     filename=log_path,
     filemode='a',
     datefmt='%Y-%m-%d %X',
-    format='%(asctime)s: %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s: [%(name)s:%(lineno)d] %(levelname)s - %(message)s'
 )
 
 if __name__ == "__main__":
@@ -39,12 +39,12 @@ if __name__ == "__main__":
     logger.info('Perform Bootstrap Validation')
     bs_assign_df = saber.bstrap.mp_table(assign_df)
     bs_metrics_df = saber.bstrap.mp_metrics(bs_assign_df)
-    saber.bstrap.gauge_metric_map(bs_metrics_df)
+    saber.bstrap.postprocess_metrics(bs_metrics_df)
 
     # Optional - Make all assignments
-    logger.info('Make Assignments')
-    assign_df = saber.assign.mp_assign(assign_df)
-    logger.info('Generating GIS files')
-    saber.gis.create_maps(assign_df)
+    # logger.info('Make Assignments')
+    # assign_df = saber.assign.mp_assign(assign_df)
+    # logger.info('Generating GIS files')
+    # saber.gis.create_maps(assign_df)
 
     logger.info('SABER Completed')

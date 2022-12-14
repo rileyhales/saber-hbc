@@ -13,7 +13,7 @@ from natsort import natsorted
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    'read_config', 'init_workdir', 'get_state', 'get_dir', 'read_table', 'write_table', 'read_gis',
+    'read_config', 'init_workdir', 'get_state', 'get_dir', 'read_table', 'write_table', 'read_gis', 'write_gis',
     'list_cluster_files',
 
     'COL_MID', 'COL_GID', 'COL_RID', 'COL_CID',
@@ -31,8 +31,7 @@ __all__ = [
 
 # file paths used in this project which should come from the config file
 workdir = ''
-x_fdc_train = ''
-x_fdc_all = ''
+cluster_data = ''
 drain_table = ''
 gauge_table = ''
 regulate_table = ''
@@ -46,8 +45,7 @@ n_processes = 1
 
 # lists for validating
 VALID_YAML_KEYS = {'workdir',
-                   'x_fdc_train',
-                   'x_fdc_all',
+                   'cluster_data',
                    'drain_table',
                    'gauge_table',
                    'regulate_table',
@@ -119,12 +117,18 @@ TABLE_ASSIGN_BTSTRP = 'assign_table_bootstrap.csv'
 TABLE_BTSTRP_METRICS = 'bootstrap_metrics.csv'
 
 GENERATED_TABLE_NAMES_MAP = {
-    "assign_table": TABLE_ASSIGN,
-    "assign_table_bootstrap": TABLE_ASSIGN_BTSTRP,
-    "bootstrap_metrics": TABLE_BTSTRP_METRICS,
-    "cluster_metrics": TABLE_CLUSTER_METRICS,
-    "cluster_sscores": TABLE_CLUSTER_SSCORES,
-    "cluster_table": TABLE_CLUSTER_LABELS,
+    'assign_table': TABLE_ASSIGN,
+    'assign_table_bootstrap': TABLE_ASSIGN_BTSTRP,
+    'bootstrap_metrics': TABLE_BTSTRP_METRICS,
+    'cluster_metrics': TABLE_CLUSTER_METRICS,
+    'cluster_sscores': TABLE_CLUSTER_SSCORES,
+    'cluster_table': TABLE_CLUSTER_LABELS,
+}
+
+GIS_BOOTSTRAP = 'bootstrap_gauges.gpkg'
+
+GENERATE_GIS_NAMES_MAP = {
+    'bootstrap_gauges': GIS_BOOTSTRAP
 }
 
 
@@ -191,6 +195,7 @@ def init_workdir(path: str = None, overwrite: bool = False) -> None:
     elif overwrite:
         logger.warning(f'overwrite=True, Deleting existing workdir: {workdir}')
         shutil.rmtree(path)
+        os.makedirs(path)
 
     for d in DIR_LIST:
         p = os.path.join(path, d)
@@ -285,26 +290,42 @@ def write_table(df: pd.DataFrame, name: str) -> None:
         raise ValueError(f'Unknown table format: {table_format}')
 
 
-def read_gis(gis_name: str) -> gpd.GeoDataFrame:
+def read_gis(name: str) -> gpd.GeoDataFrame:
     """
     Read a GIS file from the project directory by name.
 
     Args:
-        gis_name: name of the GIS file to read
+        name: name of the GIS file to read
 
     Returns:
         gpd.GeoDataFrame
 
     Raises:
-        FileNotFoundError: if the GIS file does not exist in the correct directory with the correct name
         ValueError: if the GIS format is not recognized
     """
-    assert gis_name in VALID_GIS_NAMES, ValueError(f'"{gis_name}" is not a recognized project state key')
-    gis_path = globals()[gis_name]
-    if not os.path.exists(gis_path):
-        raise FileNotFoundError(f'GIS file "{gis_name}" does not exist at path: {gis_path}')
+    assert name in VALID_GIS_NAMES or name in GENERATE_GIS_NAMES_MAP, \
+        ValueError(f'"{name}" is not a recognized project state key')
+    return gpd.read_file(_get_gis_path(name))
 
-    return gpd.read_file(gis_path)
+
+def write_gis(gdf: gpd.GeoDataFrame, name: str) -> None:
+    """
+    Write a GIS file to the correct location in the project directory
+
+    Args:
+        gdf: the geopandas GeoDataFrame to write to disc
+        name: the name of the GIS file
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: if the GIS dataset name is not recognized
+    """
+    assert name in VALID_GIS_NAMES or name in GENERATE_GIS_NAMES_MAP,\
+        ValueError(f'"{name}" is not a recognized GIS dataset name')
+    gdf.to_file(_get_gis_path(name), driver='GPKG')
+    return
 
 
 def list_cluster_files(n_clusters: int or Iterable = 'all') -> List[str]:
@@ -354,3 +375,16 @@ def _get_table_path(table_name: str) -> str:
         return os.path.join(workdir, DIR_CLUSTERS, f'{table_name}.parquet')
     else:
         raise ValueError(f'Unknown table name: {table_name}')
+
+
+def _get_gis_path(name: str) -> str:
+    if name in VALID_GIS_NAMES:
+        return globals()[name]
+    elif name in GENERATE_GIS_NAMES_MAP:
+        if 'bootstrap' in name:
+            dir_path = get_dir('validation')
+        else:
+            dir_path = get_dir('gis')
+        return os.path.join(dir_path, GENERATE_GIS_NAMES_MAP[name])
+    else:
+        raise ValueError(f'Unknown GIS name: {name}')

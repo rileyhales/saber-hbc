@@ -23,9 +23,10 @@ from .io import get_dir
 from .io import get_state
 from .io import read_gis
 from .io import read_table
+from .io import write_gis
 from .io import write_table
 
-__all__ = ['mp_table', 'metrics', 'mp_metrics', 'plots', 'gauge_metric_map']
+__all__ = ['mp_table', 'metrics', 'mp_metrics', 'plots', 'postprocess_metrics']
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,7 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
         None
     """
     # subset the assign dataframe to only rows which contain gauges & reset the index
-    assign_df = assign_df[assign_df[COL_GID].notna()]
-    assign_df = assign_df.reset_index(drop=True)
+    assign_df = assign_df[assign_df[COL_GID].notna()].reset_index(drop=True)
 
     with Pool(get_state('n_processes')) as p:
         bootstrap_assign_df = pd.concat(
@@ -86,13 +86,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
     """
     try:
         row = assign_df.loc[row_idx]
-        corrected_df = map_saber(
-            row[COL_MID],
-            row[COL_ASN_MID],
-            row[COL_ASN_GID],
-            hindcast_zarr,
-            gauge_data,
-        )
+        corrected_df = map_saber(row[COL_MID], row[COL_ASN_MID], row[COL_ASN_GID], hindcast_zarr, gauge_data)
 
         if corrected_df is None:
             logger.warning(f'No corrected data for {row[COL_MID]}')
@@ -240,7 +234,7 @@ def plots(bdf: pd.DataFrame = None) -> None:
     return
 
 
-def gauge_metric_map(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd.GeoDataFrame = None) -> None:
+def postprocess_metrics(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd.GeoDataFrame = None) -> None:
     """
     Creates a geopackge of the gauge locations with added attributes for metrics calculated during the bootstrap
     validation.
@@ -252,32 +246,33 @@ def gauge_metric_map(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd.Ge
     Returns:
         None
     """
-    if gauge_gdf is None:
-        gauge_gdf = read_gis('gauge_gis')
-
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
-
-    gauge_gdf = gauge_gdf.merge(bdf, on=COL_GID, how='left')
 
     for metric in ['me', 'mae', 'rmse', 'kge', 'nse']:
         # convert from string to float then prepare a column for the results.
         cols = [f'{metric}_sim', f'{metric}_corr']
-        gauge_gdf[cols] = gauge_gdf[cols].astype(float)
-        gauge_gdf[metric] = np.nan
+        bdf[cols] = bdf[cols].astype(float)
+        bdf[metric] = np.nan
 
     for metric in ['kge', 'nse']:
         # want to see increase or difference less than or equal to 0.2
-        gauge_gdf.loc[gauge_gdf[f'{metric}_corr'] > gauge_gdf[f'{metric}_sim'], metric] = 2
-        gauge_gdf.loc[np.abs(gauge_gdf[f'{metric}_corr'] - gauge_gdf[f'{metric}_sim']) <= 0.2, metric] = 1
-        gauge_gdf.loc[gauge_gdf[f'{metric}_corr'] < gauge_gdf[f'{metric}_sim'], metric] = 0
+        bdf.loc[bdf[f'{metric}_corr'] > bdf[f'{metric}_sim'], metric] = 2
+        bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) <= 0.2, metric] = 1
+        bdf.loc[bdf[f'{metric}_corr'] < bdf[f'{metric}_sim'], metric] = 0
 
     for metric in ['me', 'mae', 'rmse']:
         # want to see decrease in absolute value or difference less than 10%
-        gauge_gdf.loc[gauge_gdf[f'{metric}_corr'].abs() < gauge_gdf[f'{metric}_sim'].abs(), metric] = 2
-        gauge_gdf.loc[np.abs(gauge_gdf[f'{metric}_corr'] - gauge_gdf[f'{metric}_sim']) < gauge_gdf[
+        bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 2
+        bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) < bdf[
             f'{metric}_sim'].abs() * .1, metric] = 1
-        gauge_gdf.loc[gauge_gdf[f'{metric}_corr'].abs() > gauge_gdf[f'{metric}_sim'].abs(), metric] = 0
+        bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 0
 
-    gauge_gdf.to_file(os.path.join(get_dir('validation'), 'bootstrap_metrics.gpkg'), driver='GPKG')
+    write_table(bdf, 'bootstrap_metrics')
+
+
+    if gauge_gdf is None:
+        gauge_gdf = read_gis('gauge_gis')
+    gauge_gdf = gauge_gdf.merge(bdf, on=COL_GID, how='left')
+    write_gis(gauge_gdf, 'bootstrap_gauges')
     return

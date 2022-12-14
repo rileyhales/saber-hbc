@@ -44,7 +44,7 @@ def cluster(plot: bool = False) -> None:
     """
     logger.info('Generate Clusters')
 
-    x_fdc_train = read_table("x_fdc_train").values
+    x_fdc_train = read_table("cluster_data").values
     generate(x=x_fdc_train)
     summarize_fit()
     # calc_silhouette(workdir, x=x_fdc_train, n_clusters=range(2, 10))
@@ -72,7 +72,7 @@ def generate(x: np.ndarray = None, max_clusters: int = 13) -> None:
         None
     """
     if x is None:
-        x = read_table('x_fdc_train').values
+        x = read_table('cluster_data').values
 
     # build the kmeans model for a range of cluster numbers
     for n_clusters in range(2, max_clusters + 1):
@@ -95,7 +95,7 @@ def predict_labels(n_clusters: int, x: pd.DataFrame = None) -> pd.DataFrame:
         None
     """
     if x is None:
-        x = read_table('x_fdc_all')
+        x = read_table('cluster_data')
 
     model = joblib.load(os.path.join(get_dir('clusters'), f'kmeans-{n_clusters}.pickle'))
     labels_df = pd.DataFrame(
@@ -153,7 +153,7 @@ def calc_silhouette(x: np.ndarray, n_clusters: int or Iterable = 'all', samples:
         None
     """
     if x is None:
-        x = read_table('hindcast_fdc_trans').values
+        x = read_table('cluster_data').values
     fdc_df = pd.DataFrame(x)
 
     summary = {'number': [], 'silhouette': []}
@@ -207,7 +207,7 @@ def plot_clusters(x: np.ndarray = None, n_clusters: int or Iterable = 'all',
         None
     """
     if x is None:
-        x = read_table('hindcast_fdc_trans').values
+        x = read_table('cluster_data').values
 
     size = x.shape[1]
     x_values = np.linspace(0, size, 5)

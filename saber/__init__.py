@@ -1,5 +1,5 @@
 import saber.assign
-import saber.bstrap
+import saber.bs
 import saber.calibrate
 import saber.cluster
 import saber.gis
@@ -7,7 +7,7 @@ import saber.io
 import saber.table
 
 __all__ = [
-    'io', 'table', 'cluster', 'assign', 'gis', 'calibrate', 'bstrap',
+    'io', 'table', 'cluster', 'assign', 'gis', 'calibrate', 'bs.py',
 ]
 
 __author__ = 'Riley C. Hales'
