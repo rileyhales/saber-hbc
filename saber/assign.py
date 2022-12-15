@@ -99,9 +99,11 @@ def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: pd.DataFrame, mid: 
     Returns:
         a new row for the given mid with the assignments made
     """
-    new_row = assign_df[assign_df[COL_MID] == mid].copy()
-
     try:
+        if isinstance(mid, pd.Series):
+            mid = mid.values[0]
+        new_row = assign_df[assign_df[COL_MID] == mid].copy()
+
         # if the stream contains or is downstream of a regulatory structure check is reg structure contains a gauge
         # check is separate from gauge prop, so it are assigned even during bootstrapping
         # todo check if there is a closer gauge *between* the stream and the reg structure
@@ -125,16 +127,19 @@ def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: pd.DataFrame, mid: 
             return new_row
 
         # find the closest gauge (no accounting for projection/map distortion)
-        # todo filter available choices by clusters
         mid_x, mid_y = assign_df.loc[assign_df[COL_MID] == mid, [COL_X, COL_Y]].head(1).values.flatten()
-        row_idx_to_assign = pd.Series(
-            np.sqrt(np.power(gauges_df[COL_X] - mid_x, 2) + np.power(gauges_df[COL_Y] - mid_y, 2))
-        ).idxmin()
+        cluster_num = new_row[COL_CID].values[0]
+        cluster_filter = gauges_df[COL_CID] == cluster_num
+        if np.nansum(cluster_filter) > 0:
+            gauges_df = gauges_df[cluster_filter]
+        row_idx_to_assign = pd.Series(np.sqrt(
+            ((gauges_df[COL_X] - mid_x) ** 2) + ((gauges_df[COL_Y] - mid_y) ** 2)
+        )).idxmin()
         asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [COL_MID, COL_GID]]
-        asgn_reason = f'cluster-{gauges_df[COL_CID].values[0]}'
+        asgn_reason = f'nearest_cluster_{cluster_num}'
         new_row[[COL_ASN_MID, COL_ASN_GID, COL_ASN_REASON]] = [asgn_mid, asgn_gid, asgn_reason]
         return new_row
 
     except Exception as e:
-        logger.error(f'Error in map_assign_ungauged: {e}')
-        return pd.DataFrame(columns=assign_df.columns)
+        logger.error(f'Error (mid: {mid}): {e}')
+        return assign_df.head(0)

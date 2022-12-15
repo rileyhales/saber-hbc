@@ -26,7 +26,7 @@ from .io import read_table
 from .io import write_gis
 from .io import write_table
 
-__all__ = ['mp_table', 'metrics', 'mp_metrics', 'plots', 'postprocess_metrics']
+__all__ = ['mp_table', 'metrics', 'mp_metrics', 'histograms', 'postprocess_metrics', 'pie_charts']
 
 logger = logging.getLogger(__name__)
 
@@ -44,36 +44,39 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         None
     """
-    # subset the assign dataframe to only rows which contain gauges & reset the index
-    assign_df = assign_df[assign_df[COL_GID].notna()].reset_index(drop=True)
+    logger.info('Determining bootstrap assignments')
+
+    # subset the assign dataframe to only rows which contain gauges - possible options to be assigned
+    gauges_df = assign_df[assign_df[COL_GID].notna()].copy()
 
     with Pool(get_state('n_processes')) as p:
-        bootstrap_assign_df = pd.concat(
-            p.starmap(_map_mp_table, [[assign_df, row_idx] for row_idx in assign_df.index])
+        bs_df = pd.concat(
+            p.starmap(_map_mp_table, [[assign_df, gauges_df, row_idx] for row_idx in gauges_df.index])
         )
 
-    write_table(bootstrap_assign_df, 'assign_table_bootstrap')
-    return bootstrap_assign_df
+    write_table(bs_df, 'assign_table_bootstrap')
+    return bs_df
 
 
-def _map_mp_table(assign_df: pd.DataFrame, row_idx: int) -> pd.DataFrame:
+def _map_mp_table(assign_df: pd.DataFrame, gauge_df: pd.DataFrame, row_idx: int) -> pd.DataFrame:
     """
     Helper function for mp_table which assigns a single row of the assignment table to a different gauged stream.
     Separate function so it can be pickled for multiprocessing.
 
     Args:
         assign_df: pandas.DataFrame of the assignment table
+        gauge_df: pandas.DataFrame of the assignment table subset to only rows which contain gauges
         row_idx: the row number of the table to assign
 
     Returns:
         pandas.DataFrame of the row with the new assignment
     """
-    return _map_assign_ungauged(assign_df, assign_df.drop(row_idx), assign_df.loc[row_idx][COL_MID])
+    return _map_assign_ungauged(assign_df, gauge_df.drop(row_idx), gauge_df.loc[row_idx][COL_MID])
 
 
 def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zarr: str) -> pd.DataFrame | None:
     """
-    Performs bootstrap validation.
+    Performs bootstrap validation
 
     Args:
         row_idx: the row of the assignment table to remove and perform bootstrap validation with
@@ -84,8 +87,9 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
     Returns:
         None
     """
+    row = assign_df.loc[row_idx]
+
     try:
-        row = assign_df.loc[row_idx]
         corrected_df = map_saber(row[COL_MID], row[COL_ASN_MID], row[COL_ASN_GID], hindcast_zarr, gauge_data)
 
         if corrected_df is None:
@@ -152,6 +156,8 @@ def mp_metrics(assign_df: pd.DataFrame = None) -> pd.DataFrame:
     Returns:
         None
     """
+    logger.info('Collecting Performance Metrics')
+
     if assign_df is None:
         assign_df = read_table('assign_table_bootstrap')
 
@@ -172,66 +178,6 @@ def mp_metrics(assign_df: pd.DataFrame = None) -> pd.DataFrame:
     write_table(metrics_df, 'bootstrap_metrics')
 
     return metrics_df
-
-
-def plots(bdf: pd.DataFrame = None) -> None:
-    """
-
-    Args:
-        bdf: pandas.DataFrame of the bootstrap metrics
-
-    Returns:
-        None
-    """
-    if bdf is None:
-        bdf = pd.read_csv(os.path.join(get_dir('validation'), 'bootstrap_metrics.csv'))
-
-    for stat in ['me', 'mae', 'rmse', 'nse', 'kge']:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), dpi=1500, tight_layout=True, sharey=True)
-
-        if stat == 'kge':
-            binwidth = 0.5
-            binrange = (-6, 1)
-            ax1.axvline(-0.44, c='red', linestyle='--')
-            ax2.axvline(-0.44, c='red', linestyle='--')
-
-        elif stat == 'nse':
-            binwidth = 0.5
-            binrange = (-6, 1)
-
-        elif stat == 'me':
-            binwidth = 20
-            binrange = (-200, 200)
-
-        elif stat == 'mae':
-            binwidth = 30
-            binrange = (0, 300)
-
-        elif stat == 'rmse':
-            binwidth = 20
-            binrange = (0, 200)
-
-        else:
-            raise ValueError(f'Invalid statistic: {stat}')
-
-        fig.suptitle(f'Bootstrap Validation: {stat.upper()}')
-        ax1.grid(True, 'both', zorder=0, linestyle='--')
-        ax2.grid(True, 'both', zorder=0, linestyle='--')
-        ax1.set_xlim(binrange)
-        ax2.set_xlim(binrange)
-
-        stat_df = bdf[[f'{stat}_corr', f'{stat}_sim']].reset_index(drop=True).copy()
-        stat_df[stat_df <= binrange[0]] = binrange[0]
-        stat_df[stat_df >= binrange[1]] = binrange[1]
-
-        sns.histplot(stat_df, x=f'{stat}_sim', binwidth=binwidth, binrange=binrange, ax=ax1)
-        sns.histplot(stat_df, x=f'{stat}_corr', binwidth=binwidth, binrange=binrange, ax=ax2)
-
-        ax1.axvline(stat_df[f'{stat}_sim'].median(), c='green')
-        ax2.axvline(stat_df[f'{stat}_corr'].median(), c='green')
-
-        fig.savefig(os.path.join(get_dir('validation'), f'bootstrap_{stat}.png'))
-    return
 
 
 def postprocess_metrics(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd.GeoDataFrame = None) -> None:
@@ -270,9 +216,97 @@ def postprocess_metrics(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd
 
     write_table(bdf, 'bootstrap_metrics')
 
-
     if gauge_gdf is None:
         gauge_gdf = read_gis('gauge_gis')
     gauge_gdf = gauge_gdf.merge(bdf, on=COL_GID, how='left')
     write_gis(gauge_gdf, 'bootstrap_gauges')
+    return
+
+
+def histograms(bdf: pd.DataFrame = None) -> None:
+    """
+    Creates histograms of the bootstrap metrics.
+
+    Args:
+        bdf: pandas.DataFrame of the bootstrap metrics
+
+    Returns:
+        None
+    """
+    if bdf is None:
+        bdf = read_table('bootstrap_metrics')
+
+    for stat in ['me', 'mae', 'rmse', 'nse', 'kge']:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), dpi=2000, tight_layout=True, sharey=True)
+
+        if stat == 'kge':
+            binwidth = 0.25
+            binrange = (-6, 1)
+            ax1.axvline(-0.44, c='red', linestyle='--')
+            ax2.axvline(-0.44, c='red', linestyle='--')
+
+        elif stat == 'nse':
+            binwidth = 0.25
+            binrange = (-6, 1)
+
+        elif stat == 'me':
+            binwidth = 20
+            binrange = (-200, 200)
+
+        elif stat == 'mae':
+            binwidth = 30
+            binrange = (0, 300)
+
+        elif stat == 'rmse':
+            binwidth = 20
+            binrange = (0, 200)
+
+        else:
+            raise ValueError(f'Invalid statistic: {stat}')
+
+        fig.suptitle(f'Bootstrap Validation: {stat.upper()}')
+        ax1.grid(True, 'both', zorder=0, linestyle='--')
+        ax2.grid(True, 'both', zorder=0, linestyle='--')
+        ax1.set_xlim(binrange)
+        ax2.set_xlim(binrange)
+
+        stat_df = bdf[[f'{stat}_corr', f'{stat}_sim']].astype(float).copy()
+        stat_df[stat_df <= binrange[0]] = binrange[0]
+        stat_df[stat_df >= binrange[1]] = binrange[1]
+
+        sns.histplot(stat_df, x=f'{stat}_sim', binwidth=binwidth, binrange=binrange, ax=ax1)
+        sns.histplot(stat_df, x=f'{stat}_corr', binwidth=binwidth, binrange=binrange, ax=ax2)
+
+        ax1.axvline(stat_df[f'{stat}_sim'].median(), c='green')
+        ax2.axvline(stat_df[f'{stat}_corr'].median(), c='green')
+
+        fig.savefig(os.path.join(get_dir('validation'), f'figure_bootstrap_{stat}.png'))
+        plt.close(fig)
+    return
+
+
+def pie_charts(bdf: pd.DataFrame = None) -> None:
+    """
+    Creates figures of the bootstrap metrics results
+
+    Args:
+        bdf: pandas.DataFrame of the bootstrap metrics
+
+    Returns:
+        None
+    """
+    if bdf is None:
+        bdf = read_table('bootstrap_metrics')
+
+    # make a grid of pie charts for each metric
+    fig, axes = plt.subplots(2, 2, figsize=(4, 4), dpi=2000, tight_layout=True)
+    fig.suptitle('Bootstrap Validation Metrics')
+    for i, metric in enumerate(['kge', 'me', 'mae', 'rmse']):
+        ax = axes[i // 2, i % 2]
+        ax.set_title(metric.upper())
+        ax.pie(bdf[metric].value_counts().sort_index(),
+               labels=['Worse', 'Same', 'Better'],
+               autopct='%1.1f%%')
+    fig.savefig(os.path.join(get_dir('validation'), 'figure_metric_change_pie.png'))
+
     return

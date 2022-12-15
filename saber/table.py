@@ -85,6 +85,7 @@ def init(drain_table: pd.DataFrame = None,
 
     # create new columns asn_mid_col, asn_gid_col, reason_col
     assign_df[atable_cols] = atable_cols_defaults
+    assign_df[COL_MID] = assign_df[COL_MID].astype(float).astype(int).astype(str)
 
     if not all([col in assign_df.columns for col in all_cols]):
         logger.error('Missing columns in assign table. Check your input tables.')

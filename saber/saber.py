@@ -16,9 +16,12 @@ from .io import COL_QMOD
 from .io import COL_QOBS
 from .io import COL_QSIM
 
+from .fdc import fdc
+from .fdc import sfdc
+
 logger = logging.getLogger(__name__)
 
-__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'map_saber', 'calc_fdc', 'calc_sfdc']
+__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'map_saber']
 
 
 def mp_saber(assign_df: pd.DataFrame, hindcast_zarr: str, gauge_data: str, save_dir: str = None,
@@ -129,8 +132,8 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
         month_obs = obs_df[obs_df.index.month == int(month)].dropna()
 
         # calculate the flow duration curves
-        month_sim_fdc = calc_fdc(month_sim.values)
-        month_obs_fdc = calc_fdc(month_obs.values)
+        month_sim_fdc = fdc(month_sim.values)
+        month_obs_fdc = fdc(month_obs.values)
 
         # make interpolator for 1) sim flow to sim prob, and 2) obs prob to obs flow
         to_prob = _make_interpolator(month_sim_fdc.values.flatten(), month_sim_fdc.index)
@@ -227,16 +230,16 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     # compute the flow duration curves
     if drop_outliers:
-        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=COL_QSIM)
-        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=COL_QSIM)
-        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=COL_QOBS)
+        sim_fdc_a = fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=COL_QSIM)
+        sim_fdc_b = fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=COL_QSIM)
+        obs_fdc = fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=COL_QOBS)
     else:
-        sim_fdc_a = calc_fdc(sim_flow_a, col_name=COL_QSIM)
-        sim_fdc_b = calc_fdc(sim_flow_b, col_name=COL_QSIM)
-        obs_fdc = calc_fdc(obs_flow_a, col_name=COL_QOBS)
+        sim_fdc_a = fdc(sim_flow_a, col_name=COL_QSIM)
+        sim_fdc_b = fdc(sim_flow_b, col_name=COL_QSIM)
+        obs_fdc = fdc(obs_flow_a, col_name=COL_QOBS)
 
     # calculate the scalar flow duration curve (at point A with simulated and observed data)
-    scalar_fdc = calc_sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])
+    scalar_fdc = sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
 
@@ -275,47 +278,6 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
         response['p_exceed'] = p_exceed
 
     return response
-
-
-def calc_fdc(flows: np.array, steps: int = 201, col_name: str = 'Q') -> pd.DataFrame:
-    """
-    Compute flow duration curve (exceedance probabilities) from a list of flows
-
-    Args:
-        flows: array of flows
-        steps: number of steps (exceedance probabilities) to use in the FDC
-        col_name: name of the column in the returned dataframe
-
-    Returns:
-        pd.DataFrame with index 'p_exceed' and columns 'Q' (or col_name)
-    """
-    # calculate the FDC and save to parquet
-    exceed_prob = np.linspace(100, 0, steps)
-    fdc_flows = np.nanpercentile(flows, exceed_prob)
-    df = pd.DataFrame(fdc_flows, columns=[col_name, ], index=exceed_prob)
-    df.index.name = 'p_exceed'
-    return df
-
-
-def calc_sfdc(sim_fdc: pd.DataFrame, obs_fdc: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute the scalar flow duration curve (exceedance probabilities) from two flow duration curves
-
-    Args:
-        sim_fdc: simulated flow duration curve
-        obs_fdc: observed flow duration curve
-
-    Returns:
-        pd.DataFrame with index (exceedance probabilities) and a column of scalars
-    """
-    scalars_df = pd.DataFrame(
-        np.divide(sim_fdc.values.flatten(), obs_fdc.values.flatten()),
-        columns=['scalars'],
-        index=sim_fdc.index
-    )
-    scalars_df.replace(np.inf, np.nan, inplace=True)
-    scalars_df.dropna(inplace=True)
-    return scalars_df
 
 
 def _drop_outliers_by_zscore(df: pd.DataFrame, threshold: float = 3) -> pd.DataFrame:
