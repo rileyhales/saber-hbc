@@ -1,9 +1,11 @@
+import os
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-import os
-from .io import COL_MID
+
 from .io import COL_GID
+from .io import COL_MID
 from .io import COL_QSIM
 
 __all__ = ['fdc', 'sfdc', 'precalc_sfdcs']

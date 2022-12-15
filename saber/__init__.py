@@ -12,5 +12,6 @@ __all__ = [
 ]
 
 __author__ = 'Riley C. Hales'
-__version__ = '0.8.0'
+__url__ = 'https://saber.hales.app'
+__version__ = '0.9.0'
 __license__ = 'BSD 3 Clause Clear'

@@ -9,15 +9,14 @@ import xarray
 from natsort import natsorted
 from scipy import interpolate, stats
 
+from .fdc import fdc
+from .fdc import sfdc
 from .io import COL_ASN_MID
 from .io import COL_GID
 from .io import COL_MID
 from .io import COL_QMOD
 from .io import COL_QOBS
 from .io import COL_QSIM
-
-from .fdc import fdc
-from .fdc import sfdc
 
 logger = logging.getLogger(__name__)
 

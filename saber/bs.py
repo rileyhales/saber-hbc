@@ -11,7 +11,6 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from .assign import _map_assign_ungauged
-from .saber import map_saber
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
 from .io import COL_GID
@@ -25,6 +24,7 @@ from .io import read_gis
 from .io import read_table
 from .io import write_gis
 from .io import write_table
+from .saber import map_saber
 
 __all__ = ['mp_table', 'metrics', 'mp_metrics', 'histograms', 'postprocess_metrics', 'pie_charts']
 

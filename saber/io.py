@@ -322,7 +322,7 @@ def write_gis(gdf: gpd.GeoDataFrame, name: str) -> None:
     Raises:
         ValueError: if the GIS dataset name is not recognized
     """
-    assert name in VALID_GIS_NAMES or name in GENERATE_GIS_NAMES_MAP,\
+    assert name in VALID_GIS_NAMES or name in GENERATE_GIS_NAMES_MAP, \
         ValueError(f'"{name}" is not a recognized GIS dataset name')
     gdf.to_file(_get_gis_path(name), driver='GPKG')
     return

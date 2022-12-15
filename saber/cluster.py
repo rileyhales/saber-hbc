@@ -16,8 +16,8 @@ from sklearn.metrics import silhouette_samples
 
 from .io import COL_CID
 from .io import COL_MID
-from .io import list_cluster_files
 from .io import get_dir
+from .io import list_cluster_files
 from .io import read_table
 from .io import write_table
 

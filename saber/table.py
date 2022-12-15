@@ -6,8 +6,8 @@ import pandas as pd
 
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
-from .io import COL_GPROP
 from .io import COL_GID
+from .io import COL_GPROP
 from .io import COL_MID
 from .io import COL_MID_DOWN
 from .io import COL_RID
