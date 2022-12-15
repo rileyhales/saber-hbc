@@ -9,6 +9,8 @@ import xarray
 from natsort import natsorted
 from scipy import interpolate, stats
 
+from .fdc import fdc
+from .fdc import sfdc
 from .io import COL_ASN_MID
 from .io import COL_GID
 from .io import COL_MID
@@ -18,17 +20,17 @@ from .io import COL_QSIM
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'map_saber', 'calc_fdc', 'calc_sfdc']
+__all__ = ['mp_saber', 'fdc_mapping', 'sfdc_mapping', 'map_saber']
 
 
-def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str = None,
+def mp_saber(assign_df: pd.DataFrame, hindcast_zarr: str, gauge_data: str, save_dir: str = None,
              n_processes: int or None = None) -> None:
     """
     Corrects all streams in the assignment table using the SABER method with a multiprocessing Pool
 
     Args:
         assign_df: the assignment table
-        hds: string path to the hindcast streamflow dataset
+        hindcast_zarr: string path to the hindcast streamflow dataset in zarr format
         gauge_data: path to the directory of observed data
         save_dir: path to the directory to save the corrected data
         n_processes: number of processes to use for multiprocessing, passed to Pool
@@ -46,7 +48,7 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str =
     with Pool(n_processes) as p:
         p.starmap(
             map_saber,
-            [[mid, asgn_mid, asgn_gid, hds, gauge_data, save_dir] for mid, asgn_mid, asgn_gid in
+            [[mid, asgn_mid, asgn_gid, hindcast_zarr, gauge_data, save_dir] for mid, asgn_mid, asgn_gid in
              np.moveaxis(assign_df[[COL_MID, COL_ASN_MID, COL_GID]].values, 0, 0)]
         )
 
@@ -54,7 +56,7 @@ def mp_saber(assign_df: pd.DataFrame, hds: str, gauge_data: str, save_dir: str =
     return
 
 
-def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str) -> pd.DataFrame | tuple | None:
+def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hz: str, gauge_data: str) -> pd.DataFrame | tuple | None:
     """
     Corrects all streams in the assignment table using the SABER method
 
@@ -62,7 +64,7 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str)
         mid: the model id of the stream to be corrected
         asgn_mid: the model id of the stream assigned to mid for bias correction
         asgn_gid: the gauge id of the stream assigned to mid for bias correction
-        hds: xarray dataset of hindcast streamflow data
+        hz: xarray dataset of hindcast streamflow data
         gauge_data: path to the directory of observed data
 
     Returns:
@@ -80,16 +82,16 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hds: str, gauge_data: str)
         obs_df.index = pd.to_datetime(obs_df.index)
 
         # perform corrections
-        hds = xarray.open_mfdataset(hds, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
-        rivids = hds.rivid.values
-        sim_a = hds['Qout'][:, rivids == int(mid)].values
-        sim_a = pd.DataFrame(sim_a, index=hds['time'].values, columns=[COL_QSIM])
+        hz = xarray.open_mfdataset(hz, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
+        rivids = hz.rivid.values
+        sim_a = hz['Qout'][:, rivids == int(mid)].values
+        sim_a = pd.DataFrame(sim_a, index=hz['time'].values, columns=[COL_QSIM])
         if asgn_mid != mid:
-            sim_b = hds['Qout'][:, rivids == int(asgn_mid)].values
+            sim_b = hz['Qout'][:, rivids == int(asgn_mid)].values
             sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[COL_QSIM])
             sim_b = sim_b[sim_b.index.year >= 1980]
         sim_a = sim_a[sim_a.index.year >= 1980]
-        hds.close()
+        hz.close()
 
         if asgn_mid == mid:
             corrected_df = fdc_mapping(sim_a, obs_df)
@@ -129,8 +131,8 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
         month_obs = obs_df[obs_df.index.month == int(month)].dropna()
 
         # calculate the flow duration curves
-        month_sim_fdc = calc_fdc(month_sim.values)
-        month_obs_fdc = calc_fdc(month_obs.values)
+        month_sim_fdc = fdc(month_sim.values)
+        month_obs_fdc = fdc(month_obs.values)
 
         # make interpolator for 1) sim flow to sim prob, and 2) obs prob to obs flow
         to_prob = _make_interpolator(month_sim_fdc.values.flatten(), month_sim_fdc.index)
@@ -227,16 +229,16 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     # compute the flow duration curves
     if drop_outliers:
-        sim_fdc_a = calc_fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=COL_QSIM)
-        sim_fdc_b = calc_fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=COL_QSIM)
-        obs_fdc = calc_fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=COL_QOBS)
+        sim_fdc_a = fdc(_drop_outliers_by_zscore(sim_flow_a, threshold=outlier_threshold), col_name=COL_QSIM)
+        sim_fdc_b = fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=COL_QSIM)
+        obs_fdc = fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=COL_QOBS)
     else:
-        sim_fdc_a = calc_fdc(sim_flow_a, col_name=COL_QSIM)
-        sim_fdc_b = calc_fdc(sim_flow_b, col_name=COL_QSIM)
-        obs_fdc = calc_fdc(obs_flow_a, col_name=COL_QOBS)
+        sim_fdc_a = fdc(sim_flow_a, col_name=COL_QSIM)
+        sim_fdc_b = fdc(sim_flow_b, col_name=COL_QSIM)
+        obs_fdc = fdc(obs_flow_a, col_name=COL_QOBS)
 
     # calculate the scalar flow duration curve (at point A with simulated and observed data)
-    scalar_fdc = calc_sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])
+    scalar_fdc = sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
 
@@ -275,47 +277,6 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
         response['p_exceed'] = p_exceed
 
     return response
-
-
-def calc_fdc(flows: np.array, steps: int = 201, col_name: str = 'Q') -> pd.DataFrame:
-    """
-    Compute flow duration curve (exceedance probabilities) from a list of flows
-
-    Args:
-        flows: array of flows
-        steps: number of steps (exceedance probabilities) to use in the FDC
-        col_name: name of the column in the returned dataframe
-
-    Returns:
-        pd.DataFrame with index 'p_exceed' and columns 'Q' (or col_name)
-    """
-    # calculate the FDC and save to parquet
-    exceed_prob = np.linspace(100, 0, steps)
-    fdc_flows = np.nanpercentile(flows, exceed_prob)
-    df = pd.DataFrame(fdc_flows, columns=[col_name, ], index=exceed_prob)
-    df.index.name = 'p_exceed'
-    return df
-
-
-def calc_sfdc(sim_fdc: pd.DataFrame, obs_fdc: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute the scalar flow duration curve (exceedance probabilities) from two flow duration curves
-
-    Args:
-        sim_fdc: simulated flow duration curve
-        obs_fdc: observed flow duration curve
-
-    Returns:
-        pd.DataFrame with index (exceedance probabilities) and a column of scalars
-    """
-    scalars_df = pd.DataFrame(
-        np.divide(sim_fdc.values.flatten(), obs_fdc.values.flatten()),
-        columns=['scalars'],
-        index=sim_fdc.index
-    )
-    scalars_df.replace(np.inf, np.nan, inplace=True)
-    scalars_df.dropna(inplace=True)
-    return scalars_df
 
 
 def _drop_outliers_by_zscore(df: pd.DataFrame, threshold: float = 3) -> pd.DataFrame:

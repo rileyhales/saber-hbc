@@ -1,8 +1,7 @@
 # file paths to input data
 workdir: ''
 
-x_fdc_train: ''
-x_fdc_all: ''
+cluster_data: ''
 
 drain_table: ''
 gauge_table: ''

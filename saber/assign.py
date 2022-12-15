@@ -8,15 +8,17 @@ from .io import COL_ASN_GID
 from .io import COL_ASN_MID
 from .io import COL_ASN_REASON
 from .io import COL_CID
-from .io import COL_GPROP
 from .io import COL_GID
+from .io import COL_GPROP
 from .io import COL_MID
+from .io import COL_RID
+from .io import COL_RPROP
 from .io import COL_X
 from .io import COL_Y
 from .io import get_state
 from .io import read_table
 
-__all__ = ['mp_assign', 'assign_gauged', 'assign_propagation', 'mp_assign_clusters', ]
+__all__ = ['mp_assign', 'assign_gauged', 'mp_assign_ungauged', ]
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +36,7 @@ def mp_assign(df: pd.DataFrame = None) -> pd.DataFrame:
     if df is None:
         df = read_table('assign_table')
     df = assign_gauged(df)
-    df = assign_propagation(df)
-    df = mp_assign_clusters(df, get_state('n_processes'))
+    df = mp_assign_ungauged(df, get_state('n_processes'))
     return df
 
 
@@ -56,44 +57,24 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def assign_propagation(df: pd.DataFrame) -> pd.DataFrame:
-    """
-     Merge the assignment table and the propagation assignments
-
-    Args:
-        df: the assignments table dataframe
-
-    Returns:
-        pd.DataFrame
-    """
-    # todo
-    not_gauged = df[df[COL_GID].isna()]
-
-    # need to write values to the asgn mid and gid columns and also the reasons
-    return
-
-
-def mp_assign_clusters(df: pd.DataFrame, n_processes: int or None = None) -> pd.DataFrame:
+def mp_assign_ungauged(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     Args:
         df: the assignments table dataframe with the clustering labels already applied
-        n_processes: number of processes to use for multiprocessing, passed to Pool
 
     Returns:
         pd.DataFrame
     """
-    # todo filter the dataframe
-    with Pool(n_processes) as p:
+    with Pool(get_state('n_processes')) as p:
         logger.info('Assign Basins within Clusters')
         for cluster_number in range(df[COL_CID].max() + 1):
             logger.info(f'Assigning basins in cluster {cluster_number}')
-            # limit by cluster number
+            # filter assign dataframe to only gauged basins within the cluster
             c_df = df[df[COL_CID] == cluster_number]
+            c_df = c_df[c_df[COL_GID].notna()]
             # keep a list of the unassigned basins in the cluster
             mids = c_df[c_df[COL_ASN_REASON] == 'unassigned'][COL_MID].values
-            # filter cluster dataframe to find only gauged basins
-            c_df = c_df[c_df[COL_GID].notna()]
             df = pd.concat([
                 pd.concat(p.starmap(_map_assign_ungauged, [(df, c_df, x) for x in mids])),
                 df[~df[COL_MID].isin(mids)]
@@ -102,7 +83,7 @@ def mp_assign_clusters(df: pd.DataFrame, n_processes: int or None = None) -> pd.
     return df
 
 
-def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str) -> pd.DataFrame:
+def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: pd.DataFrame, mid: str) -> pd.DataFrame:
     """
     Assigns all possible ungauged basins a gauge that is
         (1) is closer than any other gauge
@@ -118,25 +99,46 @@ def _map_assign_ungauged(assign_df: pd.DataFrame, gauges_df: np.array, mid: str)
         a new row for the given mid with the assignments made
     """
     try:
+        if isinstance(mid, pd.Series):
+            mid = mid.values[0]
         new_row = assign_df[assign_df[COL_MID] == mid].copy()
+
+        # if the stream contains or is downstream of a regulatory structure check is reg structure contains a gauge
+        # check is separate from gauge prop, so it are assigned even during bootstrapping
+        # todo check if there is a closer gauge *between* the stream and the reg structure
+        if new_row[COL_RPROP].values[0] != '' or new_row[COL_RID].values[0] is not None:
+            if new_row[COL_RPROP].values[0]:
+                potential_mid = new_row[COL_RPROP].values[0].split('-')[-1]  # Find the MID of the reg structure
+            else:
+                potential_mid = new_row[COL_MID].values[0]  # use current row because it has the reg structure
+            potential_gid = assign_df[assign_df[COL_MID] == potential_mid][COL_GID].values[0]
+            if potential_gid != '':
+                new_row[COL_ASN_MID] = potential_mid
+                new_row[COL_ASN_GID] = potential_gid
+                new_row[COL_ASN_REASON] = 'regulatory'
+                return new_row
+
+        # if the stream is near a gauge, assign that gauge
         if new_row[COL_GPROP].values[0] != '':
-            prop_str = new_row[COL_GPROP].values[0]
-            asgn_mid = prop_str.split('-')[-1]
-            asgn_gid = assign_df[assign_df[COL_MID] == asgn_mid][COL_ASN_GID].values[0]
-            asgn_reason = prop_str
+            new_row[COL_ASN_MID] = new_row[COL_GPROP].values[0].split('-')[-1]
+            new_row[COL_ASN_GID] = assign_df[assign_df[COL_MID] == new_row[COL_ASN_MID].values[0]][COL_GID].values[0]
+            new_row[COL_ASN_REASON] = 'near_gauge'
+            return new_row
 
-        else:
-            # find the closest gauge using euclidean distance without accounting for projection/map distortion
-            mid_x, mid_y = assign_df.loc[assign_df[COL_MID] == mid, [COL_X, COL_Y]].head(1).values.flatten()
-            row_idx_to_assign = pd.Series(
-                np.sqrt(np.power(gauges_df[COL_X] - mid_x, 2) + np.power(gauges_df[COL_Y] - mid_y, 2))
-            ).idxmin()
-            asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [COL_MID, COL_GID]]
-            asgn_reason = f'cluster-{gauges_df[COL_CID].values[0]}'
-
+        # find the closest gauge (no accounting for projection/map distortion)
+        mid_x, mid_y = assign_df.loc[assign_df[COL_MID] == mid, [COL_X, COL_Y]].head(1).values.flatten()
+        cluster_num = new_row[COL_CID].values[0]
+        cluster_filter = gauges_df[COL_CID] == cluster_num
+        if np.nansum(cluster_filter) > 0:
+            gauges_df = gauges_df[cluster_filter]
+        row_idx_to_assign = pd.Series(np.sqrt(
+            ((gauges_df[COL_X] - mid_x) ** 2) + ((gauges_df[COL_Y] - mid_y) ** 2)
+        )).idxmin()
+        asgn_mid, asgn_gid = gauges_df.loc[row_idx_to_assign, [COL_MID, COL_GID]]
+        asgn_reason = f'nearest_cluster_{cluster_num}'
         new_row[[COL_ASN_MID, COL_ASN_GID, COL_ASN_REASON]] = [asgn_mid, asgn_gid, asgn_reason]
-    except Exception as e:
-        logger.error(f'Error in map_assign_ungauged: {e}')
-        new_row = pd.DataFrame(columns=assign_df.columns)
+        return new_row
 
-    return new_row
+    except Exception as e:
+        logger.error(f'Error (mid: {mid}): {e}')
+        return assign_df.head(0)

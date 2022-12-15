@@ -6,8 +6,8 @@ import pandas as pd
 
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
-from .io import COL_GPROP
 from .io import COL_GID
+from .io import COL_GPROP
 from .io import COL_MID
 from .io import COL_MID_DOWN
 from .io import COL_RID
@@ -79,17 +79,22 @@ def init(drain_table: pd.DataFrame = None,
         .merge(gauge_table, on=COL_MID, how='outer')
         .merge(reg_table, on=COL_MID, how='outer')
         .merge(cluster_table, on=COL_MID, how='outer')
-        .sort_values(by=COL_MID).reset_index(drop=True)
+        .sort_values(by=COL_MID)
+        .reset_index(drop=True)
     )
 
     # create new columns asn_mid_col, asn_gid_col, reason_col
     assign_df[atable_cols] = atable_cols_defaults
+    assign_df[COL_MID] = assign_df[COL_MID].astype(float).astype(int).astype(str)
 
     if not all([col in assign_df.columns for col in all_cols]):
         logger.error('Missing columns in assign table. Check your input tables.')
         logger.debug(f'Have columns: {assign_df.columns}')
         logger.debug(f'Need columns: {all_cols}')
         raise AssertionError('Missing columns in assign table. Check your input tables.')
+
+    # check for and remove duplicate rows
+    assign_df = assign_df.drop_duplicates(subset=[COL_MID])
 
     if cache:
         write_table(assign_df, 'assign_table')
@@ -147,7 +152,7 @@ def mp_prop_regulated(df: pd.DataFrame, n_processes: int or None = None) -> pd.D
     return pd.concat([df[~df[COL_MID].isin(df_prop[COL_MID])], df_prop])
 
 
-def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: str,
+def _map_propagate(df: pd.DataFrame, start_mid: str, direction: str, prop_col: str,
                    same_order: bool = True, max_steps: int = 15) -> pd.DataFrame or None:
     """
     Meant to be mapped over a dataframe to propagate assignments downstream or upstream
@@ -165,15 +170,19 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
     assigned_rows = []
 
     # select the row to start the propagation from
-    start_order = df[df[COL_MID] == start_mid][COL_STRM_ORD].values[0]
-    stream_row = df[df[COL_MID] == start_mid]
-    start_gid = stream_row[COL_ASN_GID].values[0]
+    start_row = df[df[COL_MID] == start_mid]
+    start_order = start_row[COL_STRM_ORD].values[0]
+    start_gid = start_row[COL_ASN_GID].values[0]
 
     # create a boolean selector array for filtering all future queries
     if same_order:
         select_same_order_streams = True
     else:
         select_same_order_streams = df[COL_STRM_ORD] == start_order
+
+    # # modify the start row to include the propagation information
+    # start_row[[COL_ASN_MID, COL_ASN_GID, prop_col]] = [start_mid, start_gid, f'{direction}-{0}-{start_mid}']
+    # assigned_rows.append(start_row)
 
     # counter for the number of steps taken by the loop
     n_steps = 1
@@ -183,23 +192,22 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
         while True:
             # select the next up or downstream
             if direction == 'down':
-                id_selector = df[COL_MID] == stream_row[COL_MID_DOWN].values[0]
+                id_selector = df[COL_MID] == start_row[COL_MID_DOWN].values[0]
             else:  # direction == 'up':
-                id_selector = df[COL_MID_DOWN] == stream_row[COL_MID].values[0]
+                id_selector = df[COL_MID_DOWN] == start_row[COL_MID].values[0]
 
             # select the next row using the ID and Order selectors
-            stream_row = df[np.logical_and(id_selector, select_same_order_streams)]
+            start_row = df[np.logical_and(id_selector, select_same_order_streams)]
 
             # Break the loop if
             # 1. next row is empty -> no upstream reach
-            # 2. next row stream order not a match -> not picked by select_same_order_streams -> empty stream_row
-            if stream_row.empty:
+            # 2. next row stream order not a match -> not picked by select_same_order_streams -> empty start_row
+            if start_row.empty:
                 break
 
             # copy the row, modify the assignment columns, and append to the list
-            new_row = stream_row.copy()
-            new_row[[COL_ASN_MID, COL_ASN_GID, prop_col]] = [start_mid, start_gid,
-                                                             f'{direction}-{n_steps}-{start_mid}']
+            new_row = start_row.copy()
+            new_row[[COL_ASN_MID, COL_ASN_GID, prop_col]] = [start_mid, start_gid, f'{direction}-{n_steps}-{start_mid}']
             assigned_rows.append(new_row)
 
             # increment the steps counter
@@ -208,7 +216,7 @@ def _map_propagate(df: pd.DataFrame, start_mid: int, direction: str, prop_col: s
             # Break the loop if
             # 1. The next row is an outlet -> no downstream row -> cause error when selecting next row
             # 2. we have reach the max number of steps (n_steps -1)
-            if int(stream_row[COL_MID_DOWN].values[0]) == -1 or n_steps > max_steps:
+            if int(start_row[COL_MID_DOWN].values[0]) == -1 or n_steps > max_steps:
                 break
     except Exception as e:
         logger.error(f'Error in map_propagate: {e}')
@@ -230,11 +238,11 @@ def _map_resolve_props(df_props: pd.DataFrame, mid: str, prop_col: str) -> pd.Da
     Returns:
         pd.DataFrame
     """
-    df_mid = df_props[df_props[COL_MID] == mid].copy()
+    df = df_props[df_props[COL_MID] == mid].copy()
     # parse the reason statement into number of steps and prop up or downstream
-    df_mid[['direction', 'n_steps']] = df_mid[prop_col].apply(lambda x: x.split('-')[:2]).to_list()
-    df_mid['n_steps'] = df_mid['n_steps'].astype(int)
+    df[['direction', 'n_steps']] = df[prop_col].apply(lambda x: x.split('-')[:2]).to_list()
+    df['n_steps'] = df['n_steps'].astype(int)
     # sort by n_steps then by reason
-    df_mid = df_mid.sort_values(['n_steps', 'direction'], ascending=[True, True])
+    df = df.sort_values(['n_steps', 'direction'], ascending=[True, True])
     # return the first row which is the fewest steps and preferring downstream to upstream
-    return df_mid.head(1).drop(columns=['direction', 'n_steps'])
+    return df.head(1).drop(columns=['direction', 'n_steps'])
