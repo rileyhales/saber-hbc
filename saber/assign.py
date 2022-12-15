@@ -57,17 +57,16 @@ def assign_gauged(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def mp_assign_ungauged(df: pd.DataFrame, n_processes: int or None = None) -> pd.DataFrame:
+def mp_assign_ungauged(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     Args:
         df: the assignments table dataframe with the clustering labels already applied
-        n_processes: number of processes to use for multiprocessing, passed to Pool
 
     Returns:
         pd.DataFrame
     """
-    with Pool(n_processes) as p:
+    with Pool(get_state('n_processes')) as p:
         logger.info('Assign Basins within Clusters')
         for cluster_number in range(df[COL_CID].max() + 1):
             logger.info(f'Assigning basins in cluster {cluster_number}')

@@ -1,32 +1,27 @@
 site_name: SABER HBC
 site_url: https://saber-hbc.hales.app
-site_description: Documentation for the saber-hbc python package for hydologic model bias correction
+site_description: Documentation for the saber-hbc python package for hydrologic model bias correction
 site_author: Riley C. Hales
 copyright: 2022 Riley C. Hales
 repo_url: https://github.com/rileyhales/saber-hbc/
 theme: material
 nav:
   - Home: index.md
-  - Required Datasets:
-      - Summary: data/index.md
-      - GIS Datasets: data/gis-data.md
-      - Discharge Datasets: data/discharge-data.md
   - User Guide:
       - Using SABER: user-guide/index.md
-      - Data Preparation: user-guide/data_preparation.md
-      - Clustering: user-guide/clustering.md
-      - Assignments Tables: user-guide/assignments_table.md
-      - Visualization: user-guide/visualization.md
+      - Required Datasets and Config File: user-guide/datasets.md
+      - Working Directory and Generated Files: user-guide/working_directory.md
+      - Assignments Table: user-guide/assignments_table.md
+      - Visualization Tools: user-guide/visualization.md
       - Bias Correction: user-guide/bias_correction.md
       - Validation: user-guide/validation.md
   - Demonstration: demo/index.md
   - API Docs:
       - API Reference: api/index.md
-      - saber.prep: api/prep.md
-      - saber.cluster: api/cluster.md
       - saber.assign: api/assign.md
+      - saber.bs: api/bs.md
+      - saber.cluster: api/cluster.md
       - saber.gis: api/gis.md
-      - saber.validate: api/validate.md
   - Cite SABER: cite/index.md
 
 plugins:

@@ -1,0 +1,3 @@
+# `saber.table`
+
+::: saber.table
