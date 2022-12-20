@@ -1,17 +1,21 @@
 # file paths to input data
 workdir: ''
 
+# tables of prepared input data
 cluster_data: ''
-
 drain_table: ''
 gauge_table: ''
 regulate_table: ''
 
+# geospatial datasets for creating visualizations
 drain_gis: ''
 gauge_gis: ''
 
+# observed and simulated discharge data
 gauge_data: ''
+gauge_fdc_zarr: ''
 hindcast_zarr: ''
+hindcast_fdc_zarr: ''
 
 # options for processing data
 n_processes: 1

@@ -19,6 +19,7 @@ __all__ = [
     'COL_MID', 'COL_GID', 'COL_RID', 'COL_CID',
     'COL_STRM_ORD', 'COL_X', 'COL_Y', 'COL_MID_DOWN',
     'COL_RPROP', 'COL_GPROP', 'COL_ASN_MID', 'COL_ASN_GID', 'COL_ASN_REASON',
+    'ASGN_TABLE_ALL_COL', 'ASGN_TABLE_NEW_COLS', 'ASGN_TABLE_NEW_COLS_DEFAULTS',
 
     'COL_QOBS', 'COL_QMOD', 'COL_QSIM',
     'DIR_TABLES', 'DIR_GIS', 'DIR_CLUSTERS', 'DIR_VALID', 'DIR_LIST',
@@ -74,22 +75,22 @@ COL_ASN_MID = 'asgn_mid'  # assigned model id column name: in assign_table
 COL_ASN_GID = 'asgn_gid'  # assigned gauge id column name: in assign_table
 COL_ASN_REASON = 'reason'  # reason column name: in assign_table
 
-all_cols = [COL_MID,
-            COL_GID,
-            COL_RID,
-            COL_STRM_ORD,
-            COL_X,
-            COL_Y,
-            COL_RPROP,
-            COL_GPROP,
-            COL_CID,
-            COL_MID_DOWN,
-            COL_ASN_MID,
-            COL_ASN_GID,
-            COL_ASN_REASON, ]
+ASGN_TABLE_ALL_COL = [COL_MID,
+                      COL_GID,
+                      COL_RID,
+                      COL_CID,
+                      COL_X,
+                      COL_Y,
+                      COL_STRM_ORD,
+                      COL_MID_DOWN,
+                      COL_ASN_MID,
+                      COL_ASN_GID,
+                      COL_ASN_REASON,
+                      COL_RPROP,
+                      COL_GPROP, ]
 
-atable_cols = [COL_ASN_MID, COL_ASN_GID, COL_ASN_REASON, COL_RPROP, COL_GPROP]
-atable_cols_defaults = ['unassigned', 'unassigned', 'unassigned', '', '']
+ASGN_TABLE_NEW_COLS = [COL_ASN_MID, COL_ASN_GID, COL_ASN_REASON, COL_RPROP, COL_GPROP]
+ASGN_TABLE_NEW_COLS_DEFAULTS = ['unassigned', 'unassigned', 'unassigned', '', '']
 
 # discharge dataframe columns names
 COL_QOBS = 'Qobs'
@@ -101,7 +102,8 @@ DIR_TABLES = 'tables'
 DIR_GIS = 'gis'
 DIR_CLUSTERS = 'clusters'
 DIR_VALID = 'validation'
-DIR_LIST = [DIR_TABLES, DIR_GIS, DIR_CLUSTERS, DIR_VALID]
+DIR_CORRECTED = 'corrected_data'
+DIR_LIST = [DIR_TABLES, DIR_GIS, DIR_CLUSTERS, DIR_VALID, DIR_CORRECTED]
 
 # name of the required input tables
 TABLE_ASSIGN = 'assign_table.parquet'
@@ -228,7 +230,7 @@ def get_dir(dir_name: str) -> str:
     Returns:
         path to the directory
     """
-    assert dir_name in [DIR_TABLES, DIR_GIS, DIR_CLUSTERS, DIR_VALID], f'"{dir_name}" is not a valid directory name'
+    assert dir_name in DIR_LIST, f'"{dir_name}" is not a valid directory name'
     table_path = os.path.join(workdir, dir_name)
     if not os.path.exists(table_path):
         logger.warning(f'"{dir_name}" directory does not exist. Error imminent: {table_path}')

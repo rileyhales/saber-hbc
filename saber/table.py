@@ -4,6 +4,9 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 
+from .io import ASGN_TABLE_ALL_COL
+from .io import ASGN_TABLE_NEW_COLS
+from .io import ASGN_TABLE_NEW_COLS_DEFAULTS
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
 from .io import COL_GID
@@ -13,9 +16,6 @@ from .io import COL_MID_DOWN
 from .io import COL_RID
 from .io import COL_RPROP
 from .io import COL_STRM_ORD
-from .io import all_cols
-from .io import atable_cols
-from .io import atable_cols_defaults
 from .io import read_table
 from .io import write_table
 
@@ -84,13 +84,13 @@ def init(drain_table: pd.DataFrame = None,
     )
 
     # create new columns asn_mid_col, asn_gid_col, reason_col
-    assign_df[atable_cols] = atable_cols_defaults
+    assign_df[ASGN_TABLE_NEW_COLS] = ASGN_TABLE_NEW_COLS_DEFAULTS
     assign_df[COL_MID] = assign_df[COL_MID].astype(float).astype(int).astype(str)
 
-    if not all([col in assign_df.columns for col in all_cols]):
+    if not all([col in assign_df.columns for col in ASGN_TABLE_ALL_COL]):
         logger.error('Missing columns in assign table. Check your input tables.')
         logger.debug(f'Have columns: {assign_df.columns}')
-        logger.debug(f'Need columns: {all_cols}')
+        logger.debug(f'Need columns: {ASGN_TABLE_ALL_COL}')
         raise AssertionError('Missing columns in assign table. Check your input tables.')
 
     # check for and remove duplicate rows
