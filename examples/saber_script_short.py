@@ -43,9 +43,11 @@ if __name__ == "__main__":
     logger.info('Perform Bootstrap Validation')
     bs_assign_df = saber.bs.mp_table(assign_df)
     bs_metrics_df = saber.bs.mp_metrics(bs_assign_df)
-    saber.bs.postprocess_metrics(bs_metrics_df)
-    saber.bs.histograms()
+    saber.bs.postprocess_metrics()
     saber.bs.pie_charts()
+    saber.bs.histograms_prepost()
+    saber.bs.histograms_diff()
+    saber.bs.maps()
 
     # Optional - Make all assignments
     # logger.info('Make Assignments')
