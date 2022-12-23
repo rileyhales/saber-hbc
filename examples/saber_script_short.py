@@ -46,8 +46,8 @@ if __name__ == "__main__":
     saber.bs.postprocess_metrics()
     saber.bs.pie_charts()
     saber.bs.histograms_prepost()
-    saber.bs.histograms_diff()
     saber.bs.maps()
+    saber.bs.boxplots_explanatory()
 
     # Optional - Make all assignments
     # logger.info('Make Assignments')

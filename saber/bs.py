@@ -10,15 +10,19 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
+from sklearn.metrics import mean_absolute_percentage_error
+from sklearn.metrics import r2_score
 
 from .assign import _map_assign_ungauged
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
+from .io import COL_CID
 from .io import COL_GID
 from .io import COL_MID
 from .io import COL_QMOD
 from .io import COL_QOBS
 from .io import COL_QSIM
+from .io import COL_STRM_ORD
 from .io import get_dir
 from .io import get_state
 from .io import read_gis
@@ -28,7 +32,7 @@ from .io import write_table
 from .saber import map_saber
 
 __all__ = ['mp_table', 'metrics', 'mp_metrics', 'postprocess_metrics',
-           'pie_charts', 'histograms_prepost', 'histograms_diff', 'maps']
+           'pie_charts', 'histograms_prepost', 'maps', 'boxplots_explanatory']
 
 logger = logging.getLogger(__name__)
 
@@ -129,12 +133,16 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'me_sim': np.mean(diff_sim),
             'mae_sim': np.mean(np.abs(diff_sim)),
             'rmse_sim': np.sqrt(np.mean(diff_sim ** 2)),
+            'r2_sim': r2_score(obs_values, sim_values),
+            'mape_sim': mean_absolute_percentage_error(obs_values, sim_values),
             'nse_sim': hs.nse(sim_values, obs_values),
             'kge_sim': hs.kge_2012(sim_values, obs_values),
 
             'me_corr': np.mean(diff_corr),
             'mae_corr': np.mean(np.abs(diff_corr)),
             'rmse_corr': np.sqrt(np.mean(diff_corr ** 2)),
+            'r2_corr': r2_score(obs_values, mod_values),
+            'mape_corr': mean_absolute_percentage_error(obs_values, mod_values),
             'nse_corr': hs.nse(mod_values, obs_values),
             'kge_corr': hs.kge_2012(mod_values, sim_values),
 
@@ -282,117 +290,62 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), dpi=2000, tight_layout=True, sharey=True)
 
         if stat == 'kge':
-            binwidth = 0.20
-            binrange = (-6, 1)
+            binwidth = 0.1
+            binrange = (-3, 1)
             ax1.axvline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
             ax2.axvline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
 
         elif stat == 'me':
-            binwidth = 10
-            binrange = (-175, 175)
+            binwidth = 5
+            binrange = (-50, 50)
 
         elif stat == 'mae':
-            binwidth = 12.5
-            binrange = (0, 250)
+            binwidth = 5
+            binrange = (0, 120)
 
         elif stat == 'rmse':
-            binwidth = 10
-            binrange = (0, 200)
+            binwidth = 5
+            binrange = (0, 100)
 
         else:
             raise ValueError(f'Invalid statistic: {stat}')
 
-        fig.suptitle(f'Gauge {stat.upper()} Histograms')
-        ax1.grid(True, 'both', zorder=0, linestyle='--')
-        ax2.grid(True, 'both', zorder=0, linestyle='--')
-        ax1.set_xlim(binrange)
-        ax2.set_xlim(binrange)
+        fig.suptitle(f'Gauge {stat.upper()} Histograms Before and After Correction')
 
         stat_df = bdf[[f'{stat}_corr', f'{stat}_sim']].astype(float).copy()
+
+        sim_med = stat_df[f'{stat}_sim'].median()
+        sim_mean = stat_df[f'{stat}_sim'].mean()
+        corr_med = stat_df[f'{stat}_corr'].median()
+        corr_mean = stat_df[f'{stat}_corr'].mean()
+
         stat_df[stat_df <= binrange[0]] = binrange[0]
         stat_df[stat_df >= binrange[1]] = binrange[1]
 
         sns.histplot(stat_df, x=f'{stat}_sim', binwidth=binwidth, binrange=binrange, ax=ax1)
         sns.histplot(stat_df, x=f'{stat}_corr', binwidth=binwidth, binrange=binrange, ax=ax2)
 
+        ax1.set_yticks(np.arange(0, ax1.get_yticks()[-1] + 1, 250), minor=True)
+
+        ax1.set_xlim(binrange)
+        ax2.set_xlim(binrange)
+        ax1.grid(True, 'both', linestyle='--', alpha=0.4)
+        ax2.grid(True, 'both', linestyle='--', alpha=0.4)
+
         ax1.set_ylabel('Number of Gauges')
         ax1.set_xlabel(f'Simulated {stat.upper()}')
         ax2.set_xlabel(f'Corrected {stat.upper()}')
 
-        sim_med = stat_df[f'{stat}_sim'].median()
-        sim_mean = stat_df[f'{stat}_sim'].mean()
-        corr_med = stat_df[f'{stat}_corr'].median()
-        corr_mean = stat_df[f'{stat}_corr'].mean()
-        ax1.axvline(sim_med, c='green', label=f'Median: {sim_med:.1f}')
-        ax1.axvline(sim_mean, c='blue', label=f'Mean: {sim_mean:.1f}')
-        ax2.axvline(corr_med, c='green', label=f'Median: {corr_med:.1f}')
-        ax2.axvline(corr_mean, c='blue', label=f'Mean: {corr_mean:.1f}')
+        ax1.axvline(sim_med, c='green', label=f'Median: {sim_med:.2f}')
+        ax1.axvline(sim_mean, c='blue', label=f'Mean: {sim_mean:.2f}')
+        ax2.axvline(corr_med, c='green', label=f'Median: {corr_med:.2f}')
+        ax2.axvline(corr_mean, c='blue', label=f'Mean: {corr_mean:.2f}')
 
         # make the labels visible
         ax1.legend()
         ax2.legend()
 
-        fig.savefig(os.path.join(get_dir('validation'), f'figure_bootstrap_{stat}.png'))
-        plt.close(fig)
-    return
-
-
-def histograms_diff(bdf: pd.DataFrame = None) -> None:
-    """
-    Creates histograms of the difference in metrics before and after bootstrapping
-    Args:
-        bdf:
-
-    Returns:
-
-    """
-    if bdf is None:
-        bdf = read_table('bootstrap_metrics')
-
-    for stat in ['me', 'mae', 'rmse', 'kge']:
-        fig, ax = plt.subplots(1, 1, figsize=(4, 4), dpi=2000, tight_layout=True)
-
-        if stat == 'kge':
-            binwidth = 0.20
-            binrange = (-1, 1)
-
-        elif stat == 'me':
-            binwidth = 10
-            binrange = (-100, 100)
-
-        elif stat == 'mae':
-            binwidth = 10
-            binrange = (0, 200)
-
-        elif stat == 'rmse':
-            binwidth = 10
-            binrange = (0, 200)
-
-        else:
-            raise ValueError(f'Invalid statistic: {stat}')
-
-        fig.suptitle(f'Gauge {stat.upper()} Histograms')
-        ax.grid(True, 'both', zorder=0, linestyle='--')
-        ax.set_xlim(binrange)
-
-        stat_df = bdf[[f'{stat}_diff']].astype(float)
-        stat_df[stat_df <= binrange[0]] = binrange[0]
-        stat_df[stat_df >= binrange[1]] = binrange[1]
-
-        sns.histplot(stat_df, x=f'{stat}_diff', binwidth=binwidth, binrange=binrange, ax=ax)
-
-        ax.set_ylabel('Number of Gauges')
-        ax.set_xlabel(f'Corrected - Simulated {stat.upper()}')
-
-        sim_med = stat_df[f'{stat}_diff'].median()
-        sim_mean = stat_df[f'{stat}_diff'].mean()
-        ax.axvline(sim_med, c='green', label=f'Median: {sim_med:.1f}')
-        ax.axvline(sim_mean, c='blue', label=f'Mean: {sim_mean:.1f}')
-
-        # make the labels visible
-        ax.legend()
-
-        fig.savefig(os.path.join(get_dir('validation'), f'figure_bootstrap_{stat}_diff.png'))
+        fig.savefig(os.path.join(get_dir('validation'), f'figure_hist_prepost_{stat}.png'))
         plt.close(fig)
     return
 
@@ -432,7 +385,7 @@ def maps(bs_gdf: gpd.GeoDataFrame = None) -> None:
         cx.add_basemap(ax=ax1, zoom=1, source=cx.providers.Esri.WorldGrayCanvas, attribution='', crs='EPSG:3857')
         cx.add_basemap(ax=ax2, zoom=1, source=cx.providers.Esri.WorldGrayCanvas, attribution='', crs='EPSG:3857')
         cx.add_basemap(ax=ax3, zoom=1, source=cx.providers.Esri.WorldGrayCanvas, attribution='', crs='EPSG:3857')
-        
+
         ax1.set_xticks([])
         ax1.set_yticks([])
         ax2.set_xticks([])
@@ -441,12 +394,75 @@ def maps(bs_gdf: gpd.GeoDataFrame = None) -> None:
         ax3.set_yticks([])
 
         ax1.set_xlabel('')
-        ax1.set_ylabel(f'Improve (n={bs_gdf[bs_gdf[metric] == 2].shape[0]})')
+        ax1.set_ylabel(f'Improved (n={bs_gdf[bs_gdf[metric] == 2].shape[0]})')
         ax2.set_xlabel('')
-        ax2.set_ylabel(f'Equal (n={bs_gdf[bs_gdf[metric] == 1].shape[0]})')
+        ax2.set_ylabel(f'Equivalent (n={bs_gdf[bs_gdf[metric] == 1].shape[0]})')
         ax3.set_xlabel('')
-        ax3.set_ylabel(f'Worse (n={bs_gdf[bs_gdf[metric] == 0].shape[0]})')
+        ax3.set_ylabel(f'Degraded (n={bs_gdf[bs_gdf[metric] == 0].shape[0]})')
 
-        fig.savefig(os.path.join(get_dir('validation'), f'figure_map_bootstrap_{metric}.png'))
+        fig.savefig(os.path.join(get_dir('validation'), f'figure_map_{metric}.png'))
         plt.close(fig)
+    return
+
+
+def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
+    """
+    Creates boxplots of the error metrics before and after bootstrapping by explanatory variable
+    Args:
+        bdf: pandas.DataFrame of the bootstrap metrics
+
+    Returns:
+        None
+    """
+    if bdf is None:
+        bdf = read_table('assign_table_bootstrap')
+
+    # make a boxplot of the ME, MAE, KGE, and RMSE
+    for stat in ['me', 'mae', 'kge', 'rmse']:
+        bdf[f'{stat}_sim'] = bdf[f'{stat}_sim'].astype(float)
+        bdf[f'{stat}_corr'] = bdf[f'{stat}_corr'].astype(float)
+        for exp_col, exp_name in [
+            [COL_CID, 'Cluster'],
+            [COL_STRM_ORD, 'Stream Order'],
+        ]:
+
+            if stat == 'kge':
+                binrange = (-3, 1)
+                ax1.axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
+                ax2.axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
+
+            elif stat == 'me':
+                binrange = (-5000, 5000)
+
+            elif stat == 'mae':
+                binrange = (0, 120)
+
+            elif stat == 'rmse':
+                binrange = (0, 80)
+
+            else:
+                raise ValueError(f'Invalid statistic: {stat}')
+
+            bdf[exp_col] = bdf[exp_col].astype(float).astype(int)
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 5), dpi=1000, tight_layout=True, sharey=True)
+            fig.suptitle(f'{stat.upper()} vs {exp_name} Boxplots Before and After Correction')
+
+            sns.boxplot(data=bdf, x=exp_col, y=f'{stat}_sim', ax=ax1)
+            sns.boxplot(data=bdf, x=exp_col, y=f'{stat}_corr', ax=ax2)
+
+            ax1.set_ylim(binrange)
+
+            ax1.set_ylabel(f'{stat.upper()}')
+            ax2.set_ylabel('')
+
+            ax1.set_title('Simulated')
+            ax2.set_title('Corrected')
+
+            ax1.set_xlabel(exp_name)
+            ax2.set_xlabel(exp_name)
+
+            fig.savefig(
+                os.path.join(get_dir('validation'), f'figure_boxplot_{stat}_{exp_name.replace(" ", "").lower()}_1.png'))
+            plt.close(fig)
+
     return
