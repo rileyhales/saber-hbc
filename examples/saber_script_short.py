@@ -43,7 +43,7 @@ if __name__ == "__main__":
     # Optional - Compute performance metrics at gauged locations
     logger.info('Perform Bootstrap Validation')
     bs_assign_df = saber.bs.mp_table(assign_df)
-    bs_metrics_df = saber.bs.mp_metrics(bs_assign_df)
+    bs_metrics_df = saber.bs.mp_metrics()
     logger.info('Generating Bootstrap Plots and Maps')
     saber.bs.postprocess_metrics()
     saber.bs.pie_charts()

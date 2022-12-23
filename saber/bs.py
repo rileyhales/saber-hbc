@@ -11,7 +11,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 from sklearn.metrics import mean_absolute_percentage_error
-from sklearn.metrics import r2_score
+from scipy.stats import pearsonr
 
 from .assign import _map_assign_ungauged
 from .io import COL_ASN_GID
@@ -134,7 +134,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'me_sim': np.mean(diff_sim),
             'mae_sim': np.mean(np.abs(diff_sim)),
             'rmse_sim': np.sqrt(np.mean(diff_sim ** 2)),
-            'r2_sim': r2_score(obs_values, sim_values),
+            'r2_sim': pearsonr(obs_values, sim_values).statistic,
             'mape_sim': mean_absolute_percentage_error(obs_values, sim_values),
             'nse_sim': hs.nse(sim_values, obs_values),
             'kge_sim': hs.kge_2012(sim_values, obs_values),
@@ -142,7 +142,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'me_corr': np.mean(diff_corr),
             'mae_corr': np.mean(np.abs(diff_corr)),
             'rmse_corr': np.sqrt(np.mean(diff_corr ** 2)),
-            'r2_corr': r2_score(obs_values, mod_values),
+            'r2_corr': pearsonr(obs_values, mod_values).statistic,
             'mape_corr': mean_absolute_percentage_error(obs_values, mod_values),
             'nse_corr': hs.nse(mod_values, obs_values),
             'kge_corr': hs.kge_2012(mod_values, sim_values),
@@ -209,27 +209,32 @@ def postprocess_metrics(bdf: pd.DataFrame = None,
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
-    for metric in ['me', 'mae', 'rmse', 'kge', 'nse']:
+    for metric in BTSTRP_METRIC_NAMES:
         # convert from string to float then prepare a column for the results.
         cols = [f'{metric}_sim', f'{metric}_corr']
         bdf[cols] = bdf[cols].astype(float)
+        bdf[f'{metric}_diff'] = bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']
         bdf[metric] = np.nan
 
     for metric in ['kge', 'nse']:
         # want to see increase or difference less than or equal to 0.2
         bdf.loc[bdf[f'{metric}_corr'] > bdf[f'{metric}_sim'], metric] = 2
-        bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) <= 0.2, metric] = 1
         bdf.loc[bdf[f'{metric}_corr'] < bdf[f'{metric}_sim'], metric] = 0
+        bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) <= 0.2, metric] = 1
 
-    for metric in ['me', 'mae', 'rmse']:
+    for metric in ['me', 'mae', 'rmse', 'mape']:
         # want to see decrease in absolute value or difference less than 10%
         bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 2
+        bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 0
         bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) < bdf[
             f'{metric}_sim'].abs() * .1, metric] = 1
-        bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 0
 
-    for metric in ['me', 'mae', 'rmse', 'kge', 'nse']:
-        bdf[f'{metric}_diff'] = bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']
+    for metric in ['r2',]:
+        # want to see decrease in absolute value or difference less than 10%
+        bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 2
+        bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 0
+        bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) < bdf[
+            f'{metric}_sim'].abs() * .1, metric] = 1
 
     write_table(bdf, 'bootstrap_metrics')
 
@@ -261,10 +266,13 @@ def pie_charts(bdf: pd.DataFrame = None) -> None:
         bdf = read_table('bootstrap_metrics')
 
     # make a grid of pie charts for each metric
-    fig, axes = plt.subplots(2, 2, figsize=(6, 6), dpi=2000, tight_layout=True, subplot_kw=dict(aspect="equal"))
+    # determine the shape of the subplats that fit in 2 columns
+    n_cols = 2
+    n_rows = int(np.ceil(len(BTSTRP_METRIC_NAMES) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6, 6), dpi=2000, tight_layout=True)
     fig.suptitle('Error Metric Changes Before and After Correction')
     for i, metric in enumerate(BTSTRP_METRIC_NAMES):
-        ax = axes[i // 2, i % 2]
+        ax = axes[i // n_cols, i % n_cols]
         ax.set_title(metric.upper())
         ax.pie(bdf[metric].value_counts().sort_index(),
                labels=['Worse', 'Same', 'Better'],
