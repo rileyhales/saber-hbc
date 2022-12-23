@@ -39,7 +39,9 @@ regulate_table = ''
 drain_gis = ''
 gauge_gis = ''
 gauge_data = ''
+gauge_fdc_zarr = ''
 hindcast_zarr = ''
+hindcast_fdc_zarr = ''
 
 # processing options
 n_processes = 1
@@ -53,7 +55,9 @@ VALID_YAML_KEYS = {'workdir',
                    'drain_gis',
                    'gauge_gis',
                    'gauge_data',
+                   'gauge_fdc_zarr',
                    'hindcast_zarr',
+                   'hindcast_fdc_zarr',
                    'n_processes', }
 
 VALID_GIS_NAMES = ['drain_gis', 'gauge_gis']
@@ -117,6 +121,7 @@ CLUSTER_COUNT_JSON = 'best-fit-cluster-count.json'
 # tables produced by the bootstrap validation process
 TABLE_ASSIGN_BTSTRP = 'assign_table_bootstrap.csv'
 TABLE_BTSTRP_METRICS = 'bootstrap_metrics.csv'
+BTSTRP_METRIC_NAMES = ['me', 'mae', 'rmse', 'kge', 'r2', 'nse', 'mape']
 
 GENERATED_TABLE_NAMES_MAP = {
     'assign_table': TABLE_ASSIGN,
@@ -216,7 +221,7 @@ def get_state(prop) -> int or str:
     Returns:
         value of the global variable
     """
-    assert prop in globals(), ValueError(f'"{prop}" is not a recognized project state key')
+    assert prop in globals(), ValueError(f'"{prop}" is not a recognized project config key')
     return globals()[prop]
 
 

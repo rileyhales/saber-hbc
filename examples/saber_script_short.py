@@ -37,12 +37,14 @@ if __name__ == "__main__":
 
     # Calculate Scalar Flow Duration Curves
     logger.info('Calculating Scalar Flow Duration Curves')
-    saber.fdc.gen_assigned_sfdcs(assign_df)
+    # todo finish calculating scalar fdcs and write function to make maps
+    # saber.fdc.gen_assigned_sfdcs(assign_df)
 
     # Optional - Compute performance metrics at gauged locations
     logger.info('Perform Bootstrap Validation')
     bs_assign_df = saber.bs.mp_table(assign_df)
     bs_metrics_df = saber.bs.mp_metrics(bs_assign_df)
+    logger.info('Generating Bootstrap Plots and Maps')
     saber.bs.postprocess_metrics()
     saber.bs.pie_charts()
     saber.bs.histograms_prepost()

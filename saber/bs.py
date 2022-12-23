@@ -23,6 +23,7 @@ from .io import COL_QMOD
 from .io import COL_QOBS
 from .io import COL_QSIM
 from .io import COL_STRM_ORD
+from .io import BTSTRP_METRIC_NAMES
 from .io import get_dir
 from .io import get_state
 from .io import read_gis
@@ -262,7 +263,7 @@ def pie_charts(bdf: pd.DataFrame = None) -> None:
     # make a grid of pie charts for each metric
     fig, axes = plt.subplots(2, 2, figsize=(6, 6), dpi=2000, tight_layout=True, subplot_kw=dict(aspect="equal"))
     fig.suptitle('Error Metric Changes Before and After Correction')
-    for i, metric in enumerate(['kge', 'me', 'mae', 'rmse']):
+    for i, metric in enumerate(BTSTRP_METRIC_NAMES):
         ax = axes[i // 2, i % 2]
         ax.set_title(metric.upper())
         ax.pie(bdf[metric].value_counts().sort_index(),
@@ -286,7 +287,7 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
-    for stat in ['me', 'mae', 'rmse', 'kge']:
+    for stat in BTSTRP_METRIC_NAMES:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), dpi=2000, tight_layout=True, sharey=True)
 
         if stat == 'kge':
@@ -306,6 +307,18 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
         elif stat == 'rmse':
             binwidth = 5
             binrange = (0, 100)
+
+        elif stat == 'nse':
+            binwidth = 0.1
+            binrange = (-3, 1)
+
+        elif stat == 'r2':
+            binwidth = 0.05
+            binrange = (-1, 1)
+
+        elif stat == 'mape':
+            binwidth = 0.5
+            binrange = (0, 150)
 
         else:
             raise ValueError(f'Invalid statistic: {stat}')
@@ -417,8 +430,7 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
     if bdf is None:
         bdf = read_table('assign_table_bootstrap')
 
-    # make a boxplot of the ME, MAE, KGE, and RMSE
-    for stat in ['me', 'mae', 'kge', 'rmse']:
+    for stat in BTSTRP_METRIC_NAMES:
         bdf[f'{stat}_sim'] = bdf[f'{stat}_sim'].astype(float)
         bdf[f'{stat}_corr'] = bdf[f'{stat}_corr'].astype(float)
         for exp_col, exp_name in [
@@ -439,6 +451,15 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
 
             elif stat == 'rmse':
                 binrange = (0, 80)
+
+            elif stat == 'nse':
+                binrange = (-3, 1)
+
+            elif stat == 'r2':
+                binrange = (-1, 1)
+
+            elif stat == 'mape':
+                binrange = (0, 1)
 
             else:
                 raise ValueError(f'Invalid statistic: {stat}')
@@ -462,7 +483,7 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
             ax2.set_xlabel(exp_name)
 
             fig.savefig(
-                os.path.join(get_dir('validation'), f'figure_boxplot_{stat}_{exp_name.replace(" ", "").lower()}_1.png'))
+                os.path.join(get_dir('validation'), f'figure_boxplot_{stat}_{exp_name.replace(" ", "").lower()}.png'))
             plt.close(fig)
 
     return

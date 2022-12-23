@@ -233,9 +233,9 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
         sim_fdc_b = fdc(_drop_outliers_by_zscore(sim_flow_b, threshold=outlier_threshold), col_name=COL_QSIM)
         obs_fdc = fdc(_drop_outliers_by_zscore(obs_flow_a, threshold=outlier_threshold), col_name=COL_QOBS)
     else:
-        sim_fdc_a = fdc(sim_flow_a, col_name=COL_QSIM)
-        sim_fdc_b = fdc(sim_flow_b, col_name=COL_QSIM)
-        obs_fdc = fdc(obs_flow_a, col_name=COL_QOBS)
+        sim_fdc_a = fdc(sim_flow_a, col_name=COL_QSIM, steps=101)
+        sim_fdc_b = fdc(sim_flow_b, col_name=COL_QSIM, steps=101)
+        obs_fdc = fdc(obs_flow_a, col_name=COL_QOBS, steps=101)
 
     # calculate the scalar flow duration curve (at point A with simulated and observed data)
     scalar_fdc = sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])

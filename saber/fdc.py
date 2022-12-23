@@ -62,14 +62,11 @@ def sfdc(sim_fdc: pd.DataFrame, obs_fdc: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame with index (exceedance probabilities) and a column of scalars
     """
-    scalars_df = pd.DataFrame(
-        np.divide(sim_fdc, obs_fdc.values.flatten()),
+    return pd.DataFrame(
+        np.divide(sim_fdc, obs_fdc),
         columns=['scalars', ],
         index=sim_fdc.index
-    )
-    scalars_df.replace(np.inf, np.nan, inplace=True)
-    scalars_df.dropna(inplace=True)
-    return scalars_df
+    ).replace(np.inf, np.nan).dropna()
 
 
 def gen_assigned_sfdcs(assign_table: pd.DataFrame = None):
