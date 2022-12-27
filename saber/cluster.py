@@ -29,7 +29,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def cluster(plot: bool = False) -> None:
+def cluster(plot: bool = True) -> None:
     """
     Train k-means cluster models, calculate fit metrics, and generate plots
 
