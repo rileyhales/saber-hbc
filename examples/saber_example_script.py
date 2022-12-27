@@ -25,8 +25,6 @@ if __name__ == "__main__":
     # Generate Clusters and Plots
     logger.info('Create Clusters and Plots')
     saber.cluster.cluster()
-    saber.cluster.pca_heatmap()
-    saber.cluster.plot_fit_metrics()
     # Before continuing, review the clustering results and select the best n_clusters for the next function
     saber.cluster.predicted_labels_dataframe()
     saber.cluster.predict_labels(n_clusters=6)
