@@ -116,6 +116,7 @@ TABLE_ASSIGN = 'assign_table.parquet'
 TABLE_CLUSTER_METRICS = 'cluster_metrics.csv'
 TABLE_CLUSTER_SSCORES = 'cluster_sscores.csv'
 TABLE_CLUSTER_LABELS = 'cluster_labels.parquet'
+TABLE_CLUSTER_LABEL_MASTER = 'cluster_label_master.parquet'
 CLUSTER_COUNT_JSON = 'best-fit-cluster-count.json'
 
 # tables produced by the bootstrap validation process
@@ -130,6 +131,7 @@ GENERATED_TABLE_NAMES_MAP = {
     'cluster_metrics': TABLE_CLUSTER_METRICS,
     'cluster_sscores': TABLE_CLUSTER_SSCORES,
     'cluster_table': TABLE_CLUSTER_LABELS,
+    'cluster_labels': TABLE_CLUSTER_LABEL_MASTER,
 }
 
 GIS_BOOTSTRAP = 'bootstrap_gauges.gpkg'

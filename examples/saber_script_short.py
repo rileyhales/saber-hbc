@@ -26,6 +26,7 @@ if __name__ == "__main__":
     logger.info('Create Clusters and Plots')
     saber.cluster.cluster()
     # Before continuing, review the clustering results and select the best n_clusters for the next function
+    saber.cluster.predicted_labels_dataframe()
     saber.cluster.predict_labels(n_clusters=5)
 
     # Generate Assignments Table and Propagate from Gauges, Dams/Reservoirs

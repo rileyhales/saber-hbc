@@ -8,17 +8,16 @@ DESCRIPTION = 'The SABER tool for bias correcting large hydrologic models'
 
 VERSION = '0.9.0'
 
-PYTHON_REQUIRES = '>=3.10'
+PYTHON_REQUIRES = '>=3.11'
 INSTALL_REQUIRES = [
     'contextily',
+    'dask',
     'fastparquet',
     'geopandas',
-    'hydrostats',
     'joblib',
     'kneed',
     'matplotlib',
     'natsort',
-    'numba',
     'numpy',
     'pandas',
     'pyarrow',

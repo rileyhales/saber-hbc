@@ -5,15 +5,17 @@ from multiprocessing import Pool
 
 import contextily as cx
 import geopandas as gpd
-import hydrostats as hs
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-from sklearn.metrics import mean_absolute_percentage_error
 from scipy.stats import pearsonr
+from sklearn.metrics import mean_absolute_percentage_error
 
+from ._metrics import kge2012
+from ._metrics import nse
 from .assign import _map_assign_ungauged
+from .io import BTSTRP_METRIC_NAMES
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
 from .io import COL_CID
@@ -23,7 +25,6 @@ from .io import COL_QMOD
 from .io import COL_QOBS
 from .io import COL_QSIM
 from .io import COL_STRM_ORD
-from .io import BTSTRP_METRIC_NAMES
 from .io import get_dir
 from .io import get_state
 from .io import read_gis
@@ -136,16 +137,16 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'rmse_sim': np.sqrt(np.mean(diff_sim ** 2)),
             'r2_sim': pearsonr(obs_values, sim_values).statistic,
             'mape_sim': mean_absolute_percentage_error(obs_values, sim_values),
-            'nse_sim': hs.nse(sim_values, obs_values),
-            'kge_sim': hs.kge_2012(sim_values, obs_values),
+            'nse_sim': nse(obs_values, sim_values),
+            'kge_sim': kge2012(obs_values, sim_values),
 
             'me_corr': np.mean(diff_corr),
             'mae_corr': np.mean(np.abs(diff_corr)),
             'rmse_corr': np.sqrt(np.mean(diff_corr ** 2)),
             'r2_corr': pearsonr(obs_values, mod_values).statistic,
             'mape_corr': mean_absolute_percentage_error(obs_values, mod_values),
-            'nse_corr': hs.nse(mod_values, obs_values),
-            'kge_corr': hs.kge_2012(mod_values, sim_values),
+            'nse_corr': nse(obs_values, mod_values),
+            'kge_corr': kge2012(obs_values, mod_values),
 
             'reach_id': row[COL_MID],
             'gauge_id': row[COL_GID],
@@ -216,20 +217,20 @@ def postprocess_metrics(bdf: pd.DataFrame = None,
         bdf[f'{metric}_diff'] = bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']
         bdf[metric] = np.nan
 
-    for metric in ['kge', 'nse']:
+    for metric in ['kge', 'nse', ]:
         # want to see increase or difference less than or equal to 0.2
         bdf.loc[bdf[f'{metric}_corr'] > bdf[f'{metric}_sim'], metric] = 2
         bdf.loc[bdf[f'{metric}_corr'] < bdf[f'{metric}_sim'], metric] = 0
         bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) <= 0.2, metric] = 1
 
-    for metric in ['me', 'mae', 'rmse', 'mape']:
+    for metric in ['me', 'mae', 'rmse', 'mape', ]:
         # want to see decrease in absolute value or difference less than 10%
         bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 2
         bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 0
         bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) < bdf[
             f'{metric}_sim'].abs() * .1, metric] = 1
 
-    for metric in ['r2',]:
+    for metric in ['r2', ]:
         # want to see decrease in absolute value or difference less than 10%
         bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 2
         bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 0
@@ -269,7 +270,7 @@ def pie_charts(bdf: pd.DataFrame = None) -> None:
     # determine the shape of the subplats that fit in 2 columns
     n_cols = 2
     n_rows = int(np.ceil(len(BTSTRP_METRIC_NAMES) / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6, 6), dpi=2000, tight_layout=True)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6, 2 * n_rows), dpi=1500, tight_layout=True)
     fig.suptitle('Error Metric Changes Before and After Correction')
     for i, metric in enumerate(BTSTRP_METRIC_NAMES):
         ax = axes[i // n_cols, i % n_cols]
@@ -277,6 +278,9 @@ def pie_charts(bdf: pd.DataFrame = None) -> None:
         ax.pie(bdf[metric].value_counts().sort_index(),
                labels=['Worse', 'Same', 'Better'],
                autopct='%1.1f%%', )
+
+    if len(BTSTRP_METRIC_NAMES) % n_cols != 0:
+        axes[-1, -1].axis('off')
     fig.savefig(os.path.join(get_dir('validation'), 'figure_metric_change_pie.png'))
     plt.close(fig)
     return
@@ -429,6 +433,7 @@ def maps(bs_gdf: gpd.GeoDataFrame = None) -> None:
 def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
     """
     Creates boxplots of the error metrics before and after bootstrapping by explanatory variable
+
     Args:
         bdf: pandas.DataFrame of the bootstrap metrics
 
@@ -438,60 +443,81 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
     if bdf is None:
         bdf = read_table('assign_table_bootstrap')
 
+    bdf[COL_CID] = bdf[COL_CID].astype(float).astype(int)
+    bdf[COL_STRM_ORD] = bdf[COL_STRM_ORD].astype(float).astype(int)
+
     for stat in BTSTRP_METRIC_NAMES:
         bdf[f'{stat}_sim'] = bdf[f'{stat}_sim'].astype(float)
         bdf[f'{stat}_corr'] = bdf[f'{stat}_corr'].astype(float)
-        for exp_col, exp_name in [
-            [COL_CID, 'Cluster'],
-            [COL_STRM_ORD, 'Stream Order'],
-        ]:
 
+    for exp_var, exp_name in [
+        (COL_CID, 'Cluster'),
+        (COL_STRM_ORD, 'Stream Order'),
+    ]:
+        stats_to_compare = ['me', 'r2', 'kge', 'mape']
+        fig, axes = plt.subplots(len(stats_to_compare), 2,
+                                 figsize=(6, 2.25 * len(stats_to_compare)), dpi=1000, tight_layout=True)
+        fig.suptitle(f' Error Metrics vs {exp_name} - Before and After Correction', fontweight='bold')
+        axes[0][0].set_title('Simulated')
+        axes[0][1].set_title('Bias Corrected')
+
+        for idx, stat in enumerate(stats_to_compare):
+            stat_label = stat.upper()
             if stat == 'kge':
-                binrange = (-3, 1)
-                ax1.axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
-                ax2.axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
-
+                yrange = (-3, 1)
+                axes[idx][0].axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
+                axes[idx][1].axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
             elif stat == 'me':
-                binrange = (-5000, 5000)
-
-            elif stat == 'mae':
-                binrange = (0, 120)
-
-            elif stat == 'rmse':
-                binrange = (0, 80)
-
-            elif stat == 'nse':
-                binrange = (-3, 1)
-
+                yrange = (-5000, 5000)
             elif stat == 'r2':
-                binrange = (-1, 1)
-
+                yrange = (-1, 1)
             elif stat == 'mape':
-                binrange = (0, 1)
-
+                yrange = (0, 5)
+                stat_label = 'MAPE (as decimal)'
             else:
                 raise ValueError(f'Invalid statistic: {stat}')
 
-            bdf[exp_col] = bdf[exp_col].astype(float).astype(int)
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 5), dpi=1000, tight_layout=True, sharey=True)
-            fig.suptitle(f'{stat.upper()} vs {exp_name} Boxplots Before and After Correction')
+            sns.boxplot(data=bdf, x=exp_var, y=f'{stat}_sim', ax=axes[idx][0])
+            sns.boxplot(data=bdf, x=exp_var, y=f'{stat}_corr', ax=axes[idx][1])
 
-            sns.boxplot(data=bdf, x=exp_col, y=f'{stat}_sim', ax=ax1)
-            sns.boxplot(data=bdf, x=exp_col, y=f'{stat}_corr', ax=ax2)
+            axes[idx][0].set_ylim(yrange)
+            axes[idx][1].set_ylim(yrange)
 
-            ax1.set_ylim(binrange)
+            axes[idx][0].set_ylabel(stat_label)
+            axes[idx][1].set_ylabel('')
 
-            ax1.set_ylabel(f'{stat.upper()}')
-            ax2.set_ylabel('')
+            axes[idx][0].yaxis.grid(True)
+            axes[idx][1].yaxis.grid(True)
+            axes[idx][1].set_yticklabels([])
 
-            ax1.set_title('Simulated')
-            ax2.set_title('Corrected')
+            if idx == len(stats_to_compare) - 1:
+                axes[idx][0].set_xlabel(exp_name)
+                axes[idx][1].set_xlabel(exp_name)
+            else:
+                axes[idx][0].set_xticks([])
+                axes[idx][1].set_xticks([])
+                axes[idx][0].set_xlabel('')
+                axes[idx][1].set_xlabel('')
 
-            ax1.set_xlabel(exp_name)
-            ax2.set_xlabel(exp_name)
+        fig.savefig(os.path.join(get_dir('validation'), f'figure_boxplot_{exp_name.lower().replace(" ", "_")}.png'))
+        plt.close(fig)
 
-            fig.savefig(
-                os.path.join(get_dir('validation'), f'figure_boxplot_{stat}_{exp_name.replace(" ", "").lower()}.png'))
-            plt.close(fig)
-
+        # # make dataframes to keep track of the median, mean, max, min, IQR, and number of gauges
+        # clist = [f'{x}_{y}' for x in ['median', 'mean', 'max', 'min', '75%', '25%', 'count'] for y in
+        #          ['sim', 'corr']]
+        # cidx = bdf[COL_CID].unique()
+        # cidx.sort()
+        # sidx = bdf[COL_STRM_ORD].unique()
+        # sidx.sort()
+        # cluster_df = pd.DataFrame(columns=clist, index=cidx)
+        # stream_df = pd.DataFrame(columns=clist, index=sidx)
+        #
+        # for x in ('sim', 'corr'):
+        #     for y in ('median', 'mean', 'max', 'min', 'count'):
+        #         cluster_df[f'{y}_{x}'] = bdf.groupby(COL_CID)[f'{stat}_{x}'].agg(y).sort_index()
+        #         stream_df[f'{y}_{x}'] = bdf.groupby(COL_STRM_ORD)[f'{stat}_{x}'].agg(y).sort_index()
+        #     cluster_df[f'75%_{x}'] = bdf.groupby(COL_CID)[f'{stat}_{x}'].agg('quantile', q=0.75).sort_index()
+        #     cluster_df[f'25%_{x}'] = bdf.groupby(COL_CID)[f'{stat}_{x}'].agg('quantile', q=0.25).sort_index()
+        # cluster_df.to_csv(os.path.join(get_dir('validation'), f'boxplot_table_{stat}_cluster_stats.csv'), index=False)
+        # stream_df.to_csv(os.path.join(get_dir('validation'), f'boxplot_table_{stat}_stream_stats.csv'), index=False)
     return

@@ -6,6 +6,7 @@ import saber.gis
 import saber.io
 import saber.saber
 import saber.table
+import saber._metrics
 
 __all__ = [
     'io', 'table', 'cluster', 'assign', 'gis', 'saber', 'bs',

@@ -106,6 +106,29 @@ def predict_labels(n_clusters: int, x: pd.DataFrame = None) -> pd.DataFrame:
     return labels_df
 
 
+def predicted_labels_dataframe(x: pd.DataFrame = None) -> pd.DataFrame:
+    """
+    Load the cluster labels from the parquet file
+
+    Args:
+        x: A dataframe with 1 row per FDC (stream) and 1 column per FDC value. Index is the stream's ID.
+
+    Returns:
+        A dataframe with 1 row per FDC (stream) and 1 column per cluster label
+    """
+    # todo use this instead of predict_labels
+    if x is None:
+        x = read_table('cluster_data')
+
+    df = pd.concat([pd.DataFrame(
+        np.transpose(joblib.load(model).predict(x.values)),
+        columns=[f'cluster-{os.path.basename(model).split("-")[-1].replace(".pickle", "")}', ],
+        index=x.index
+    ) for model in list_cluster_files(n_clusters='all')], axis=1)
+    write_table(df, 'cluster_labels')
+    return df
+
+
 def summarize_fit() -> None:
     """
     Generate a summary of the clustering results save the centers and labels to parquet
