@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # todo finish calculating scalar fdcs and write function to make maps
     # saber.fdc.gen_assigned_sfdcs(assign_df)
 
-    # Optional - Compute performance metrics at gauged locations
+    # Optional - Bootstrap validation
     logger.info('Perform Bootstrap Validation')
     bs_assign_df = saber.bs.mp_table(assign_df)
     bs_metrics_df = saber.bs.mp_metrics()

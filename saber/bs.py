@@ -207,6 +207,7 @@ def postprocess_metrics(bdf: pd.DataFrame = None,
     Returns:
         None
     """
+    # todo find where the unnamed index column comes from (maybe when read/write the csvs? reset_index()?)
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
@@ -296,6 +297,7 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
     Returns:
         None
     """
+    # todo check for extreme outliers and remove them from the mean calculation
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
@@ -443,6 +445,7 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
     if bdf is None:
         bdf = read_table('assign_table_bootstrap')
 
+    bdf = bdf[bdf[COL_CID].notna()]
     bdf[COL_CID] = bdf[COL_CID].astype(float).astype(int)
     bdf[COL_STRM_ORD] = bdf[COL_STRM_ORD].astype(float).astype(int)
 
