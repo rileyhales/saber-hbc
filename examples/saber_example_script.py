@@ -3,9 +3,8 @@ import logging
 import saber
 
 # USER INPUTS - POPULATE THESE PATHS
-config_file = './config.yml'  # Path to the configuration file
-log_path = './log.log'  # leave blank to write to console
-log_path = ''
+config_file = './config.yml'  # path to the configuration file
+log_path = ''  # leave blank to write to console
 # END USER INPUTS
 
 logging.basicConfig(
@@ -21,7 +20,7 @@ if __name__ == "__main__":
 
     # Read the Config File
     saber.io.read_config(config_file)
-    saber.io.init_workdir(overwrite=True)
+    saber.io.init_workdir()
 
     # Generate Clusters and Plots
     logger.info('Create Clusters and Plots')
