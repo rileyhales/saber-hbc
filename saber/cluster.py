@@ -9,9 +9,11 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from kneed import KneeLocator
 from natsort import natsorted
 from sklearn.cluster import MiniBatchKMeans
+from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 
 from .io import COL_CID
@@ -56,7 +58,7 @@ def cluster(plot: bool = False) -> None:
     plot_clusters(x=x_fdc_train)
     plot_centers()
     plot_fit_metrics()
-    # plot_silhouettes(workdir)
+    pca_heatmap()
     return
 
 
@@ -473,5 +475,56 @@ def plot_fit_metrics(plt_width: int = 4, plt_height: int = 4) -> None:
         ax2.plot(df['number'], df['silhouette'], marker='o', c='green', label='Silhouette Score')
 
     fig.savefig(os.path.join(clusters_dir, f'figure-fit-metrics.png'))
+    plt.close(fig)
+    return
+
+
+def pca_heatmap(x: pd.DataFrame = None) -> None:
+    """
+    Plot a heatmap of the principal components
+
+    Args:
+        x: the principal components
+
+    Returns:
+        None
+    """
+    if x is None:
+        x = read_table('cluster_data')
+
+    logger.info('Plotting PCA Heatmap')
+
+    clusters_dir = get_dir('clusters')
+
+    # calculate the PCA with scikit learn
+    pca = PCA(n_components=x.values.shape[1])
+    pca.fit(x.values)
+
+    # initialize the figure and labels
+    fig, ax = plt.subplots(
+        figsize=(5, 5),
+        dpi=1000,
+        tight_layout=True,
+    )
+
+    # plot the heatmap
+    sns.heatmap(np.abs(pca.components_), ax=ax, cmap='rocket_r', cbar_kws={'label': 'Feature Weight (Importance)'},
+                linewidths=0.2)
+
+    # Plot titles and labels
+    fig.suptitle("Principal Components Heatmap")
+    ax.set_title('placeholder')
+    ax.set_xlabel("Feature Number")
+    ax.set_ylabel("Principal Component")
+
+    # label the y axis in increments of 5
+    ax.set_yticks(np.arange(0, x.values.shape[1], 5))
+    ax.set_yticklabels(np.arange(0, x.values.shape[1], 5))
+
+    # label the x axis in increments of 5
+    ax.set_xticks(np.arange(0, x.values.shape[1], 5))
+    ax.set_xticklabels(np.arange(0, x.values.shape[1], 5))
+
+    fig.savefig(os.path.join(clusters_dir, 'figure_pca_heatmap.png'))
     plt.close(fig)
     return

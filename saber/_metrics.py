@@ -26,8 +26,6 @@ def kge2012(x1: np.array, x2: np.array) -> float:
     Returns:
         float
     """
-    x1 = np.asarray(x1)
-    x2 = np.asarray(x2)
     r = np.corrcoef(x1, x2)[0, 1]
     alpha = np.std(x2) / np.std(x1)
     beta = np.mean(x2) / np.mean(x1)

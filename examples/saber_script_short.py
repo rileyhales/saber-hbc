@@ -5,6 +5,7 @@ import saber
 # USER INPUTS - POPULATE THESE PATHS
 config_file = './config.yml'  # Path to the configuration file
 log_path = './log.log'  # leave blank to write to console
+log_path = ''
 # END USER INPUTS
 
 logging.basicConfig(
@@ -20,14 +21,16 @@ if __name__ == "__main__":
 
     # Read the Config File
     saber.io.read_config(config_file)
-    saber.io.init_workdir(overwrite=False)
+    saber.io.init_workdir(overwrite=True)
 
     # Generate Clusters and Plots
     logger.info('Create Clusters and Plots')
     saber.cluster.cluster()
+    saber.cluster.pca_heatmap()
+    saber.cluster.plot_fit_metrics()
     # Before continuing, review the clustering results and select the best n_clusters for the next function
     saber.cluster.predicted_labels_dataframe()
-    saber.cluster.predict_labels(n_clusters=5)
+    saber.cluster.predict_labels(n_clusters=6)
 
     # Generate Assignments Table and Propagate from Gauges, Dams/Reservoirs
     logger.info('Generating Assignments Table')
