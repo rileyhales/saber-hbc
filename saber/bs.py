@@ -207,7 +207,6 @@ def postprocess_metrics(bdf: pd.DataFrame = None,
     Returns:
         None
     """
-    # todo find where the unnamed index column comes from (maybe when read/write the csvs? reset_index()?)
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
@@ -297,11 +296,12 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
     Returns:
         None
     """
-    # todo check for extreme outliers and remove them from the mean calculation
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
     for stat in BTSTRP_METRIC_NAMES:
+        stat_df = bdf[[f'{stat}_corr', f'{stat}_sim']].astype(float).copy()
+
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), dpi=2000, tight_layout=True, sharey=True)
 
         if stat == 'kge':
@@ -309,37 +309,54 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
             binrange = (-3, 1)
             ax1.axvline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
             ax2.axvline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
+            units = None
 
         elif stat == 'me':
             binwidth = 5
             binrange = (-50, 50)
+            units = 'm3/s'
 
         elif stat == 'mae':
             binwidth = 5
             binrange = (0, 120)
+            units = 'm3/s'
 
         elif stat == 'rmse':
             binwidth = 5
             binrange = (0, 100)
+            units = 'm3/s'
 
         elif stat == 'nse':
             binwidth = 0.1
             binrange = (-3, 1)
+            units = None
 
         elif stat == 'r2':
             binwidth = 0.05
             binrange = (-1, 1)
+            units = None
 
         elif stat == 'mape':
             binwidth = 0.5
-            binrange = (0, 150)
+            binrange = (0, 15)
+            units = '%'
 
         else:
             raise ValueError(f'Invalid statistic: {stat}')
 
-        fig.suptitle(f'Gauge {stat.upper()} Histograms Before and After Correction')
+        # remove extreme outliers caused by numerical issues
+        for metric, threshold, replacement in (
+                ('me', 10_000, 1_000),
+                ('rmse', 1_000, 1_000),
+                ('mae', 10_000, 1_000),
+                ('mape', 50, 50),
+                ('kge', 10, 3),
+        ):
+            if metric == stat:
+                stat_df.loc[stat_df[f'{metric}_corr'] > threshold, f'{metric}_corr'] = replacement
+                stat_df.loc[stat_df[f'{metric}_corr'] < -threshold, f'{metric}_corr'] = -replacement
 
-        stat_df = bdf[[f'{stat}_corr', f'{stat}_sim']].astype(float).copy()
+        fig.suptitle(f'Gauge {stat.upper()} Histograms Before and After Correction')
 
         sim_med = stat_df[f'{stat}_sim'].median()
         sim_mean = stat_df[f'{stat}_sim'].mean()
@@ -360,8 +377,8 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
         ax2.grid(True, 'both', linestyle='--', alpha=0.4)
 
         ax1.set_ylabel('Number of Gauges')
-        ax1.set_xlabel(f'Simulated {stat.upper()}')
-        ax2.set_xlabel(f'Corrected {stat.upper()}')
+        ax1.set_xlabel(f'Simulated {stat.upper()}' + (f' ({units})' if units else ''))
+        ax2.set_xlabel(f'Corrected {stat.upper()}' + (f' ({units})' if units else ''))
 
         ax1.axvline(sim_med, c='green', label=f'Median: {sim_med:.2f}')
         ax1.axvline(sim_mean, c='blue', label=f'Mean: {sim_mean:.2f}')
