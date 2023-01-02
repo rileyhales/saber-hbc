@@ -350,6 +350,9 @@ def pca_heatmap(x: pd.DataFrame = None) -> None:
     pca = PCA(n_components=x.values.shape[1])
     pca.fit(x.values)
 
+    # find the number of components which explain 99.99% of the variance
+    np.argmax(np.cumsum(pca.explained_variance_ratio_) > 0.9999) + 1
+
     # initialize the figure and labels
     fig, ax = plt.subplots(
         figsize=(5, 5),
@@ -363,9 +366,8 @@ def pca_heatmap(x: pd.DataFrame = None) -> None:
 
     # Plot titles and labels
     fig.suptitle("Principal Components Heatmap")
-    ax.set_title('placeholder')
-    ax.set_xlabel("Feature Number")
     ax.set_ylabel("Principal Component")
+    ax.set_xlabel("Feature Number")
 
     # label the y axis in increments of 5
     ax.set_yticks(np.arange(0, x.values.shape[1], 5))
