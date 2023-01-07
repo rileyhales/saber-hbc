@@ -351,7 +351,7 @@ def pca_heatmap(x: pd.DataFrame = None) -> None:
     pca.fit(x.values)
 
     # find the number of components which explain 99.99% of the variance
-    np.argmax(np.cumsum(pca.explained_variance_ratio_) > 0.9999) + 1
+    # np.argmax(np.cumsum(pca.explained_variance_ratio_) > 0.9999) + 1
 
     # initialize the figure and labels
     fig, ax = plt.subplots(
@@ -360,14 +360,17 @@ def pca_heatmap(x: pd.DataFrame = None) -> None:
         tight_layout=True,
     )
 
-    # plot the heatmap
-    sns.heatmap(np.abs(pca.components_), ax=ax, cmap='rocket_r', cbar_kws={'label': 'Feature Weight (Importance)'},
-                linewidths=0.2)
+    # plot a heatmap for the principal components using seaborn
+    sns.heatmap(np.abs(pca.components_.T),
+                ax=ax,
+                cmap='rocket_r',
+                cbar_kws=dict(label='Component Weight Absolute Value'),
+                linewidths=0.2, )
 
     # Plot titles and labels
     fig.suptitle("Principal Components Heatmap")
-    ax.set_ylabel("Principal Component")
-    ax.set_xlabel("Feature Number")
+    ax.set_xlabel("Principal Component")
+    ax.set_ylabel("Feature Number")
 
     # label the y axis in increments of 5
     ax.set_yticks(np.arange(0, x.values.shape[1], 5))
@@ -377,6 +380,6 @@ def pca_heatmap(x: pd.DataFrame = None) -> None:
     ax.set_xticks(np.arange(0, x.values.shape[1], 5))
     ax.set_xticklabels(np.arange(0, x.values.shape[1], 5))
 
-    fig.savefig(os.path.join(clusters_dir, 'figure_pca_heatmap.png'))
+    fig.savefig(os.path.join(clusters_dir, 'figure_pca_heatmap_1.png'))
     plt.close(fig)
     return
