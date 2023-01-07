@@ -164,7 +164,7 @@ def plot_clusters(x: np.ndarray = None, n_clusters: int or Iterable = 'all',
     Generate figures of the clustered FDC's
 
     Args:
-        x: a numpy array of the prepared FDC data
+        x: a numpy array of the prepared clustering features of shape (n_streams, n_features)
         n_clusters: number of clusters to create figures for
         max_cols: maximum number of columns (subplots) in the figure
         plt_width: width of each subplot in inches
@@ -334,7 +334,7 @@ def pca_heatmap(x: pd.DataFrame = None) -> None:
     Plot a heatmap of the principal components
 
     Args:
-        x: the principal components
+        x: a numpy array of the prepared clustering features of shape (n_streams, n_features)
 
     Returns:
         None
