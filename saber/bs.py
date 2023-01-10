@@ -488,17 +488,17 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
                 axes[idx][0].axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
                 axes[idx][1].axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
             elif stat == 'me':
-                yrange = (-5000, 5000)
+                yrange = (-4000, 4000)
             elif stat == 'r2':
-                yrange = (-1, 1)
+                yrange = (-.25), 1
             elif stat == 'mape':
                 yrange = (0, 5)
                 stat_label = 'MAPE (as decimal)'
             else:
                 raise ValueError(f'Invalid statistic: {stat}')
 
-            sns.boxplot(data=bdf, x=exp_var, y=f'{stat}_sim', ax=axes[idx][0])
-            sns.boxplot(data=bdf, x=exp_var, y=f'{stat}_corr', ax=axes[idx][1])
+            sns.boxplot(data=bdf, x=exp_var, whis=(5, 95), showfliers=False, y=f'{stat}_sim', ax=axes[idx][0])
+            sns.boxplot(data=bdf, x=exp_var, whis=(5, 95), showfliers=False, y=f'{stat}_corr', ax=axes[idx][1])
 
             axes[idx][0].set_ylim(yrange)
             axes[idx][1].set_ylim(yrange)
@@ -522,22 +522,4 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
         fig.savefig(os.path.join(get_dir('validation'), f'figure_boxplot_{exp_name.lower().replace(" ", "_")}.png'))
         plt.close(fig)
 
-        # # make dataframes to keep track of the median, mean, max, min, IQR, and number of gauges
-        # clist = [f'{x}_{y}' for x in ['median', 'mean', 'max', 'min', '75%', '25%', 'count'] for y in
-        #          ['sim', 'corr']]
-        # cidx = bdf[COL_CID].unique()
-        # cidx.sort()
-        # sidx = bdf[COL_STRM_ORD].unique()
-        # sidx.sort()
-        # cluster_df = pd.DataFrame(columns=clist, index=cidx)
-        # stream_df = pd.DataFrame(columns=clist, index=sidx)
-        #
-        # for x in ('sim', 'corr'):
-        #     for y in ('median', 'mean', 'max', 'min', 'count'):
-        #         cluster_df[f'{y}_{x}'] = bdf.groupby(COL_CID)[f'{stat}_{x}'].agg(y).sort_index()
-        #         stream_df[f'{y}_{x}'] = bdf.groupby(COL_STRM_ORD)[f'{stat}_{x}'].agg(y).sort_index()
-        #     cluster_df[f'75%_{x}'] = bdf.groupby(COL_CID)[f'{stat}_{x}'].agg('quantile', q=0.75).sort_index()
-        #     cluster_df[f'25%_{x}'] = bdf.groupby(COL_CID)[f'{stat}_{x}'].agg('quantile', q=0.25).sort_index()
-        # cluster_df.to_csv(os.path.join(get_dir('validation'), f'boxplot_table_{stat}_cluster_stats.csv'), index=False)
-        # stream_df.to_csv(os.path.join(get_dir('validation'), f'boxplot_table_{stat}_stream_stats.csv'), index=False)
     return
