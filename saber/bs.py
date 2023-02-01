@@ -8,6 +8,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_absolute_percentage_error
@@ -39,6 +40,8 @@ __all__ = ['mp_table', 'metrics', 'mp_metrics', 'postprocess_metrics',
 logger = logging.getLogger(__name__)
 
 warnings.filterwarnings('ignore')
+
+mpl.rcParams['font.family'] = 'serif'
 
 
 def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
@@ -135,7 +138,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'me_sim': np.mean(diff_sim),
             'mae_sim': np.mean(np.abs(diff_sim)),
             'rmse_sim': np.sqrt(np.mean(diff_sim ** 2)),
-            'r2_sim': pearsonr(obs_values, sim_values).statistic,
+            'r_sim': pearsonr(obs_values, sim_values).statistic,
             'mape_sim': mean_absolute_percentage_error(obs_values, sim_values),
             'nse_sim': nse(obs_values, sim_values),
             'kge_sim': kge2012(obs_values, sim_values),
@@ -143,7 +146,7 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'me_corr': np.mean(diff_corr),
             'mae_corr': np.mean(np.abs(diff_corr)),
             'rmse_corr': np.sqrt(np.mean(diff_corr ** 2)),
-            'r2_corr': pearsonr(obs_values, mod_values).statistic,
+            'r_corr': pearsonr(obs_values, mod_values).statistic,
             'mape_corr': mean_absolute_percentage_error(obs_values, mod_values),
             'nse_corr': nse(obs_values, mod_values),
             'kge_corr': kge2012(obs_values, mod_values),
@@ -230,7 +233,7 @@ def postprocess_metrics(bdf: pd.DataFrame = None,
         bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) < bdf[
             f'{metric}_sim'].abs() * .1, metric] = 1
 
-    for metric in ['r2', ]:
+    for metric in ['r', ]:
         # want to see decrease in absolute value or difference less than 10%
         bdf.loc[bdf[f'{metric}_corr'].abs() > bdf[f'{metric}_sim'].abs(), metric] = 2
         bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 0
@@ -299,6 +302,10 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
     if bdf is None:
         bdf = read_table('bootstrap_metrics')
 
+    median_symbol = '$\widetilde{X}$'
+    mean_symbol = '$\overline{X}$'
+    std_symbol = '$\sigma$'
+
     for stat in BTSTRP_METRIC_NAMES:
         stat_df = bdf[[f'{stat}_corr', f'{stat}_sim']].astype(float).copy()
 
@@ -307,8 +314,8 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
         if stat == 'kge':
             binwidth = 0.1
             binrange = (-3, 1)
-            ax1.axvline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
-            ax2.axvline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
+            ax1.axvline(-0.41, c='red', linestyle='--', label='KGE = -0.41')
+            ax2.axvline(-0.41, c='red', linestyle='--', label='KGE = -0.41')
             units = None
 
         elif stat == 'me':
@@ -331,7 +338,7 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
             binrange = (-3, 1)
             units = None
 
-        elif stat == 'r2':
+        elif stat == 'r':
             binwidth = 0.05
             binrange = (-1, 1)
             units = None
@@ -360,8 +367,10 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
 
         sim_med = stat_df[f'{stat}_sim'].median()
         sim_mean = stat_df[f'{stat}_sim'].mean()
+        sim_std = stat_df[f'{stat}_sim'].std()
         corr_med = stat_df[f'{stat}_corr'].median()
         corr_mean = stat_df[f'{stat}_corr'].mean()
+        corr_std = stat_df[f'{stat}_corr'].std()
 
         stat_df[stat_df <= binrange[0]] = binrange[0]
         stat_df[stat_df >= binrange[1]] = binrange[1]
@@ -380,10 +389,13 @@ def histograms_prepost(bdf: pd.DataFrame = None) -> None:
         ax1.set_xlabel(f'Simulated {stat.upper()}' + (f' ({units})' if units else ''))
         ax2.set_xlabel(f'Corrected {stat.upper()}' + (f' ({units})' if units else ''))
 
-        ax1.axvline(sim_med, c='green', label=f'Median: {sim_med:.2f}')
-        ax1.axvline(sim_mean, c='blue', label=f'Mean: {sim_mean:.2f}')
-        ax2.axvline(corr_med, c='green', label=f'Median: {corr_med:.2f}')
-        ax2.axvline(corr_mean, c='blue', label=f'Mean: {corr_mean:.2f}')
+        ax1.axvline(sim_med, c='green', label=f'{median_symbol}: {sim_med:.2f}')
+        ax1.axvline(sim_mean, c='blue', label=f'{mean_symbol}: {sim_mean:.2f}')
+        ax1.axvline(sim_std, c='black', alpha=0, label=f'{std_symbol}: {sim_std:.2f}')
+
+        ax2.axvline(corr_med, c='green', label=f'{median_symbol}: {corr_med:.2f}')
+        ax2.axvline(corr_mean, c='blue', label=f'{mean_symbol}: {corr_mean:.2f}')
+        ax2.axvline(corr_std, c='black', alpha=0, label=f'{std_symbol}: {corr_std:.2f}')
 
         # make the labels visible
         ax1.legend()
@@ -474,7 +486,7 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
         (COL_CID, 'Cluster'),
         (COL_STRM_ORD, 'Stream Order'),
     ]:
-        stats_to_compare = ['me', 'r2', 'kge', 'mape']
+        stats_to_compare = ['me', 'r', 'kge', 'mape']
         fig, axes = plt.subplots(len(stats_to_compare), 2,
                                  figsize=(6, 2.25 * len(stats_to_compare)), dpi=1000, tight_layout=True)
         fig.suptitle(f' Error Metrics vs {exp_name} - Before and After Correction', fontweight='bold')
@@ -485,11 +497,11 @@ def boxplots_explanatory(bdf: pd.DataFrame = None) -> None:
             stat_label = stat.upper()
             if stat == 'kge':
                 yrange = (-3, 1)
-                axes[idx][0].axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
-                axes[idx][1].axhline(-0.44, c='red', linestyle='--', label='KGE = -0.44')
+                axes[idx][0].axhline(-0.41, c='red', linestyle='--', label='KGE = -0.41')
+                axes[idx][1].axhline(-0.41, c='red', linestyle='--', label='KGE = -0.41')
             elif stat == 'me':
                 yrange = (-4000, 4000)
-            elif stat == 'r2':
+            elif stat == 'r':
                 yrange = (-.25), 1
             elif stat == 'mape':
                 yrange = (0, 5)

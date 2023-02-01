@@ -122,7 +122,7 @@ CLUSTER_COUNT_JSON = 'best-fit-cluster-count.json'
 # tables produced by the bootstrap validation process
 TABLE_ASSIGN_BTSTRP = 'assign_table_bootstrap.csv'
 TABLE_BTSTRP_METRICS = 'bootstrap_metrics.csv'
-BTSTRP_METRIC_NAMES = ['me', 'mae', 'rmse', 'kge', 'r2', 'nse', 'mape']
+BTSTRP_METRIC_NAMES = ['me', 'mae', 'rmse', 'kge', 'r', 'nse', 'mape']
 
 GENERATED_TABLE_NAMES_MAP = {
     'assign_table': TABLE_ASSIGN,
