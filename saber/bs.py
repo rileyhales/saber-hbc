@@ -46,9 +46,16 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info('Determining bootstrap assignments')
 
+    # Load the observed data dataframe
+    gauge_clstr = pd.read_csv('/Users/yubinbaaniya/Documents/WORLD BIAS/saber workdir/dtw_minimum_distances_summary.csv')
+
+
     # subset the assign dataframe to only rows which contain gauges - possible options to be assigned
     gauges_df = assign_df[assign_df[COL_GID].notna()].copy()
+    # Calculate the minimum DTW distance and update the assign_df
+    gauges_df = gauges_df.merge(gauge_clstr[['File', 'clst_gauge']], left_on='gauge_id', right_on='File', how='inner')
 
+    # subset the assign dataframe to only rows which contain gauges - possible options to be assigned
     with Pool(get_state('n_processes')) as p:
         bs_df = pd.concat(
             p.starmap(_map_mp_table, [[assign_df, gauges_df, row_idx] for row_idx in gauges_df.index])
@@ -56,7 +63,6 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
 
     write_table(bs_df, 'assign_table_bootstrap')
     return bs_df
-
 
 def _map_mp_table(assign_df: pd.DataFrame, gauge_df: pd.DataFrame, row_idx: int) -> pd.DataFrame:
     """
