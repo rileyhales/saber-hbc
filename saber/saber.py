@@ -89,8 +89,8 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hz: str, gauge_data: str) 
         if asgn_mid != mid:
             sim_b = hz['Qout'][:, rivids == int(asgn_mid)].values
             sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[COL_QSIM])
-            sim_b = sim_b[sim_b.index.year >= 1980]
-        sim_a = sim_a[sim_a.index.year >= 1980]
+            sim_b = sim_b[sim_b.index.year >= 1950]
+        sim_a = sim_a[sim_a.index.year >= 1950]
         hz.close()
 
         if asgn_mid == mid:
