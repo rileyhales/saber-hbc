@@ -39,6 +39,7 @@ drain_gis = ''
 gauge_gis = ''
 gauge_data = ''
 hindcast_zarr = ''
+bias_correct = ''
 
 # processing options
 n_processes = 1
@@ -53,6 +54,8 @@ VALID_YAML_KEYS = {'workdir',
                    'gauge_gis',
                    'gauge_data',
                    'hindcast_zarr',
+                   'gauge_cluster_data',
+                   'bias_correct'
                    'n_processes', }
 
 VALID_GIS_NAMES = ['drain_gis', 'gauge_gis']
@@ -64,8 +67,8 @@ COL_RID = 'reg_id'  # regulate id column name: in regulate_table
 COL_CID = 'clstr_id'  # cluster column name: in cluster_table
 
 COL_STRM_ORD = 'strahler_order'  # strahler order column name: in drain_table
-COL_X = 'x_mod'  # x coordinate column name: in drain_table
-COL_Y = 'y_mod'  # y coordinate column name: in drain_table
+COL_X = 'x'  # x coordinate column name: in drain_table
+COL_Y = 'y'  # y coordinate column name: in drain_table
 COL_MID_DOWN = 'downstream_model_id'  # downstream model id column name: in drain_table
 
 COL_RPROP = 'rprop'  # regulated stream propagation: created by assign_table
@@ -168,6 +171,8 @@ def read_config(config: str) -> None:
         logger.warning(f'Gauge data directory does not exist: {gauge_data}')
     if not glob.glob(hindcast_zarr):
         logger.warning(f'Hindcast zarr directory does not exist or is empty: {hindcast_zarr}')
+    if not os.path.exists(gauge_cluster_data):
+        logger.warning(f'Gauge cluster file does not exist: {gauge_cluster_data}')
 
     return
 
@@ -279,6 +284,11 @@ def write_table(df: pd.DataFrame, name: str) -> None:
         ValueError: if the table format is not recognized
     """
     table_path = _get_table_path(name)
+    # Ensure the directory exists
+    directory = os.path.dirname(table_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
     table_format = os.path.splitext(table_path)[-1]
     if table_format == '.parquet':
         return df.to_parquet(table_path)
