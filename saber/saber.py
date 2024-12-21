@@ -11,6 +11,7 @@ from scipy import interpolate, stats
 
 from .fdc import fdc
 from .fdc import sfdc
+from .fdc import z_scale
 from .io import COL_ASN_MID
 from .io import COL_GID
 from .io import COL_MID
@@ -75,32 +76,37 @@ def map_saber(mid: str, asgn_mid: str, asgn_gid: str, hz: str, gauge_data: str) 
             logger.debug(f'No gauge assigned to {mid}')
             return
 
-        # find the observed data to be used for correction
+        # find the observed data to be used for correction (hamro folder bata observed gauged data read garera obs_df ma rakhcha)
         if not os.path.exists(os.path.join(gauge_data, f'{asgn_gid}.csv')):
             logger.debug(f'Observed data "{asgn_gid}" not found. Cannot correct "{mid}".')
-        obs_df = pd.read_csv(os.path.join(gauge_data, f'{asgn_gid}.csv'), index_col=0)
+        obs_df = pd.read_csv(os.path.join(gauge_data, f'{asgn_gid}.csv'), index_col=0)  ##use this for other general file
+        #obs_df = pd.read_csv(os.path.join(gauge_data, f'{asgn_gid}.csv'), index_col=0, usecols=[0, 2]).dropna(how='all')  ##only use this when running anamoly csv file
         obs_df.index = pd.to_datetime(obs_df.index)
-
+        obs_df.iloc[:, 0] = obs_df.iloc[:, 0].clip(lower=0)
+        obs_df.columns = [COL_QOBS]
         # perform corrections
         hz = xarray.open_mfdataset(hz, concat_dim='rivid', combine='nested', parallel=True, engine='zarr')
         rivids = hz.rivid.values
-        sim_a = hz['Qout'][:, rivids == int(mid)].values
+        sim_a = hz['Qout'][:, rivids == int(mid)].values # will extract values from xarray for all time period when rivid matches mid
         sim_a = pd.DataFrame(sim_a, index=hz['time'].values, columns=[COL_QSIM])
+        #print(asgn_mid)
+        #print(mid)
         if asgn_mid != mid:
             sim_b = hz['Qout'][:, rivids == int(asgn_mid)].values
             sim_b = pd.DataFrame(sim_b, index=sim_a.index, columns=[COL_QSIM])
-            sim_b = sim_b[sim_b.index.year >= 1980]
-        sim_a = sim_a[sim_a.index.year >= 1980]
+            sim_b = sim_b[(sim_b.index.year >= 1941) & (sim_b.index.year <= 2025)]
+        sim_a = sim_a[(sim_a.index.year >= 1941) & (sim_a.index.year <= 2025)]
         hz.close()
 
         if asgn_mid == mid:
             corrected_df = fdc_mapping(sim_a, obs_df)
         else:
             corrected_df = sfdc_mapping(
-                sim_b, obs_df, sim_a,
+                sim_b, obs_df, sim_a,         ####is this order for the input in the function correct?
                 use_log=True,
-                drop_outliers=True, outlier_threshold=3,
+                drop_outliers = False, outlier_threshold=3,
                 fit_gumbel=True, fit_range=(5, 95),
+                asgn_gid = asgn_gid
             )
 
         return corrected_df
@@ -134,6 +140,7 @@ def fdc_mapping(sim_df: pd.DataFrame, obs_df: pd.DataFrame) -> pd.DataFrame:
         month_sim_fdc = fdc(month_sim.values)
         month_obs_fdc = fdc(month_obs.values)
 
+
         # make interpolator for 1) sim flow to sim prob, and 2) obs prob to obs flow
         to_prob = _make_interpolator(month_sim_fdc.values.flatten(), month_sim_fdc.index)
         to_flow = _make_interpolator(month_obs_fdc.index, month_obs_fdc.values.flatten())
@@ -154,7 +161,7 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
                  filter_scalar_fdc: bool = False, filter_range: tuple = (0, 80),
                  extrapolate: str = 'nearest', fill_value: int or float = None,
                  fit_gumbel: bool = False, fit_range: tuple = (10, 90),
-                 metadata: bool = False, ) -> pd.DataFrame:
+                 metadata: bool = False, asgn_gid: str = None ) -> pd.DataFrame:
     """
     Removes the bias from simulated discharge using the SABER method.
 
@@ -195,10 +202,38 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
         factor applied to correct the discharge, and the percentile of the uncorrected flow (in the seasonal grouping,
         if applicable).
     """
+
+    def save_scalar_fdc(scalar_fdc, month_val=None):
+        """Helper function to save scalar FDC for each month"""
+        if asgn_gid:
+            scalar_path = '/Users/yubinbaaniya/Documents/WORLD BIAS/saber workdir/Bias corrected Time series/SFDC_FDC'
+            os.makedirs(scalar_path, exist_ok=True)
+
+            scalar_fdc.to_csv(os.path.join(scalar_path, f'{asgn_gid}_{month_val}.csv'))
+
+    def adjust_scalar_fdc(scalar_fdc):
+        # Create a copy of the original DataFrame to avoid altering it
+        adjusted_fdc = scalar_fdc.copy()
+
+        # Step 1: Set `scalars` to 1 if they are less than 0.001
+        adjusted_fdc['scalars'] = adjusted_fdc['scalars'].apply(lambda x: 1 if x < 0.001 else x)
+
+        # Step 2: Fill missing `p_exceed` values down to 0 with `scalars` set to 1
+        full_range = pd.Index(range(0, 101))
+        missing_p_exceed = full_range.difference(adjusted_fdc.index)
+
+        if len(missing_p_exceed) > 0:  # If there are any missing values
+            missing_rows = pd.DataFrame({'scalars': 1}, index=missing_p_exceed)
+            adjusted_fdc = pd.concat([adjusted_fdc, missing_rows]).sort_index(ascending=False)
+
+        return adjusted_fdc
+
+
     if fix_seasonally:
         # list of the unique months in the historical simulation. should always be 1->12 but just in case...
         monthly_results = []
         for month in sorted(set(sim_flow_a.index.strftime('%m'))):
+            #print(month)
             # filter data to current iteration's month
             mon_obs_a = obs_flow_a[obs_flow_a.index.month == int(month)].dropna()
 
@@ -208,15 +243,16 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
                 else:
                     raise ValueError(f'Invalid value for argument "empty_months". Given: {empty_months}.')
 
-            mon_sim_a = sim_flow_a[sim_flow_a.index.month == int(month)].dropna()
-            mon_sim_b = sim_flow_b[sim_flow_b.index.month == int(month)].dropna()
+            mon_sim_a = sim_flow_a[sim_flow_a.index.month == int(month)].dropna().clip(lower=0)
+            mon_sim_b = sim_flow_b[sim_flow_b.index.month == int(month)].dropna().clip(lower=0)
             monthly_results.append(sfdc_mapping(
                 mon_sim_a, mon_obs_a, mon_sim_b,
                 fix_seasonally=False, empty_months=empty_months,
-                drop_outliers=drop_outliers, outlier_threshold=outlier_threshold,
+                drop_outliers=False, outlier_threshold=outlier_threshold,
                 filter_scalar_fdc=filter_scalar_fdc, filter_range=filter_range,
                 extrapolate=extrapolate, fill_value=fill_value,
-                fit_gumbel=fit_gumbel, fit_range=fit_range, )
+                fit_gumbel=fit_gumbel, fit_range=fit_range,
+                asgn_gid=asgn_gid,)
             )
         # combine the results from each monthly into a single dataframe (sorted chronologically) and return it
         return pd.concat(monthly_results).sort_index()
@@ -239,6 +275,7 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
 
     # calculate the scalar flow duration curve (at point A with simulated and observed data)
     scalar_fdc = sfdc(sim_fdc_a[COL_QSIM], obs_fdc[COL_QOBS])
+    scalar_fdc = adjust_scalar_fdc(scalar_fdc)
     if filter_scalar_fdc:
         scalar_fdc = scalar_fdc[scalar_fdc['p_exceed'].between(filter_range[0], filter_range[1])]
 
@@ -256,11 +293,20 @@ def sfdc_mapping(sim_flow_a: pd.DataFrame, obs_flow_a: pd.DataFrame, sim_flow_b:
                                            extrap=extrapolate,
                                            fill_value=fill_value)
 
-    # apply interpolators to correct flows at B with data from A
+    # #for z scale
+    # qb_original = sim_flow_b.values.flatten()
+    # qb_originals, mean_flow, std_flow = z_scale(qb_original)
+    # p_exceed = flow_to_percent(qb_originals)
+    # scalars = percent_to_scalar(p_exceed).astype(np.float32)
+    # qb_adjust = np.abs(np.divide(qb_originals, scalars))
+    # qb_adjusted = (qb_adjust * std_flow) + mean_flow
+
+    #For FDC
     qb_original = sim_flow_b.values.flatten()
+    #qb_originals, mean_flow, std_flow = z_scale(qb_original)
     p_exceed = flow_to_percent(qb_original)
     scalars = percent_to_scalar(p_exceed)
-    qb_adjusted = qb_original / scalars
+    qb_adjusted = np.abs(np.divide(qb_original, scalars))
 
     if fit_gumbel:
         qb_adjusted = _fit_extreme_values_to_gumbel(qb_adjusted, p_exceed, fit_range)
