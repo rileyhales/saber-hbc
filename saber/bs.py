@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-
+from dtaidistance import dtw
 from .assign import _map_assign_ungauged
 from .io import COL_ASN_GID
 from .io import COL_ASN_MID
@@ -46,9 +46,26 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info('Determining bootstrap assignments')
 
+    # Load the observed data dataframe
+    gauge_clstr = pd.read_csv('/Users/yubinbaaniya/Documents/WORLD BIAS/saber workdir/dtw_iteration_2_minimum_distances_summary_with_climate.csv')
     # subset the assign dataframe to only rows which contain gauges - possible options to be assigned
     gauges_df = assign_df[assign_df[COL_GID].notna()].copy()
+    # Calculate the minimum DTW distance and update the assign_df
+    #gauges_df = calculate_dtw_min_distance(gauges_df, observed_data_df)
+    gauges_df = gauges_df.merge(gauge_clstr[['File', 'clstr_gauge','Climate']], left_on='gauge_id', right_on='File', how='inner') #use this code to match gauge against cluster
 
+    #note that I have only put climate column for gauge but when regionalization you might need to put Climate column for 7 million river
+
+    assign_df = assign_df.merge(
+        gauges_df[['gauge_id','clstr_gauge', 'Climate']],
+        on='gauge_id',
+        how='outer'
+    )
+    # with Pool(get_state('n_processes')) as p:
+    #     bs_df = pd.concat(
+    #         p.starmap(_map_cluster_gauge, [[main_curves_df, observed_row, gauge] for gauge in gauges_df['gauge_id']]))
+
+    # subset the assign dataframe to only rows which contain gauges - possible options to be assigned
     with Pool(get_state('n_processes')) as p:
         bs_df = pd.concat(
             p.starmap(_map_mp_table, [[assign_df, gauges_df, row_idx] for row_idx in gauges_df.index])
@@ -57,6 +74,82 @@ def mp_table(assign_df: pd.DataFrame) -> pd.DataFrame:
     write_table(bs_df, 'assign_table_bootstrap')
     return bs_df
 
+# def calculate_min_dtw_index(main_curves_df: pd.DataFrame, observed_row: np.ndarray) -> str:
+#     """
+#     Calculate the DTW distance for each column in main_curves_df against the observed_row
+#     and return the column index with the smallest distance.
+#
+#     Args:
+#         main_curves_df: DataFrame containing the main curves (columns to compare against).
+#         observed_row: A single row of observed data as a numpy array.
+#
+#     Returns:
+#         The column index (or name) with the smallest DTW distance.
+#     """
+#     numpy_arrays = {col: main_curves_df[col].to_numpy() for col in main_curves_df.columns}
+#     distances = {col: dtw.distance(numpy_arrays[col].flatten(), observed_row) for col in numpy_arrays}
+#     min_distance_column = min(distances, key=distances.get)
+#     return min_distance_column
+
+# def _map_cluster_gauge(main_curves_df: pd.DataFrame, observed_row: pd.DataFrame, row_idx: int) -> pd.DataFrame:
+#     """
+#     Helper function for mp_table which assigns a single row of the assignment table to a different gauged stream.
+#     Separate function so it can be pickled for multiprocessing.
+#
+#     Args:
+#         assign_df: pandas.DataFrame of the assignment table
+#         gauge_df: pandas.DataFrame of the assignment table subset to only rows which contain gauges
+#         row_idx: the row number of the table to assign
+#
+#     Returns:
+#         pandas.DataFrame of the row with the new assignment
+#     """
+#     return calculate_min_dtw_index(assign_df, gauge_df.drop(row_idx), gauge_df.loc[row_idx][COL_MID])
+
+
+# def calculate_dtw_min_distance(gauges_df: pd.DataFrame, observed_data_df: pd.DataFrame) -> pd.DataFrame:
+#     """
+#     Calculates the minimum DTW distance for each row in the observed data against the columns in the main curves.
+#     The result is saved as a new column in the assign_df DataFrame.
+#
+#     Args:
+#         assign_df: pandas.DataFrame containing the assignment table, including 'gauge_id' column.
+#         observed_data_df: pandas.DataFrame containing the observed data.
+#
+#     Returns:
+#         assign_df: pandas.DataFrame updated with the minimum DTW distance information.
+#     """
+#     # Load the main curves dataframe
+#     main_curves_df = pd.read_csv(
+#         '/Users/yubinbaaniya/Documents/WORLD BIAS/saber workdir/clusters/cluster_centers_5.csv')
+#     main_curves_df = main_curves_df.sort_values(by='Unnamed: 0')
+#     main_curves_df = main_curves_df.drop(columns=['Unnamed: 0'])
+#
+#     # Ensure both DataFrames are aligned on the 'gauge_id' and 'File' columns
+#     gauges_df = gauges_df.merge(observed_data_df[['File']], left_on='gauge_id', right_on='File', how='inner')
+#
+#     # Initialize columns to store the minimum distance and corresponding column
+#     gauges_df['min_distance_column'] = np.nan
+#     gauges_df['min_distance_value'] = np.nan
+#
+#     # Iterate through each row in the observed_data_df
+#     for index, row in observed_data_df.iterrows():
+#         row_identifier = row['File']  # Assuming 'File' column is the identifier
+#         observed_row = row[1:].to_numpy()  # Convert the rest of the row to a numpy array
+#
+#         # Calculate DTW distance for each column in main_curves_df
+#         distances = {col: dtw.distance(main_curves_df[col].to_numpy().flatten(), observed_row) for col in
+#                      main_curves_df.columns}
+#
+#         # Find the column with the minimum DTW distance for the current row
+#         min_distance_column = min(distances, key=distances.get)
+#         min_distance_value = distances[min_distance_column]
+#
+#         # Update the assign_df with the minimum distance and corresponding column
+#         gauges_df.loc[gauges_df['File'] == row_identifier, 'min_distance_column'] = min_distance_column
+#         gauges_df.loc[gauges_df['File'] == row_identifier, 'min_distance_value'] = min_distance_value
+#
+#     return gauges_df
 
 def _map_mp_table(assign_df: pd.DataFrame, gauge_df: pd.DataFrame, row_idx: int) -> pd.DataFrame:
     """
@@ -101,9 +194,14 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
 
         # create a dataframe of original and corrected streamflow that can be used for calculating metrics
         metrics_df = pd.read_csv(os.path.join(gauge_data, f'{row[COL_GID]}.csv'), index_col=0)
+       # metrics_df = pd.read_csv(os.path.join(gauge_data, f'{row[COL_GID]}.csv'), index_col=0,usecols=[0,2]).dropna(how='all')  ##use this to run anamoly csv file
         metrics_df.columns = [COL_QOBS, ]
         metrics_df.index = pd.to_datetime(metrics_df.index)
         metrics_df = pd.merge(corrected_df, metrics_df, how='inner', left_index=True, right_index=True)
+        #save the bias corrected value
+        #Bias_correct= '/Users/yubinbaaniya/Documents/WORLD BIAS/saber workdir/Bias corrected Time series/1941 clstr fixed'
+        #Save the metrics_df with the COL_MID in the file name
+        #metrics_df.to_csv(os.path.join(Bias_correct, f'{row[COL_MID]}.csv'))
 
         # drop rows with inf or nan values
         metrics_df = metrics_df.replace([np.inf, -np.inf], np.nan).dropna()
@@ -129,13 +227,21 @@ def metrics(row_idx: int, assign_df: pd.DataFrame, gauge_data: str, hindcast_zar
             'rmse_sim': np.sqrt(np.mean(diff_sim ** 2)),
             'nse_sim': hs.nse(sim_values, obs_values),
             'kge_sim': hs.kge_2012(sim_values, obs_values),
-
             'me_corr': np.mean(diff_corr),
             'mae_corr': np.mean(np.abs(diff_corr)),
             'rmse_corr': np.sqrt(np.mean(diff_corr ** 2)),
             'nse_corr': hs.nse(mod_values, obs_values),
             'kge_corr': hs.kge_2012(mod_values, sim_values),
-
+            'nrmse_corr': hs.nrmse_mean(mod_values, obs_values),
+            'pearson_r_corr': hs.pearson_r(mod_values, obs_values),
+            'r2_corr': hs.r_squared(mod_values, obs_values),
+            'r2_sim': hs.r_squared(sim_values, obs_values),
+            'nrmse_sim': hs.nrmse_mean(sim_values, obs_values),
+            'pearson_r_sim': hs.pearson_r(sim_values, obs_values),
+            'std_obs': np.std(obs_values),
+            'std_sim':np.std(mod_values),
+            'mean_obs':np.mean(obs_values),
+            'mean_sim':np.mean(mod_values),
             'reach_id': row[COL_MID],
             'gauge_id': row[COL_GID],
             'asgn_reach_id': row[COL_ASN_MID],
@@ -167,6 +273,7 @@ def mp_metrics(assign_df: pd.DataFrame = None) -> pd.DataFrame:
     # subset the assign dataframe to only rows which contain gauges & reset the index
     assign_df = assign_df[assign_df[COL_GID].notna()].reset_index(drop=True)
 
+    #harek index of assigntable ko hercha ra tesko corresponding station khojcha in gauge directory ma and then on zarr
     with Pool(get_state('n_processes')) as p:
         metrics_df = pd.concat(
             p.starmap(
@@ -201,13 +308,13 @@ def postprocess_metrics(bdf: pd.DataFrame = pd.DataFrame or None, gauge_gdf: gpd
         bdf[cols] = bdf[cols].astype(float)
         bdf[metric] = np.nan
 
-    for metric in ['kge', 'nse']:
+    for metric in ['kge', 'nse']: # A value of 2 shows improved performance. A value of 1 indicates small change (within 0.2 of simulated). A value of 0 signals declined performance.
         # want to see increase or difference less than or equal to 0.2
         bdf.loc[bdf[f'{metric}_corr'] > bdf[f'{metric}_sim'], metric] = 2
         bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) <= 0.2, metric] = 1
         bdf.loc[bdf[f'{metric}_corr'] < bdf[f'{metric}_sim'], metric] = 0
 
-    for metric in ['me', 'mae', 'rmse']:
+    for metric in ['me', 'mae', 'rmse']: #A 2 indicates reduced error. A '1' signals small error reduction (within 10% of simulated). A 0 shows increased error.
         # want to see decrease in absolute value or difference less than 10%
         bdf.loc[bdf[f'{metric}_corr'].abs() < bdf[f'{metric}_sim'].abs(), metric] = 2
         bdf.loc[np.abs(bdf[f'{metric}_corr'] - bdf[f'{metric}_sim']) < bdf[
@@ -301,11 +408,19 @@ def pie_charts(bdf: pd.DataFrame = None) -> None:
     # make a grid of pie charts for each metric
     fig, axes = plt.subplots(2, 2, figsize=(4, 4), dpi=2000, tight_layout=True)
     fig.suptitle('Bootstrap Validation Metrics')
+    labels_map = {0: 'Worse', 1: 'Same', 2: 'Better'}
     for i, metric in enumerate(['kge', 'me', 'mae', 'rmse']):
         ax = axes[i // 2, i % 2]
         ax.set_title(metric.upper())
-        ax.pie(bdf[metric].value_counts().sort_index(),
-               labels=['Worse', 'Same', 'Better'],
+        # Count occurrences of each category
+        value_counts = bdf[metric].value_counts().sort_index()
+
+        # Create labels dynamically based on available categories
+        labels = [labels_map.get(category, category) for category in value_counts.index]
+
+        # Plot pie chart with available categories
+        ax.pie(value_counts,
+               labels=labels,
                autopct='%1.1f%%')
     fig.savefig(os.path.join(get_dir('validation'), 'figure_metric_change_pie.png'))
 
