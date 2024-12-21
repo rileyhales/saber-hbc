@@ -98,7 +98,6 @@ def init(drain_table: pd.DataFrame = None,
 
     if cache:
         write_table(assign_df, 'assign_table')
-
     return assign_df
 
 
@@ -144,7 +143,7 @@ def mp_prop_regulated(df: pd.DataFrame, n_processes: int or None = None) -> pd.D
         logger.info('Propagating Downstream')
         df_prop = pd.concat(p.starmap(
             _map_propagate,
-            [(df, x, 'down', COL_RPROP, False) for x in df[df[COL_RID].notna()][COL_MID].values]
+            [(df, x, 'down', COL_RPROP, False) for x in df[df[COL_RID].notna()][COL_MID].values] #regulate id ko model id ma iterate garcha
         ))
         logger.info('Resolving Propagation')
         df_prop = pd.concat(p.starmap(_map_resolve_props, [(df_prop, x, COL_RPROP) for x in df_prop[COL_MID].unique()]))
@@ -179,7 +178,6 @@ def _map_propagate(df: pd.DataFrame, start_mid: str, direction: str, prop_col: s
         select_same_order_streams = True
     else:
         select_same_order_streams = df[COL_STRM_ORD] == start_order
-
     # # modify the start row to include the propagation information
     # start_row[[COL_ASN_MID, COL_ASN_GID, prop_col]] = [start_mid, start_gid, f'{direction}-{0}-{start_mid}']
     # assigned_rows.append(start_row)
@@ -195,6 +193,8 @@ def _map_propagate(df: pd.DataFrame, start_mid: str, direction: str, prop_col: s
                 id_selector = df[COL_MID] == start_row[COL_MID_DOWN].values[0]
             else:  # direction == 'up':
                 id_selector = df[COL_MID_DOWN] == start_row[COL_MID].values[0]
+                order_selector = (df[COL_STRM_ORD] == start_order) | (df[COL_STRM_ORD] == start_order - 1)
+                id_selector = np.logical_and(id_selector, order_selector)
 
             # select the next row using the ID and Order selectors
             start_row = df[np.logical_and(id_selector, select_same_order_streams)]
