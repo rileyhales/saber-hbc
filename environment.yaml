@@ -1,0 +1,24 @@
+name: saber
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.12
+  - contextily
+  - fastparquet
+  - geopandas
+  - hydrostats
+  - joblib
+  - kneed
+  - matplotlib
+  - natsort
+  - numba
+  - numpy
+  - pandas
+  - pyarrow
+  - pyyaml
+  - requests
+  - scikit-learn
+  - scipy
+  - seaborn
+  - xarray
+  - zarr
