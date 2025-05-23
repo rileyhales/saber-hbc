@@ -24,10 +24,9 @@ if __name__ == '__main__':
     df = pd.read_parquet('./assign_table.parquet')
 
     # Initial assignments for gauged basins
-    selector = df[COL_GID].notna()
-    df.loc[selector, COL_ASN_MID] = df[COL_MID]
-    df.loc[selector, COL_ASN_GID] = df[COL_GID]
-    df.loc[selector, COL_ASN_REASON] = 'gauged'
+    df.loc[df[COL_GID].notna(), COL_ASN_MID] = df[COL_MID]
+    df.loc[df[COL_GID].notna(), COL_ASN_GID] = df[COL_GID]
+    df.loc[df[COL_GID].notna(), COL_ASN_REASON] = 'gauged'
 
     # max_workers = os.cpu_count() * 2
     max_workers = os.cpu_count()
@@ -37,8 +36,8 @@ if __name__ == '__main__':
             logger.info(f'Assigning basins in cluster {cluster_number}')
             # Subset data for this cluster
             c_df = df[df[COL_CID] == cluster_number]
-            c_df = c_df[c_df[COL_GID].notna()]
             mids = c_df[c_df[COL_ASN_REASON] == 'unassigned'][COL_MID].values
+            print(mids)
             # Threaded assignment
             futures = {executor.submit(assign_ungauged_wrapper, mid, df, c_df): mid for mid in mids}
             results = []

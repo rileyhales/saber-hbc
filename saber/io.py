@@ -64,8 +64,8 @@ COL_RID = 'reg_id'  # regulate id column name: in regulate_table
 COL_CID = 'clstr_id'  # cluster column name: in cluster_table
 
 COL_STRM_ORD = 'strahler_order'  # strahler order column name: in drain_table
-COL_X = 'x_mod'  # x coordinate column name: in drain_table
-COL_Y = 'y_mod'  # y coordinate column name: in drain_table
+COL_X = 'x'  # x coordinate column name: in drain_table
+COL_Y = 'y'  # y coordinate column name: in drain_table
 COL_MID_DOWN = 'downstream_model_id'  # downstream model id column name: in drain_table
 
 COL_RPROP = 'rprop'  # regulated stream propagation: created by assign_table
