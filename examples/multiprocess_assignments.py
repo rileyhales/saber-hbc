@@ -3,6 +3,7 @@ import os
 from multiprocessing import Pool
 
 import pandas as pd
+from tqdm import tqdm
 
 import saber
 from saber.io import COL_ASN_GID, COL_ASN_MID, COL_ASN_REASON, COL_CID, COL_GID, COL_MID
@@ -39,9 +40,14 @@ if __name__ == '__main__':
         logger.info(f'Assigning basins in cluster {cluster_number}')
         c_df = df[df[COL_CID] == cluster_number]
         mids = c_df[c_df[COL_ASN_REASON] == 'unassigned'][COL_MID].values
+        print(mids.shape)
 
         with Pool(os.cpu_count(), initializer=init_globals, initargs=(df, c_df)) as p:
-            results = p.map(assign_wrapper, mids)
+            results = list(tqdm(
+                p.imap(assign_wrapper, mids),
+                total=len(mids),
+                desc=f'Cluster {cluster_number}'
+            ))
 
         updated = pd.concat(results)
         df = pd.concat([
