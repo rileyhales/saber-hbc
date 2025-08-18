@@ -1,0 +1,17 @@
+# file paths to input data
+workdir: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir'
+
+cluster_data: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\2nd_Z_scaled_without_index_name.parquet'
+
+drain_table: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\drain_table.parquet'
+gauge_table: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\gauge_table.parquet'
+regulate_table: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\regulate_table.parquet'
+
+drain_gis: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\drain_gis.gpkg'
+gauge_gis: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\gauge_gis.gpkg'
+
+gauge_data: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\gauge_data\\observed_data'
+hindcast_zarr: 'C:\\Users\\ybaaniya\\Downloads\\Yubin\\WORLD BIAS\\WORLD BIAS\\saber workdir\\filtered_data.zarr'
+
+# options for processing data
+n_processes: 22
