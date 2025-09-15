@@ -153,7 +153,7 @@ def mp_prop_regulated(df: pd.DataFrame, n_processes: int or None = None) -> pd.D
 
 
 def _map_propagate(df: pd.DataFrame, start_mid: str, direction: str, prop_col: str,
-                   same_order: bool = True, max_steps: int = 15) -> pd.DataFrame or None:
+                   same_order: bool = False, max_steps: int = 20) -> pd.DataFrame or None:
     """
     Meant to be mapped over a dataframe to propagate assignments downstream or upstream
 
@@ -178,7 +178,10 @@ def _map_propagate(df: pd.DataFrame, start_mid: str, direction: str, prop_col: s
     if same_order:
         select_same_order_streams = True
     else:
-        select_same_order_streams = df[COL_STRM_ORD] == start_order
+        select_same_order_streams = np.logical_and(
+            df[COL_STRM_ORD] >= start_order - 1,
+            df[COL_STRM_ORD] <= start_order + 1
+        )
 
     # # modify the start row to include the propagation information
     # start_row[[COL_ASN_MID, COL_ASN_GID, prop_col]] = [start_mid, start_gid, f'{direction}-{0}-{start_mid}']
