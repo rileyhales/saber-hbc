@@ -63,7 +63,7 @@ if __name__ == '__main__':
     _global_gdf = df[df[COL_GID].notna()].copy(deep=True)
     print('Assign Basins within Clusters')
     for cluster_number in range(df[COL_CID].max() + 1):
-        table_name = f'assign_table_cluster_{cluster_number}.parquet'
+        table_name = f'assign_table-cluster{cluster_number}.parquet'
         if os.path.exists(table_name):
             print(f'Skipping cluster {cluster_number}, already processed.')
             continue
@@ -74,12 +74,12 @@ if __name__ == '__main__':
 
         with Pool(os.cpu_count(), initializer=init_globals, initargs=(c_df,)) as p:
             results = list(tqdm(
-                p.imap(assign_wrapper, mids),
+                p.imap_unordered(assign_wrapper, mids, chunksize=50),
                 total=len(mids),
                 desc=f'Cluster {cluster_number}'
             ))
 
-        pd.concat(results).reset_index(drop=True).to_parquet(f'./assign_table-cluster{cluster_number}.parquet')
+        pd.concat(results).reset_index(drop=True).to_parquet(table_name)
 
     cluster_tables = pd.concat([pd.read_parquet(f) for f in glob('./assign_table-cluster*.parquet')], ignore_index=True)
     prop_assigned = df[df[COL_ASN_REASON].ne('unassigned')].reset_index(drop=True)
